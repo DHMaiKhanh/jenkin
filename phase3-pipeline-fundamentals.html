@@ -1,0 +1,1234 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Giai đoạn 3 — Pipeline Fundamentals | Khóa học Jenkins</title>
+<link rel="stylesheet" href="assets/course.css">
+</head>
+<body class="lang-vi">
+<div class="layout">
+<nav class="side">
+  <div class="brand">🤵 Jenkins<small><span class="vi">Giai đoạn 3 · Pipeline Fundamentals</span><span class="en">Stage 3 · Pipeline Fundamentals</span></small></div>
+  <div class="lang-toggle">
+    <button data-lang="vi" class="on">VI</button>
+    <button data-lang="en">EN</button>
+  </div>
+  <a class="nav-home" href="index.html"><span class="vi">← Mục lục khóa học</span><span class="en">← Course index</span></a>
+  <div class="grp"><span class="vi">Bài học</span><span class="en">Lessons</span></div>
+  <a class="lnk" href="#jenkinsfile">3.1 · <span class="vi">Jenkinsfile là gì</span><span class="en">What is a Jenkinsfile</span></a>
+  <a class="lnk" href="#declarative-syntax">3.2 · <span class="vi">Cú pháp Declarative</span><span class="en">Declarative syntax</span></a>
+  <a class="lnk" href="#agent-stages-steps">3.3 · agent / stages / steps</a>
+  <a class="lnk" href="#post-conditions">3.4 · <span class="vi">Khối post</span><span class="en">Post conditions</span></a>
+  <a class="lnk" href="#scripted-pipeline">3.5 · <span class="vi">Scripted Pipeline</span><span class="en">Scripted Pipeline</span></a>
+</nav>
+
+<main>
+<header class="top">
+  <div class="crumb"><span class="vi">Khóa học Jenkins › <b>Giai đoạn 3 — Pipeline Fundamentals</b></span><span class="en">Jenkins Course › <b>Stage 3 — Pipeline Fundamentals</b></span></div>
+  <h1><span class="vi">Pipeline Fundamentals</span><span class="en">Pipeline Fundamentals</span></h1>
+  <p class="lead"><span class="vi">Mục tiêu giai đoạn: hiểu Jenkinsfile là gì, viết được Declarative Pipeline hoàn chỉnh với agent/stages/steps/post, và làm quen với Scripted Pipeline bằng Groovy.</span><span class="en">Stage goal: understand what a Jenkinsfile is, write a complete Declarative Pipeline with agent/stages/steps/post, and get comfortable with Scripted Pipeline in Groovy.</span></p>
+</header>
+
+<!-- ============ 3.1 ============ -->
+<section class="lesson" id="jenkinsfile">
+<div class="lang vi">
+  <span class="phase-tag">Bài 3.1</span>
+  <h2>Jenkinsfile là gì</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Hiểu Jenkinsfile là gì, vì sao nên lưu pipeline dưới dạng code trong SCM, và khác biệt giữa job Pipeline với job Freestyle truyền thống.</div>
+  <h3>Định nghĩa</h3>
+  <p><b>Jenkinsfile</b> là một text file chứa định nghĩa Jenkins Pipeline, viết bằng Groovy DSL (Declarative hoặc Scripted), và được <b>checked-in vào source control</b> cùng với code của dự án — thường đặt tên chính xác là <code class="inline">Jenkinsfile</code> ở thư mục gốc repo.</p>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    stages {
+        <span class="fn">stage</span>(<span class="str">'Build'</span>) {
+            steps {
+                <span class="fn">echo</span> <span class="str">'Building...'</span>
+            }
+        }
+    }
+}</pre>
+  <h3>Pipeline as Code — vì sao dùng SCM</h3>
+  <p>Trước đây, cấu hình job Jenkins ("Freestyle") nằm hoàn toàn trong UI/database của Jenkins server — không có lịch sử thay đổi, khó review, khó tái tạo. Đưa pipeline vào <code class="inline">Jenkinsfile</code> nằm trong Git giải quyết các vấn đề đó.</p>
+  <table>
+    <tr><th>Đặc điểm</th><th>Freestyle job</th><th>Pipeline (Jenkinsfile)</th></tr>
+    <tr><td>Nơi lưu cấu hình</td><td>Database nội bộ Jenkins</td><td>File text trong repo Git</td></tr>
+    <tr><td>Kiểm soát phiên bản</td><td>Không có</td><td>Có — commit, diff, blame, revert</td></tr>
+    <tr><td>Code review</td><td>Không thể</td><td>Được — qua Pull Request</td></tr>
+    <tr><td>Khả năng phục hồi</td><td>Mất cấu hình nếu Jenkins hỏng</td><td>Chỉ cần clone lại repo</td></tr>
+    <tr><td>Logic phức tạp (if/else, vòng lặp)</td><td>Rất hạn chế</td><td>Đầy đủ sức mạnh Groovy</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Vì sao gọi là "pipeline as code"?</b>Vì toàn bộ quy trình CI/CD (build → test → deploy) được mô tả bằng <b>code</b> thay vì click chuột trong UI. Điều này cho phép áp dụng mọi thực hành tốt của kỹ thuật phần mềm (review, versioning, testing) vào chính pipeline.</div>
+  <h3>Jenkins tự phát hiện Jenkinsfile như thế nào</h3>
+  <p>Khi tạo job kiểu <b>Pipeline</b> hoặc <b>Multibranch Pipeline</b>, bạn cấu hình "Pipeline script from SCM" trỏ đến repo Git và chỉ định đường dẫn file (mặc định <code class="inline">Jenkinsfile</code> ở root). Mỗi lần build, Jenkins checkout repo, đọc Jenkinsfile, và thực thi nó.</p>
+<pre><span class="lbl">cấu trúc repo</span>my-app/
+├── <span class="fn">Jenkinsfile</span>          <span class="cmt"># Jenkins tự tìm file này ở root</span>
+├── src/
+├── package.json
+└── README.md</pre>
+  <div class="box tip"><b>💡 Multibranch Pipeline</b>Với Multibranch Pipeline, Jenkins tự động quét mọi branch trong repo, và branch nào có <code class="inline">Jenkinsfile</code> sẽ tự động được tạo thành một pipeline job riêng — không cần cấu hình tay từng branch.</div>
+  <div class="box warn"><b>⚠️ Đừng nhầm Jenkinsfile với script build</b>Jenkinsfile điều phối <b>các bước CI/CD cấp cao</b> (checkout, build, test, deploy) — nó không thay thế công cụ build của dự án (Maven, npm, Gradle...). Bên trong step <code class="inline">sh</code>/<code class="inline">bat</code>, bạn vẫn gọi các công cụ đó bình thường.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Tạo một repo Git mới, thêm file <code class="inline">Jenkinsfile</code> ở root với nội dung pipeline tối thiểu (agent any + 1 stage echo), commit và push. Sau đó tạo job Pipeline trỏ "from SCM" tới repo này.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Jenkinsfile</span></div>
+  <ol class="examples">
+    <li><span class="task">Jenkinsfile tối giản nhất có thể chạy được.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    stages {
+        <span class="fn">stage</span>(<span class="str">'Hello'</span>) {
+            steps { <span class="fn">echo</span> <span class="str">'Hello Jenkins'</span> }
+        }
+    }
+}</pre></li>
+    <li><span class="task">Đặt tên file khác mặc định trong cấu hình job (Script Path).</span>
+<pre><span class="lbl">Job config → Pipeline</span><span class="cmt">// Definition: Pipeline script from SCM
+// SCM: Git — Repository URL: https://github.com/org/app.git
+// Script Path: ci/Jenkinsfile</span></pre></li>
+    <li><span class="task">Cấu trúc repo cho Multibranch Pipeline (mỗi branch tự có Jenkinsfile).</span>
+<pre><span class="lbl">cây thư mục</span>app/ (branch: main)      → Jenkinsfile
+app/ (branch: develop)   → Jenkinsfile
+app/ (branch: feature/x) → Jenkinsfile</pre></li>
+    <li><span class="task">Jenkinsfile gọi công cụ build thật của dự án Node.js.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    stages {
+        <span class="fn">stage</span>(<span class="str">'Install'</span>) { steps { <span class="fn">sh</span> <span class="str">'npm install'</span> } }
+        <span class="fn">stage</span>(<span class="str">'Test'</span>)    { steps { <span class="fn">sh</span> <span class="str">'npm test'</span> } }
+    }
+}</pre></li>
+    <li><span class="task">Xem lịch sử thay đổi Jenkinsfile bằng git log — lợi ích của pipeline as code.</span>
+<pre><span class="lbl">terminal</span>git log --follow -p -- Jenkinsfile</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Jenkinsfile</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết Jenkinsfile tối thiểu chạy được với một stage "Build" in ra "Building".</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    stages {
+        <span class="fn">stage</span>(<span class="str">'Build'</span>) { steps { <span class="fn">echo</span> <span class="str">'Building'</span> } }
+    }
+}</pre></div></details></li>
+    <li><span class="task">Nêu 2 lý do vì sao Jenkinsfile nên nằm trong Git thay vì cấu hình qua UI.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>1) Có lịch sử thay đổi (version control), review qua Pull Request.
+2) Không mất cấu hình nếu Jenkins server bị hỏng — chỉ cần clone lại repo.</pre></div></details></li>
+    <li><span class="task">Chỉ định đường dẫn Jenkinsfile không nằm ở root mà ở thư mục ci/.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Trong cấu hình job Pipeline script from SCM:
+// Script Path: ci/Jenkinsfile</span></pre></div></details></li>
+    <li><span class="task">Giải thích tại sao Multibranch Pipeline tiện hơn khi có nhiều branch.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Jenkins tự quét tất cả branch trong repo, branch nào có
+// Jenkinsfile sẽ tự động thành 1 pipeline job — không cần
+// tạo job thủ công cho từng branch mới.</span></pre></div></details></li>
+    <li><span class="task">Viết Jenkinsfile gọi lệnh <code class="inline">mvn clean package</code> trong stage Build.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    stages {
+        <span class="fn">stage</span>(<span class="str">'Build'</span>) { steps { <span class="fn">sh</span> <span class="str">'mvn clean package'</span> } }
+    }
+}</pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 3.1</span>
+  <h2>What is a Jenkinsfile</h2>
+  <div class="box goal"><b>🎯 Goal</b>Understand what a Jenkinsfile is, why pipelines should be stored as code in SCM, and how a Pipeline job differs from a traditional Freestyle job.</div>
+  <h3>Definition</h3>
+  <p>A <b>Jenkinsfile</b> is a text file that contains the definition of a Jenkins Pipeline, written in Groovy DSL (Declarative or Scripted), and is <b>checked into source control</b> alongside your project code — conventionally named exactly <code class="inline">Jenkinsfile</code> at the repository root.</p>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    stages {
+        <span class="fn">stage</span>(<span class="str">'Build'</span>) {
+            steps {
+                <span class="fn">echo</span> <span class="str">'Building...'</span>
+            }
+        }
+    }
+}</pre>
+  <h3>Pipeline as Code — why use SCM</h3>
+  <p>Previously, Jenkins job configuration ("Freestyle") lived entirely in the Jenkins server's UI/database — no change history, hard to review, hard to reproduce. Putting the pipeline in a <code class="inline">Jenkinsfile</code> inside Git solves these problems.</p>
+  <table>
+    <tr><th>Aspect</th><th>Freestyle job</th><th>Pipeline (Jenkinsfile)</th></tr>
+    <tr><td>Where config lives</td><td>Jenkins internal database</td><td>Text file in Git repo</td></tr>
+    <tr><td>Version control</td><td>None</td><td>Yes — commit, diff, blame, revert</td></tr>
+    <tr><td>Code review</td><td>Not possible</td><td>Yes — via Pull Request</td></tr>
+    <tr><td>Disaster recovery</td><td>Config lost if Jenkins breaks</td><td>Just re-clone the repo</td></tr>
+    <tr><td>Complex logic (if/else, loops)</td><td>Very limited</td><td>Full power of Groovy</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Why "pipeline as code"?</b>Because the entire CI/CD process (build → test → deploy) is described as <b>code</b> instead of clicked together in a UI. This lets you apply every good software-engineering practice (review, versioning, testing) to the pipeline itself.</div>
+  <h3>How Jenkins discovers the Jenkinsfile</h3>
+  <p>When creating a <b>Pipeline</b> or <b>Multibranch Pipeline</b> job, you configure "Pipeline script from SCM" pointing to the Git repo and specify the file path (defaults to <code class="inline">Jenkinsfile</code> at root). On every build, Jenkins checks out the repo, reads the Jenkinsfile, and executes it.</p>
+<pre><span class="lbl">repo layout</span>my-app/
+├── <span class="fn">Jenkinsfile</span>          <span class="cmt"># Jenkins looks for this at root by default</span>
+├── src/
+├── package.json
+└── README.md</pre>
+  <div class="box tip"><b>💡 Multibranch Pipeline</b>With Multibranch Pipeline, Jenkins automatically scans every branch in the repo, and any branch containing a <code class="inline">Jenkinsfile</code> is automatically turned into its own pipeline job — no manual per-branch configuration needed.</div>
+  <div class="box warn"><b>⚠️ Don't confuse a Jenkinsfile with a build script</b>The Jenkinsfile orchestrates <b>high-level CI/CD steps</b> (checkout, build, test, deploy) — it does not replace your project's build tool (Maven, npm, Gradle...). Inside <code class="inline">sh</code>/<code class="inline">bat</code> steps you still call those tools normally.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Create a new Git repo, add a <code class="inline">Jenkinsfile</code> at the root with a minimal pipeline (agent any + 1 echo stage), commit and push. Then create a Pipeline job pointing "from SCM" to this repo.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Jenkinsfile</span></div>
+  <ol class="examples">
+    <li><span class="task">The simplest Jenkinsfile that will actually run.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    stages {
+        <span class="fn">stage</span>(<span class="str">'Hello'</span>) {
+            steps { <span class="fn">echo</span> <span class="str">'Hello Jenkins'</span> }
+        }
+    }
+}</pre></li>
+    <li><span class="task">Point a job to a non-default file path (Script Path).</span>
+<pre><span class="lbl">Job config → Pipeline</span><span class="cmt">// Definition: Pipeline script from SCM
+// SCM: Git — Repository URL: https://github.com/org/app.git
+// Script Path: ci/Jenkinsfile</span></pre></li>
+    <li><span class="task">Repo layout for Multibranch Pipeline (each branch has its own Jenkinsfile).</span>
+<pre><span class="lbl">tree</span>app/ (branch: main)      → Jenkinsfile
+app/ (branch: develop)   → Jenkinsfile
+app/ (branch: feature/x) → Jenkinsfile</pre></li>
+    <li><span class="task">Jenkinsfile calling a real build tool for a Node.js project.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    stages {
+        <span class="fn">stage</span>(<span class="str">'Install'</span>) { steps { <span class="fn">sh</span> <span class="str">'npm install'</span> } }
+        <span class="fn">stage</span>(<span class="str">'Test'</span>)    { steps { <span class="fn">sh</span> <span class="str">'npm test'</span> } }
+    }
+}</pre></li>
+    <li><span class="task">View a Jenkinsfile's change history with git log — a benefit of pipeline as code.</span>
+<pre><span class="lbl">terminal</span>git log --follow -p -- Jenkinsfile</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Jenkinsfile</span></div>
+  <ol class="drills">
+    <li><span class="task">Write a minimal runnable Jenkinsfile with a "Build" stage that echoes "Building".</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    stages {
+        <span class="fn">stage</span>(<span class="str">'Build'</span>) { steps { <span class="fn">echo</span> <span class="str">'Building'</span> } }
+    }
+}</pre></div></details></li>
+    <li><span class="task">Give 2 reasons a Jenkinsfile should live in Git rather than be configured via UI.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>1) Version control history, reviewable via Pull Request.
+2) No config lost if the Jenkins server breaks — just re-clone the repo.</pre></div></details></li>
+    <li><span class="task">Point the job to a Jenkinsfile not at the root but inside a ci/ folder.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// In job config, Pipeline script from SCM:
+// Script Path: ci/Jenkinsfile</span></pre></div></details></li>
+    <li><span class="task">Explain why Multibranch Pipeline is more convenient with many branches.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Jenkins automatically scans every branch in the repo;
+// any branch with a Jenkinsfile becomes its own pipeline job —
+// no manual job creation needed for new branches.</span></pre></div></details></li>
+    <li><span class="task">Write a Jenkinsfile that runs <code class="inline">mvn clean package</code> in a Build stage.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    stages {
+        <span class="fn">stage</span>(<span class="str">'Build'</span>) { steps { <span class="fn">sh</span> <span class="str">'mvn clean package'</span> } }
+    }
+}</pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 3.2 ============ -->
+<section class="lesson" id="declarative-syntax">
+<div class="lang vi">
+  <span class="phase-tag">Bài 3.2</span>
+  <h2>Cú pháp Declarative Pipeline</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Nắm được cấu trúc khung của một Declarative Pipeline: khối <code class="inline">pipeline {}</code> ở ngoài cùng, các section bắt buộc <code class="inline">agent</code> và <code class="inline">stages</code>, và khi nào nên chọn Declarative thay vì Scripted.</div>
+  <h3>Khối pipeline{} — điểm khởi đầu bắt buộc</h3>
+  <p>Mọi Declarative Pipeline phải bắt đầu bằng từ khóa <code class="inline">pipeline</code>, chứa bên trong là các "section" theo một cấu trúc cố định do Jenkins quy định — khác với Scripted Pipeline nơi bạn viết Groovy tự do.</p>
+<pre><span class="lbl">Jenkinsfile — khung Declarative</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>                 <span class="cmt">// ① BẮT BUỘC: chạy ở đâu</span>
+
+    environment {                 <span class="cmt">// ② tùy chọn: biến môi trường</span>
+        APP_ENV = <span class="str">'staging'</span>
+    }
+
+    options {                     <span class="cmt">// ③ tùy chọn: cấu hình pipeline</span>
+        timeout(time: <span class="num">30</span>, unit: <span class="str">'MINUTES'</span>)
+    }
+
+    stages {                      <span class="cmt">// ④ BẮT BUỘC: ít nhất 1 stage</span>
+        <span class="fn">stage</span>(<span class="str">'Build'</span>) {
+            steps {
+                <span class="fn">sh</span> <span class="str">'./build.sh'</span>
+            }
+        }
+        <span class="fn">stage</span>(<span class="str">'Test'</span>) {
+            steps {
+                <span class="fn">sh</span> <span class="str">'./test.sh'</span>
+            }
+        }
+    }
+
+    post {                        <span class="cmt">// ⑤ tùy chọn: hành động sau khi chạy</span>
+        always {
+            <span class="fn">echo</span> <span class="str">'Pipeline finished.'</span>
+        }
+    }
+}</pre>
+  <p>Hai section duy nhất <b>bắt buộc</b> là <code class="inline">agent</code> (cấp cao nhất, quy định nơi thực thi) và <code class="inline">stages</code> (chứa ít nhất một <code class="inline">stage</code>). Mọi section khác đều tùy chọn.</p>
+  <h3>Declarative vs Scripted</h3>
+  <table>
+    <tr><th>Tiêu chí</th><th>Declarative</th><th>Scripted</th></tr>
+    <tr><td>Cú pháp gốc</td><td><code>pipeline { ... }</code>, cấu trúc cố định</td><td><code>node { ... }</code>, Groovy thuần</td></tr>
+    <tr><td>Độ nghiêm ngặt</td><td>Bị giới hạn theo schema, dễ đọc</td><td>Tự do hoàn toàn, linh hoạt hơn</td></tr>
+    <tr><td>Đường cong học tập</td><td>Thấp, dễ vào</td><td>Cần biết Groovy sâu hơn</td></tr>
+    <tr><td>Validate cú pháp</td><td>Có (linter, Replay)</td><td>Hạn chế</td></tr>
+    <tr><td>Được khuyến nghị</td><td>Có — mặc định nên dùng</td><td>Khi cần logic quá phức tạp</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Vì sao Declarative là lựa chọn mặc định?</b>Cú pháp có cấu trúc rõ ràng giúp Jenkins <b>xác thực (validate) và hiển thị</b> pipeline tốt hơn trong Blue Ocean/Stage View, dễ đọc với người mới, và vẫn có thể "thoát" ra Groovy thuần bằng khối <code class="inline">script {}</code> khi cần.</div>
+  <h3>Comment và định dạng</h3>
+<pre><span class="lbl">Jenkinsfile</span><span class="cmt">// Đây là comment một dòng — dùng cú pháp Groovy</span>
+<span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    stages {
+        <span class="fn">stage</span>(<span class="str">'Demo'</span>) {
+            steps {
+                <span class="fn">echo</span> <span class="str">'Xin chào'</span> <span class="cmt">/* comment cuối dòng */</span>
+            }
+        }
+    }
+}</pre>
+  <div class="box warn"><b>⚠️ Lỗi cú pháp thường gặp</b>Quên section <code class="inline">stages</code>, thiếu <code class="inline">steps</code> bên trong <code class="inline">stage</code>, hoặc đặt <code class="inline">agent</code> bên trong <code class="inline">stages</code> thay vì cấp cao nhất (trừ khi cố ý dùng agent riêng cho từng stage) đều khiến pipeline không parse được.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Viết một Jenkinsfile Declarative có 3 stage (Build, Test, Deploy), thêm khối <code class="inline">environment</code> khai báo biến <code class="inline">VERSION = '1.0'</code> và dùng nó trong một step <code class="inline">echo</code>.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Declarative syntax</span></div>
+  <ol class="examples">
+    <li><span class="task">Khung Declarative tối thiểu hợp lệ.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    stages {
+        <span class="fn">stage</span>(<span class="str">'Only'</span>) { steps { <span class="fn">echo</span> <span class="str">'ok'</span> } }
+    }
+}</pre></li>
+    <li><span class="task">Thêm section options giới hạn thời gian chạy toàn pipeline.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    options { timeout(time: <span class="num">1</span>, unit: <span class="str">'HOURS'</span>) }
+    stages { <span class="fn">stage</span>(<span class="str">'Build'</span>) { steps { <span class="fn">sh</span> <span class="str">'make'</span> } } }
+}</pre></li>
+    <li><span class="task">Dùng biến môi trường khai báo ở environment{} trong step.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    environment { VERSION = <span class="str">'1.0'</span> }
+    stages {
+        <span class="fn">stage</span>(<span class="str">'Print'</span>) { steps { <span class="fn">echo</span> <span class="str">"Version: ${VERSION}"</span> } }
+    }
+}</pre></li>
+    <li><span class="task">Tham số hóa pipeline bằng parameters{}.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    parameters { string(name: <span class="str">'ENV'</span>, defaultValue: <span class="str">'staging'</span>, description: <span class="str">'Target env'</span>) }
+    stages { <span class="fn">stage</span>(<span class="str">'Deploy'</span>) { steps { <span class="fn">echo</span> <span class="str">"${params.ENV}"</span> } } }
+}</pre></li>
+    <li><span class="task">Lên lịch chạy tự động bằng triggers{}.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    triggers { cron(<span class="str">'H 2 * * *'</span>) }
+    stages { <span class="fn">stage</span>(<span class="str">'Nightly'</span>) { steps { <span class="fn">sh</span> <span class="str">'./nightly.sh'</span> } } }
+}</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Declarative syntax</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết khung pipeline Declarative với agent any và 1 stage rỗng tên "Init".</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    stages { <span class="fn">stage</span>(<span class="str">'Init'</span>) { steps { <span class="fn">echo</span> <span class="str">'init'</span> } } }
+}</pre></div></details></li>
+    <li><span class="task">Nêu 2 section bắt buộc phải có trong mọi Declarative Pipeline.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// agent (cấp cao nhất) và stages (chứa ít nhất 1 stage)</span></pre></div></details></li>
+    <li><span class="task">Thêm environment{} khai báo BUILD_ID = '42' và in ra bằng echo.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>environment { BUILD_ID = <span class="str">'42'</span> }
+stages { <span class="fn">stage</span>(<span class="str">'Show'</span>) { steps { <span class="fn">echo</span> <span class="str">"${BUILD_ID}"</span> } } }</pre></div></details></li>
+    <li><span class="task">So sánh: Declarative bị giới hạn theo schema, Scripted thì sao?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Scripted không bị giới hạn schema — là Groovy thuần,
+// linh hoạt hơn nhưng khó đọc/validate hơn.</span></pre></div></details></li>
+    <li><span class="task">Thêm options{} để không cho phép chạy đồng thời 2 build (disableConcurrentBuilds).</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>options { disableConcurrentBuilds() }</pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 3.2</span>
+  <h2>Declarative Pipeline Syntax</h2>
+  <div class="box goal"><b>🎯 Goal</b>Learn the skeleton of a Declarative Pipeline: the outer <code class="inline">pipeline {}</code> block, the required <code class="inline">agent</code> and <code class="inline">stages</code> sections, and when to prefer Declarative over Scripted.</div>
+  <h3>The pipeline{} block — the mandatory starting point</h3>
+  <p>Every Declarative Pipeline must start with the <code class="inline">pipeline</code> keyword, containing "sections" in a fixed structure defined by Jenkins — unlike Scripted Pipeline where you write free-form Groovy.</p>
+<pre><span class="lbl">Jenkinsfile — Declarative skeleton</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>                 <span class="cmt">// ① REQUIRED: where to run</span>
+
+    environment {                 <span class="cmt">// ② optional: environment variables</span>
+        APP_ENV = <span class="str">'staging'</span>
+    }
+
+    options {                     <span class="cmt">// ③ optional: pipeline options</span>
+        timeout(time: <span class="num">30</span>, unit: <span class="str">'MINUTES'</span>)
+    }
+
+    stages {                      <span class="cmt">// ④ REQUIRED: at least 1 stage</span>
+        <span class="fn">stage</span>(<span class="str">'Build'</span>) {
+            steps {
+                <span class="fn">sh</span> <span class="str">'./build.sh'</span>
+            }
+        }
+        <span class="fn">stage</span>(<span class="str">'Test'</span>) {
+            steps {
+                <span class="fn">sh</span> <span class="str">'./test.sh'</span>
+            }
+        }
+    }
+
+    post {                        <span class="cmt">// ⑤ optional: post-run actions</span>
+        always {
+            <span class="fn">echo</span> <span class="str">'Pipeline finished.'</span>
+        }
+    }
+}</pre>
+  <p>The only two <b>required</b> sections are <code class="inline">agent</code> (top level, defines where execution happens) and <code class="inline">stages</code> (containing at least one <code class="inline">stage</code>). Every other section is optional.</p>
+  <h3>Declarative vs Scripted</h3>
+  <table>
+    <tr><th>Criteria</th><th>Declarative</th><th>Scripted</th></tr>
+    <tr><td>Root syntax</td><td><code>pipeline { ... }</code>, fixed structure</td><td><code>node { ... }</code>, pure Groovy</td></tr>
+    <tr><td>Strictness</td><td>Constrained by a schema, easy to read</td><td>Fully free-form, more flexible</td></tr>
+    <tr><td>Learning curve</td><td>Low, easy to start</td><td>Requires deeper Groovy knowledge</td></tr>
+    <tr><td>Syntax validation</td><td>Yes (linter, Replay)</td><td>Limited</td></tr>
+    <tr><td>Recommended</td><td>Yes — default choice</td><td>When logic is too complex for Declarative</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Why is Declarative the default choice?</b>The structured syntax lets Jenkins <b>validate and render</b> the pipeline better in Blue Ocean/Stage View, is easier for beginners to read, and can still "escape" into pure Groovy via a <code class="inline">script {}</code> block whenever needed.</div>
+  <h3>Comments and formatting</h3>
+<pre><span class="lbl">Jenkinsfile</span><span class="cmt">// This is a single-line comment — plain Groovy syntax</span>
+<span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    stages {
+        <span class="fn">stage</span>(<span class="str">'Demo'</span>) {
+            steps {
+                <span class="fn">echo</span> <span class="str">'Hello'</span> <span class="cmt">/* trailing comment */</span>
+            }
+        }
+    }
+}</pre>
+  <div class="box warn"><b>⚠️ Common syntax mistakes</b>Forgetting the <code class="inline">stages</code> section, missing <code class="inline">steps</code> inside a <code class="inline">stage</code>, or placing <code class="inline">agent</code> inside <code class="inline">stages</code> instead of top level (unless intentionally using a per-stage agent) will all fail to parse.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Write a Declarative Jenkinsfile with 3 stages (Build, Test, Deploy), add an <code class="inline">environment</code> block declaring <code class="inline">VERSION = '1.0'</code> and use it in an <code class="inline">echo</code> step.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Declarative syntax</span></div>
+  <ol class="examples">
+    <li><span class="task">Minimal valid Declarative skeleton.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    stages {
+        <span class="fn">stage</span>(<span class="str">'Only'</span>) { steps { <span class="fn">echo</span> <span class="str">'ok'</span> } }
+    }
+}</pre></li>
+    <li><span class="task">Add an options section to cap the whole pipeline's runtime.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    options { timeout(time: <span class="num">1</span>, unit: <span class="str">'HOURS'</span>) }
+    stages { <span class="fn">stage</span>(<span class="str">'Build'</span>) { steps { <span class="fn">sh</span> <span class="str">'make'</span> } } }
+}</pre></li>
+    <li><span class="task">Use an environment{} variable inside a step.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    environment { VERSION = <span class="str">'1.0'</span> }
+    stages {
+        <span class="fn">stage</span>(<span class="str">'Print'</span>) { steps { <span class="fn">echo</span> <span class="str">"Version: ${VERSION}"</span> } }
+    }
+}</pre></li>
+    <li><span class="task">Parameterize a pipeline with parameters{}.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    parameters { string(name: <span class="str">'ENV'</span>, defaultValue: <span class="str">'staging'</span>, description: <span class="str">'Target env'</span>) }
+    stages { <span class="fn">stage</span>(<span class="str">'Deploy'</span>) { steps { <span class="fn">echo</span> <span class="str">"${params.ENV}"</span> } } }
+}</pre></li>
+    <li><span class="task">Schedule automatic runs with triggers{}.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    triggers { cron(<span class="str">'H 2 * * *'</span>) }
+    stages { <span class="fn">stage</span>(<span class="str">'Nightly'</span>) { steps { <span class="fn">sh</span> <span class="str">'./nightly.sh'</span> } } }
+}</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Declarative syntax</span></div>
+  <ol class="drills">
+    <li><span class="task">Write a Declarative pipeline skeleton with agent any and one empty stage called "Init".</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    stages { <span class="fn">stage</span>(<span class="str">'Init'</span>) { steps { <span class="fn">echo</span> <span class="str">'init'</span> } } }
+}</pre></div></details></li>
+    <li><span class="task">Name the 2 sections that are required in every Declarative Pipeline.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// agent (top level) and stages (containing at least 1 stage)</span></pre></div></details></li>
+    <li><span class="task">Add an environment{} declaring BUILD_ID = '42' and print it with echo.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>environment { BUILD_ID = <span class="str">'42'</span> }
+stages { <span class="fn">stage</span>(<span class="str">'Show'</span>) { steps { <span class="fn">echo</span> <span class="str">"${BUILD_ID}"</span> } } }</pre></div></details></li>
+    <li><span class="task">Compare: Declarative is constrained by a schema — what about Scripted?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Scripted is not schema-constrained — it's pure Groovy,
+// more flexible but harder to read/validate.</span></pre></div></details></li>
+    <li><span class="task">Add an options{} block to disallow concurrent builds (disableConcurrentBuilds).</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>options { disableConcurrentBuilds() }</pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 3.3 ============ -->
+<section class="lesson" id="agent-stages-steps">
+<div class="lang vi">
+  <span class="phase-tag">Bài 3.3</span>
+  <h2>agent, stages, steps chuyên sâu</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Nắm rõ các loại <code class="inline">agent</code>, cách tổ chức nhiều <code class="inline">stage</code>, và các <code class="inline">steps</code> phổ biến nhất (<code class="inline">sh</code>, <code class="inline">bat</code>, <code class="inline">echo</code>, <code class="inline">checkout scm</code>, <code class="inline">archiveArtifacts</code>, <code class="inline">junit</code>).</div>
+  <h3>Các loại agent</h3>
+  <p><code class="inline">agent</code> quy định Jenkins sẽ cấp phát executor/workspace nào để chạy pipeline (hoặc từng stage riêng).</p>
+<pre><span class="lbl">các dạng agent</span><span class="cmt">// Chạy trên bất kỳ agent nào đang rảnh</span>
+agent <span class="kw">any</span>
+
+<span class="cmt">// Không cấp agent mặc định — mỗi stage tự khai báo agent riêng</span>
+agent <span class="kw">none</span>
+
+<span class="cmt">// Chỉ chạy trên node có label cụ thể</span>
+agent { label <span class="str">'linux-docker'</span> }
+
+<span class="cmt">// Chạy bên trong một container Docker</span>
+agent {
+    docker { image <span class="str">'node:20-alpine'</span> }
+}</pre>
+  <table>
+    <tr><th>Dạng agent</th><th>Khi nào dùng</th></tr>
+    <tr><td><code>agent any</code></td><td>Pipeline đơn giản, không quan tâm node cụ thể</td></tr>
+    <tr><td><code>agent none</code></td><td>Muốn khai báo agent riêng cho từng stage</td></tr>
+    <tr><td><code>agent { label 'x' }</code></td><td>Cần phần cứng/hệ điều hành/tool đặc thù (VD: Windows, GPU)</td></tr>
+    <tr><td><code>agent { docker 'image' }</code></td><td>Cần môi trường build tái lập được, cô lập với host</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Vì sao agent none + agent theo stage?</b>Nhiều pipeline cần build trên Linux nhưng test trên Windows, hoặc chạy bước "Deploy" chỉ trên node có quyền production. Đặt <code class="inline">agent none</code> ở cấp pipeline rồi khai báo agent khác nhau cho mỗi stage giúp linh hoạt tối đa.</div>
+  <h3>Nhiều stage &amp; steps phổ biến</h3>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    stages {
+        <span class="fn">stage</span>(<span class="str">'Checkout'</span>) {
+            steps {
+                checkout scm                     <span class="cmt">// lấy đúng commit đã trigger build</span>
+            }
+        }
+        <span class="fn">stage</span>(<span class="str">'Build'</span>) {
+            steps {
+                <span class="fn">sh</span> <span class="str">'npm install && npm run build'</span>   <span class="cmt">// Linux/macOS</span>
+                <span class="fn">bat</span> <span class="str">'npm install && npm run build'</span>  <span class="cmt">// Windows</span>
+            }
+        }
+        <span class="fn">stage</span>(<span class="str">'Test'</span>) {
+            steps {
+                <span class="fn">sh</span> <span class="str">'npm test -- --reporter=junit'</span>
+            }
+            post {
+                always {
+                    junit <span class="str">'reports/junit.xml'</span>      <span class="cmt">// publish kết quả test</span>
+                }
+            }
+        }
+        <span class="fn">stage</span>(<span class="str">'Archive'</span>) {
+            steps {
+                archiveArtifacts artifacts: <span class="str">'dist/**'</span>, fingerprint: <span class="kw">true</span>
+            }
+        }
+    }
+}</pre>
+  <p>Bảng nhanh các step phổ biến:</p>
+  <table>
+    <tr><th>Step</th><th>Công dụng</th></tr>
+    <tr><td><code>sh 'cmd'</code></td><td>Chạy shell command trên Linux/macOS agent</td></tr>
+    <tr><td><code>bat 'cmd'</code></td><td>Chạy command trên Windows agent</td></tr>
+    <tr><td><code>echo 'msg'</code></td><td>In log thông báo</td></tr>
+    <tr><td><code>checkout scm</code></td><td>Checkout đúng SCM/commit đã cấu hình cho job</td></tr>
+    <tr><td><code>archiveArtifacts</code></td><td>Lưu file build output để tải về sau</td></tr>
+    <tr><td><code>junit</code></td><td>Publish kết quả test dạng JUnit XML lên UI Jenkins</td></tr>
+  </table>
+  <div class="box tip"><b>💡 stage trong stage (nested stages)</b>Declarative hỗ trợ <code class="inline">parallel</code> stages để chạy nhiều stage con song song, hữu ích khi test trên nhiều nền tảng cùng lúc để tiết kiệm thời gian.</div>
+  <div class="box warn"><b>⚠️ sh vs bat</b>Dùng <code class="inline">sh</code> trên agent Windows (hoặc <code class="inline">bat</code> trên agent Linux) sẽ báo lỗi "not found" ngay lập tức — luôn khớp step với hệ điều hành thực tế của agent.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Viết pipeline 4 stage: Checkout (checkout scm) → Build (sh 'npm ci') → Test (sh 'npm test', publish junit) → Archive (archiveArtifacts dist/**).</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · agent/stages/steps</span></div>
+  <ol class="examples">
+    <li><span class="task">agent none + agent riêng theo từng stage.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent <span class="kw">none</span>
+    stages {
+        <span class="fn">stage</span>(<span class="str">'Build'</span>) { agent { label <span class="str">'linux'</span> }   steps { <span class="fn">sh</span> <span class="str">'make'</span> } }
+        <span class="fn">stage</span>(<span class="str">'Test'</span>)  { agent { label <span class="str">'windows'</span> } steps { <span class="fn">bat</span> <span class="str">'run-tests.bat'</span> } }
+    }
+}</pre></li>
+    <li><span class="task">Chạy build trong container Docker cụ thể.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent { docker { image <span class="str">'maven:3.9-eclipse-temurin-17'</span> } }
+    stages { <span class="fn">stage</span>(<span class="str">'Build'</span>) { steps { <span class="fn">sh</span> <span class="str">'mvn -B clean package'</span> } } }
+}</pre></li>
+    <li><span class="task">Checkout mã nguồn rồi archive artifact sau build.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">stage</span>(<span class="str">'Checkout'</span>) { steps { checkout scm } }
+<span class="fn">stage</span>(<span class="str">'Archive'</span>)  { steps { archiveArtifacts artifacts: <span class="str">'build/libs/*.jar'</span> } }</pre></li>
+    <li><span class="task">Publish kết quả JUnit dù test pass hay fail.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">stage</span>(<span class="str">'Test'</span>) {
+    steps { <span class="fn">sh</span> <span class="str">'./gradlew test'</span> }
+    post { always { junit <span class="str">'build/test-results/**/*.xml'</span> } }
+}</pre></li>
+    <li><span class="task">Chạy 2 stage song song bằng parallel.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">stage</span>(<span class="str">'Cross-platform tests'</span>) {
+    parallel {
+        <span class="fn">stage</span>(<span class="str">'Linux'</span>)   { agent { label <span class="str">'linux'</span> }   steps { <span class="fn">sh</span>  <span class="str">'./test.sh'</span> } }
+        <span class="fn">stage</span>(<span class="str">'Windows'</span>) { agent { label <span class="str">'windows'</span> } steps { <span class="fn">bat</span> <span class="str">'test.bat'</span> } }
+    }
+}</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · agent/stages/steps</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết agent chạy trên node có label "docker".</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>agent { label <span class="str">'docker'</span> }</pre></div></details></li>
+    <li><span class="task">Viết agent chạy trong container image "python:3.12".</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>agent { docker { image <span class="str">'python:3.12'</span> } }</pre></div></details></li>
+    <li><span class="task">Viết một stage "Checkout" dùng checkout scm.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="fn">stage</span>(<span class="str">'Checkout'</span>) { steps { checkout scm } }</pre></div></details></li>
+    <li><span class="task">Viết stage "Test" chạy sh 'npm test' và publish junit report tại reports/*.xml trong post always.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="fn">stage</span>(<span class="str">'Test'</span>) {
+    steps { <span class="fn">sh</span> <span class="str">'npm test'</span> }
+    post { always { junit <span class="str">'reports/*.xml'</span> } }
+}</pre></div></details></li>
+    <li><span class="task">Viết stage "Archive" lưu toàn bộ file trong dist/ kèm fingerprint.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="fn">stage</span>(<span class="str">'Archive'</span>) {
+    steps { archiveArtifacts artifacts: <span class="str">'dist/**'</span>, fingerprint: <span class="kw">true</span> }
+}</pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 3.3</span>
+  <h2>agent, stages, steps in Depth</h2>
+  <div class="box goal"><b>🎯 Goal</b>Understand the different kinds of <code class="inline">agent</code>, how to organize multiple <code class="inline">stage</code> blocks, and the most common <code class="inline">steps</code> (<code class="inline">sh</code>, <code class="inline">bat</code>, <code class="inline">echo</code>, <code class="inline">checkout scm</code>, <code class="inline">archiveArtifacts</code>, <code class="inline">junit</code>).</div>
+  <h3>Kinds of agent</h3>
+  <p><code class="inline">agent</code> tells Jenkins which executor/workspace to allocate to run the pipeline (or an individual stage).</p>
+<pre><span class="lbl">agent variants</span><span class="cmt">// Run on any available agent</span>
+agent <span class="kw">any</span>
+
+<span class="cmt">// No default agent — each stage declares its own</span>
+agent <span class="kw">none</span>
+
+<span class="cmt">// Only run on a node with a specific label</span>
+agent { label <span class="str">'linux-docker'</span> }
+
+<span class="cmt">// Run inside a Docker container</span>
+agent {
+    docker { image <span class="str">'node:20-alpine'</span> }
+}</pre>
+  <table>
+    <tr><th>Agent form</th><th>When to use</th></tr>
+    <tr><td><code>agent any</code></td><td>Simple pipelines, node choice doesn't matter</td></tr>
+    <tr><td><code>agent none</code></td><td>Want to declare a different agent per stage</td></tr>
+    <tr><td><code>agent { label 'x' }</code></td><td>Need specific hardware/OS/tools (e.g. Windows, GPU)</td></tr>
+    <tr><td><code>agent { docker 'image' }</code></td><td>Need a reproducible build environment isolated from the host</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Why agent none + per-stage agent?</b>Many pipelines need to build on Linux but test on Windows, or run a "Deploy" step only on a node with production access. Setting <code class="inline">agent none</code> at the pipeline level and declaring different agents per stage gives maximum flexibility.</div>
+  <h3>Multiple stages &amp; common steps</h3>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    stages {
+        <span class="fn">stage</span>(<span class="str">'Checkout'</span>) {
+            steps {
+                checkout scm                     <span class="cmt">// fetch the exact commit that triggered the build</span>
+            }
+        }
+        <span class="fn">stage</span>(<span class="str">'Build'</span>) {
+            steps {
+                <span class="fn">sh</span> <span class="str">'npm install && npm run build'</span>   <span class="cmt">// Linux/macOS</span>
+                <span class="fn">bat</span> <span class="str">'npm install && npm run build'</span>  <span class="cmt">// Windows</span>
+            }
+        }
+        <span class="fn">stage</span>(<span class="str">'Test'</span>) {
+            steps {
+                <span class="fn">sh</span> <span class="str">'npm test -- --reporter=junit'</span>
+            }
+            post {
+                always {
+                    junit <span class="str">'reports/junit.xml'</span>      <span class="cmt">// publish test results</span>
+                }
+            }
+        }
+        <span class="fn">stage</span>(<span class="str">'Archive'</span>) {
+            steps {
+                archiveArtifacts artifacts: <span class="str">'dist/**'</span>, fingerprint: <span class="kw">true</span>
+            }
+        }
+    }
+}</pre>
+  <p>Quick reference of common steps:</p>
+  <table>
+    <tr><th>Step</th><th>Purpose</th></tr>
+    <tr><td><code>sh 'cmd'</code></td><td>Run a shell command on a Linux/macOS agent</td></tr>
+    <tr><td><code>bat 'cmd'</code></td><td>Run a command on a Windows agent</td></tr>
+    <tr><td><code>echo 'msg'</code></td><td>Print a log message</td></tr>
+    <tr><td><code>checkout scm</code></td><td>Check out the exact SCM/commit configured for the job</td></tr>
+    <tr><td><code>archiveArtifacts</code></td><td>Store build output files for later download</td></tr>
+    <tr><td><code>junit</code></td><td>Publish JUnit XML test results to the Jenkins UI</td></tr>
+  </table>
+  <div class="box tip"><b>💡 Nested stages via parallel</b>Declarative supports <code class="inline">parallel</code> stages, letting several sub-stages run at once — handy for testing across multiple platforms simultaneously to save time.</div>
+  <div class="box warn"><b>⚠️ sh vs bat</b>Using <code class="inline">sh</code> on a Windows agent (or <code class="inline">bat</code> on a Linux agent) fails immediately with "not found" — always match the step to the agent's actual OS.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Write a 4-stage pipeline: Checkout (checkout scm) → Build (sh 'npm ci') → Test (sh 'npm test', publish junit) → Archive (archiveArtifacts dist/**).</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · agent/stages/steps</span></div>
+  <ol class="examples">
+    <li><span class="task">agent none + a distinct agent per stage.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent <span class="kw">none</span>
+    stages {
+        <span class="fn">stage</span>(<span class="str">'Build'</span>) { agent { label <span class="str">'linux'</span> }   steps { <span class="fn">sh</span> <span class="str">'make'</span> } }
+        <span class="fn">stage</span>(<span class="str">'Test'</span>)  { agent { label <span class="str">'windows'</span> } steps { <span class="fn">bat</span> <span class="str">'run-tests.bat'</span> } }
+    }
+}</pre></li>
+    <li><span class="task">Run the build inside a specific Docker container.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent { docker { image <span class="str">'maven:3.9-eclipse-temurin-17'</span> } }
+    stages { <span class="fn">stage</span>(<span class="str">'Build'</span>) { steps { <span class="fn">sh</span> <span class="str">'mvn -B clean package'</span> } } }
+}</pre></li>
+    <li><span class="task">Check out source then archive an artifact after build.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">stage</span>(<span class="str">'Checkout'</span>) { steps { checkout scm } }
+<span class="fn">stage</span>(<span class="str">'Archive'</span>)  { steps { archiveArtifacts artifacts: <span class="str">'build/libs/*.jar'</span> } }</pre></li>
+    <li><span class="task">Publish JUnit results whether the test passes or fails.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">stage</span>(<span class="str">'Test'</span>) {
+    steps { <span class="fn">sh</span> <span class="str">'./gradlew test'</span> }
+    post { always { junit <span class="str">'build/test-results/**/*.xml'</span> } }
+}</pre></li>
+    <li><span class="task">Run 2 stages in parallel.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">stage</span>(<span class="str">'Cross-platform tests'</span>) {
+    parallel {
+        <span class="fn">stage</span>(<span class="str">'Linux'</span>)   { agent { label <span class="str">'linux'</span> }   steps { <span class="fn">sh</span>  <span class="str">'./test.sh'</span> } }
+        <span class="fn">stage</span>(<span class="str">'Windows'</span>) { agent { label <span class="str">'windows'</span> } steps { <span class="fn">bat</span> <span class="str">'test.bat'</span> } }
+    }
+}</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · agent/stages/steps</span></div>
+  <ol class="drills">
+    <li><span class="task">Write an agent that runs on a node labeled "docker".</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>agent { label <span class="str">'docker'</span> }</pre></div></details></li>
+    <li><span class="task">Write an agent that runs inside the "python:3.12" container image.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>agent { docker { image <span class="str">'python:3.12'</span> } }</pre></div></details></li>
+    <li><span class="task">Write a "Checkout" stage using checkout scm.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="fn">stage</span>(<span class="str">'Checkout'</span>) { steps { checkout scm } }</pre></div></details></li>
+    <li><span class="task">Write a "Test" stage that runs sh 'npm test' and publishes junit reports at reports/*.xml in post always.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="fn">stage</span>(<span class="str">'Test'</span>) {
+    steps { <span class="fn">sh</span> <span class="str">'npm test'</span> }
+    post { always { junit <span class="str">'reports/*.xml'</span> } }
+}</pre></div></details></li>
+    <li><span class="task">Write an "Archive" stage that stores every file under dist/ with fingerprinting.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="fn">stage</span>(<span class="str">'Archive'</span>) {
+    steps { archiveArtifacts artifacts: <span class="str">'dist/**'</span>, fingerprint: <span class="kw">true</span> }
+}</pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 3.4 ============ -->
+<section class="lesson" id="post-conditions">
+<div class="lang vi">
+  <span class="phase-tag">Bài 3.4</span>
+  <h2>Khối post &amp; environment</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Biết dùng section <code class="inline">post</code> với các điều kiện <code class="inline">always/success/failure/unstable/changed/cleanup</code> để gửi thông báo hoặc dọn dẹp, và hiểu cơ bản khối <code class="inline">environment</code>.</div>
+  <h3>Các điều kiện post</h3>
+  <table>
+    <tr><th>Điều kiện</th><th>Chạy khi nào</th></tr>
+    <tr><td><code>always</code></td><td>Luôn chạy, bất kể kết quả pipeline</td></tr>
+    <tr><td><code>success</code></td><td>Toàn bộ pipeline thành công</td></tr>
+    <tr><td><code>failure</code></td><td>Pipeline thất bại</td></tr>
+    <tr><td><code>unstable</code></td><td>Kết quả "unstable" (VD: có test fail nhưng build vẫn qua)</td></tr>
+    <tr><td><code>changed</code></td><td>Kết quả khác với lần chạy trước (VD: từ fail chuyển sang pass)</td></tr>
+    <tr><td><code>cleanup</code></td><td>Chạy sau cùng, sau mọi điều kiện khác — thường dùng dọn workspace</td></tr>
+  </table>
+  <h3>Ví dụ post thực tế: thông báo theo kết quả</h3>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+
+    environment {
+        SLACK_CHANNEL = <span class="str">'#ci-alerts'</span>
+        APP_VERSION   = <span class="str">"1.0.${env.BUILD_NUMBER}"</span>
+    }
+
+    stages {
+        <span class="fn">stage</span>(<span class="str">'Build &amp; Test'</span>) {
+            steps {
+                <span class="fn">sh</span> <span class="str">'./gradlew build test'</span>
+            }
+            post {
+                always {
+                    junit <span class="str">'build/test-results/**/*.xml'</span>
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            <span class="fn">echo</span> <span class="str">"✅ Build ${env.APP_VERSION} thành công — gửi thông báo tới ${env.SLACK_CHANNEL}"</span>
+            <span class="cmt">// slackSend(channel: env.SLACK_CHANNEL, color: 'good', message: "Build OK: ${env.APP_VERSION}")</span>
+        }
+        failure {
+            <span class="fn">echo</span> <span class="str">"❌ Build thất bại — gửi cảnh báo tới ${env.SLACK_CHANNEL}"</span>
+            <span class="cmt">// mail to: 'team@example.com', subject: "Build FAILED", body: "Xem: ${env.BUILD_URL}"</span>
+        }
+        unstable {
+            <span class="fn">echo</span> <span class="str">'⚠️ Build không ổn định — có test fail'</span>
+        }
+        changed {
+            <span class="fn">echo</span> <span class="str">'🔄 Trạng thái build đã thay đổi so với lần chạy trước'</span>
+        }
+        cleanup {
+            <span class="fn">echo</span> <span class="str">'🧹 Dọn dẹp workspace'</span>
+            cleanWs()
+        }
+    }
+}</pre>
+  <div class="box why"><b>🤔 Vì sao post nằm ở cả stage lẫn pipeline?</b><code class="inline">post</code> có thể đặt trong từng <code class="inline">stage</code> (xử lý riêng cho bước đó, VD: luôn publish junit của Test) và ở cấp <code class="inline">pipeline</code> (tổng kết toàn bộ, VD: gửi Slack/email). Chúng bổ sung cho nhau, không thay thế nhau.</div>
+  <h3>environment{} cơ bản</h3>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    environment {
+        <span class="cmt">// Biến tĩnh</span>
+        REGISTRY = <span class="str">'registry.example.com'</span>
+        <span class="cmt">// Biến lấy từ credential lưu trong Jenkins (không lộ giá trị trong log)</span>
+        DOCKER_CREDS = credentials(<span class="str">'docker-hub-creds'</span>)
+    }
+    stages {
+        <span class="fn">stage</span>(<span class="str">'Push'</span>) {
+            steps {
+                <span class="fn">sh</span> <span class="str">'echo $DOCKER_CREDS_PSW | docker login -u $DOCKER_CREDS_USR --password-stdin $REGISTRY'</span>
+            }
+        }
+    }
+}</pre>
+  <div class="box tip"><b>💡 Biến sẵn có của Jenkins</b><code class="inline">env.BUILD_NUMBER</code>, <code class="inline">env.BUILD_URL</code>, <code class="inline">env.JOB_NAME</code>, <code class="inline">env.WORKSPACE</code> luôn có sẵn mà không cần khai báo — rất hữu ích trong thông báo post.</div>
+  <div class="box warn"><b>⚠️ credentials() sinh ra 2 biến ẩn</b>Với credential dạng username/password, <code class="inline">credentials('id')</code> tạo thêm <code class="inline">_USR</code> và <code class="inline">_PSW</code>; Jenkins tự động che (mask) các giá trị này trong console log để tránh lộ secret.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Thêm khối post cấp pipeline với 4 điều kiện success/failure/unstable/cleanup, mỗi điều kiện in một message echo khác nhau, và environment{} khai báo biến APP_VERSION dùng số build.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · post &amp; environment</span></div>
+  <ol class="examples">
+    <li><span class="task">post always dọn workspace sau mỗi lần chạy.</span>
+<pre><span class="lbl">Jenkinsfile</span>post { always { cleanWs() } }</pre></li>
+    <li><span class="task">post failure gửi email khi pipeline lỗi.</span>
+<pre><span class="lbl">Jenkinsfile</span>post {
+    failure {
+        mail to: <span class="str">'team@example.com'</span>, subject: <span class="str">"Build failed: ${env.JOB_NAME}"</span>, body: <span class="str">"${env.BUILD_URL}"</span>
+    }
+}</pre></li>
+    <li><span class="task">post changed thông báo khi trạng thái build thay đổi.</span>
+<pre><span class="lbl">Jenkinsfile</span>post { changed { <span class="fn">echo</span> <span class="str">"Trạng thái build đã đổi thành ${currentBuild.currentResult}"</span> } }</pre></li>
+    <li><span class="task">environment khai báo biến tính từ BUILD_NUMBER.</span>
+<pre><span class="lbl">Jenkinsfile</span>environment { APP_VERSION = <span class="str">"2.3.${env.BUILD_NUMBER}"</span> }</pre></li>
+    <li><span class="task">environment nạp credential Docker Hub cho stage push image.</span>
+<pre><span class="lbl">Jenkinsfile</span>environment { DOCKERHUB = credentials(<span class="str">'dockerhub-creds'</span>) }
+stages { <span class="fn">stage</span>(<span class="str">'Push'</span>) { steps { <span class="fn">sh</span> <span class="str">'docker login -u $DOCKERHUB_USR -p $DOCKERHUB_PSW'</span> } } }</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · post &amp; environment</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết post success in ra "Deploy thành công".</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>post { success { <span class="fn">echo</span> <span class="str">'Deploy thành công'</span> } }</pre></div></details></li>
+    <li><span class="task">Viết post unstable in ra "Có test không ổn định".</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>post { unstable { <span class="fn">echo</span> <span class="str">'Có test không ổn định'</span> } }</pre></div></details></li>
+    <li><span class="task">Viết post cleanup gọi cleanWs() để dọn workspace cuối cùng.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>post { cleanup { cleanWs() } }</pre></div></details></li>
+    <li><span class="task">Khai báo environment biến REGION = 'ap-southeast-1'.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>environment { REGION = <span class="str">'ap-southeast-1'</span> }</pre></div></details></li>
+    <li><span class="task">Nêu 2 biến ẩn được sinh ra khi dùng credentials('id') với username/password credential.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// id_USR (username) và id_PSW (password), ví dụ:
+// DOCKER_CREDS_USR và DOCKER_CREDS_PSW</span></pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 3.4</span>
+  <h2>The post Section &amp; environment</h2>
+  <div class="box goal"><b>🎯 Goal</b>Learn to use the <code class="inline">post</code> section with the <code class="inline">always/success/failure/unstable/changed/cleanup</code> conditions to send notifications or clean up, and understand the basics of the <code class="inline">environment</code> block.</div>
+  <h3>The post conditions</h3>
+  <table>
+    <tr><th>Condition</th><th>Runs when</th></tr>
+    <tr><td><code>always</code></td><td>Always, regardless of the pipeline result</td></tr>
+    <tr><td><code>success</code></td><td>The whole pipeline succeeded</td></tr>
+    <tr><td><code>failure</code></td><td>The pipeline failed</td></tr>
+    <tr><td><code>unstable</code></td><td>Result is "unstable" (e.g. some tests failed but build still passed)</td></tr>
+    <tr><td><code>changed</code></td><td>Result differs from the previous run (e.g. went from fail to pass)</td></tr>
+    <tr><td><code>cleanup</code></td><td>Runs last, after every other condition — typically used to clean the workspace</td></tr>
+  </table>
+  <h3>A realistic post example: notifications by outcome</h3>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+
+    environment {
+        SLACK_CHANNEL = <span class="str">'#ci-alerts'</span>
+        APP_VERSION   = <span class="str">"1.0.${env.BUILD_NUMBER}"</span>
+    }
+
+    stages {
+        <span class="fn">stage</span>(<span class="str">'Build &amp; Test'</span>) {
+            steps {
+                <span class="fn">sh</span> <span class="str">'./gradlew build test'</span>
+            }
+            post {
+                always {
+                    junit <span class="str">'build/test-results/**/*.xml'</span>
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            <span class="fn">echo</span> <span class="str">"✅ Build ${env.APP_VERSION} succeeded — notifying ${env.SLACK_CHANNEL}"</span>
+            <span class="cmt">// slackSend(channel: env.SLACK_CHANNEL, color: 'good', message: "Build OK: ${env.APP_VERSION}")</span>
+        }
+        failure {
+            <span class="fn">echo</span> <span class="str">"❌ Build failed — alerting ${env.SLACK_CHANNEL}"</span>
+            <span class="cmt">// mail to: 'team@example.com', subject: "Build FAILED", body: "See: ${env.BUILD_URL}"</span>
+        }
+        unstable {
+            <span class="fn">echo</span> <span class="str">'⚠️ Build is unstable — some tests failed'</span>
+        }
+        changed {
+            <span class="fn">echo</span> <span class="str">'🔄 Build status changed from the previous run'</span>
+        }
+        cleanup {
+            <span class="fn">echo</span> <span class="str">'🧹 Cleaning up the workspace'</span>
+            cleanWs()
+        }
+    }
+}</pre>
+  <div class="box why"><b>🤔 Why does post exist at both stage and pipeline level?</b><code class="inline">post</code> can be placed inside a <code class="inline">stage</code> (handling something specific to that step, e.g. always publish Test's junit results) and at the <code class="inline">pipeline</code> level (a final summary, e.g. Slack/email). They complement each other rather than replace one another.</div>
+  <h3>environment{} basics</h3>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    environment {
+        <span class="cmt">// Static value</span>
+        REGISTRY = <span class="str">'registry.example.com'</span>
+        <span class="cmt">// Value pulled from a Jenkins credential (value never appears in the log)</span>
+        DOCKER_CREDS = credentials(<span class="str">'docker-hub-creds'</span>)
+    }
+    stages {
+        <span class="fn">stage</span>(<span class="str">'Push'</span>) {
+            steps {
+                <span class="fn">sh</span> <span class="str">'echo $DOCKER_CREDS_PSW | docker login -u $DOCKER_CREDS_USR --password-stdin $REGISTRY'</span>
+            }
+        }
+    }
+}</pre>
+  <div class="box tip"><b>💡 Built-in Jenkins variables</b><code class="inline">env.BUILD_NUMBER</code>, <code class="inline">env.BUILD_URL</code>, <code class="inline">env.JOB_NAME</code>, <code class="inline">env.WORKSPACE</code> are always available without declaration — very handy inside post notifications.</div>
+  <div class="box warn"><b>⚠️ credentials() generates 2 hidden variables</b>For a username/password credential, <code class="inline">credentials('id')</code> also creates <code class="inline">_USR</code> and <code class="inline">_PSW</code>; Jenkins automatically masks these values in the console log to avoid leaking secrets.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Add a pipeline-level post block with 4 conditions success/failure/unstable/cleanup, each echoing a different message, plus an environment{} declaring an APP_VERSION variable that uses the build number.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · post &amp; environment</span></div>
+  <ol class="examples">
+    <li><span class="task">post always cleans the workspace after every run.</span>
+<pre><span class="lbl">Jenkinsfile</span>post { always { cleanWs() } }</pre></li>
+    <li><span class="task">post failure sends an email when the pipeline errors out.</span>
+<pre><span class="lbl">Jenkinsfile</span>post {
+    failure {
+        mail to: <span class="str">'team@example.com'</span>, subject: <span class="str">"Build failed: ${env.JOB_NAME}"</span>, body: <span class="str">"${env.BUILD_URL}"</span>
+    }
+}</pre></li>
+    <li><span class="task">post changed announces when the build status flips.</span>
+<pre><span class="lbl">Jenkinsfile</span>post { changed { <span class="fn">echo</span> <span class="str">"Build status changed to ${currentBuild.currentResult}"</span> } }</pre></li>
+    <li><span class="task">environment declaring a variable computed from BUILD_NUMBER.</span>
+<pre><span class="lbl">Jenkinsfile</span>environment { APP_VERSION = <span class="str">"2.3.${env.BUILD_NUMBER}"</span> }</pre></li>
+    <li><span class="task">environment loading a Docker Hub credential for a push stage.</span>
+<pre><span class="lbl">Jenkinsfile</span>environment { DOCKERHUB = credentials(<span class="str">'dockerhub-creds'</span>) }
+stages { <span class="fn">stage</span>(<span class="str">'Push'</span>) { steps { <span class="fn">sh</span> <span class="str">'docker login -u $DOCKERHUB_USR -p $DOCKERHUB_PSW'</span> } } }</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · post &amp; environment</span></div>
+  <ol class="drills">
+    <li><span class="task">Write a post success block that echoes "Deploy succeeded".</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>post { success { <span class="fn">echo</span> <span class="str">'Deploy succeeded'</span> } }</pre></div></details></li>
+    <li><span class="task">Write a post unstable block that echoes "Some tests are flaky".</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>post { unstable { <span class="fn">echo</span> <span class="str">'Some tests are flaky'</span> } }</pre></div></details></li>
+    <li><span class="task">Write a post cleanup block calling cleanWs() to clean the workspace last.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>post { cleanup { cleanWs() } }</pre></div></details></li>
+    <li><span class="task">Declare an environment variable REGION = 'ap-southeast-1'.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>environment { REGION = <span class="str">'ap-southeast-1'</span> }</pre></div></details></li>
+    <li><span class="task">Name the 2 hidden variables generated by credentials('id') for a username/password credential.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// id_USR (username) and id_PSW (password), e.g.
+// DOCKER_CREDS_USR and DOCKER_CREDS_PSW</span></pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 3.5 ============ -->
+<section class="lesson" id="scripted-pipeline">
+<div class="lang vi">
+  <span class="phase-tag">Bài 3.5</span>
+  <h2>Scripted Pipeline (Groovy)</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Hiểu cú pháp Scripted Pipeline dùng <code class="inline">node {}</code>/<code class="inline">stage()</code>, biết khi nào nên dùng Scripted (hoặc khối <code class="inline">script {}</code> trong Declarative), và viết được logic Groovy cơ bản: vòng lặp, if, try/catch quanh step <code class="inline">sh</code>.</div>
+  <h3>Cấu trúc Scripted Pipeline</h3>
+  <p>Scripted Pipeline là Groovy thuần, thực thi tuần tự theo mã lệnh — không bị ràng buộc bởi schema cố định như Declarative. Khối cấp cao nhất là <code class="inline">node {}</code> thay vì <code class="inline">pipeline {}</code>.</p>
+<pre><span class="lbl">Jenkinsfile — Scripted</span>node {                                  <span class="cmt">// ① cấp phát executor</span>
+    <span class="fn">stage</span>(<span class="str">'Checkout'</span>) {              <span class="cmt">// ② stage() là một hàm Groovy, không phải block cố định</span>
+        checkout scm
+    }
+    <span class="fn">stage</span>(<span class="str">'Build'</span>) {
+        <span class="fn">sh</span> <span class="str">'npm install'</span>
+        <span class="fn">sh</span> <span class="str">'npm run build'</span>
+    }
+    <span class="fn">stage</span>(<span class="str">'Test'</span>) {
+        <span class="fn">sh</span> <span class="str">'npm test'</span>
+    }
+}</pre>
+  <table>
+    <tr><th>Khía cạnh</th><th>Scripted</th></tr>
+    <tr><td>Khối gốc</td><td><code>node { ... }</code></td>
+    <tr><td>stage</td><td>Hàm Groovy <code>stage('Tên') { ... }</code>, không bắt buộc chứa <code>steps</code></td></tr>
+    <tr><td>Control flow</td><td>if/else, for, while, try/catch dùng trực tiếp, không cần bọc <code>script{}</code></td></tr>
+    <tr><td>Khi nên dùng</td><td>Logic phức tạp: vòng lặp động theo danh sách, xử lý lỗi tinh vi, tạo stage động lúc runtime</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Khi nào chọn Scripted thay vì Declarative?</b>Khi cần <b>tạo stage động</b> (VD: lặp qua danh sách module rồi build từng cái), xử lý lỗi phức tạp bằng try/catch nhiều tầng, hoặc gọi API Groovy nâng cao. Với 90% pipeline thông thường, Declarative + khối <code class="inline">script{}</code> khi cần là đủ.</div>
+  <h3>Khối script{} trong Declarative</h3>
+  <p>Không cần viết toàn bộ pipeline theo Scripted — Declarative cho phép "thoát" ra Groovy thuần trong một <code class="inline">step</code> bằng khối <code class="inline">script {}</code>.</p>
+<pre><span class="lbl">Jenkinsfile — Declarative + script{}</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    stages {
+        <span class="fn">stage</span>(<span class="str">'Build modules'</span>) {
+            steps {
+                script {
+                    <span class="kw">def</span> modules = [<span class="str">'api'</span>, <span class="str">'web'</span>, <span class="str">'worker'</span>]
+                    <span class="kw">for</span> (m <span class="kw">in</span> modules) {
+                        <span class="fn">echo</span> <span class="str">"Building module: ${m}"</span>
+                        <span class="fn">sh</span> <span class="str">"./gradlew :${m}:build"</span>
+                    }
+                }
+            }
+        }
+    }
+}</pre>
+  <h3>Control flow Groovy: for, if, try/catch</h3>
+<pre><span class="lbl">Jenkinsfile — Scripted</span>node {
+    <span class="kw">def</span> environments = [<span class="str">'dev'</span>, <span class="str">'staging'</span>, <span class="str">'prod'</span>]
+
+    <span class="fn">stage</span>(<span class="str">'Deploy tuần tự'</span>) {
+        <span class="kw">for</span> (env <span class="kw">in</span> environments) {
+            <span class="kw">if</span> (env == <span class="str">'prod'</span>) {
+                <span class="fn">echo</span> <span class="str">"⚠️ Bỏ qua prod — cần duyệt tay"</span>
+                <span class="kw">continue</span>
+            }
+            <span class="fn">echo</span> <span class="str">"Deploying to ${env}..."</span>
+        }
+    }
+
+    <span class="fn">stage</span>(<span class="str">'Chạy test có xử lý lỗi'</span>) {
+        <span class="kw">try</span> {
+            <span class="fn">sh</span> <span class="str">'./run-integration-tests.sh'</span>
+        } <span class="kw">catch</span> (Exception e) {
+            <span class="fn">echo</span> <span class="str">"Test thất bại: ${e.getMessage()}"</span>
+            currentBuild.result = <span class="str">'UNSTABLE'</span>
+        } <span class="kw">finally</span> {
+            archiveArtifacts artifacts: <span class="str">'test-results/**'</span>, allowEmptyArchive: <span class="kw">true</span>
+        }
+    }
+}</pre>
+  <div class="box tip"><b>💡 sh trả về status code</b>Dùng <code class="inline">sh(script: '...', returnStatus: true)</code> để lấy exit code thay vì để step tự fail pipeline — hữu ích khi muốn tự quyết định xử lý lỗi trong try/catch.</div>
+  <div class="box warn"><b>⚠️ Scripted khó review và dễ lỗi runtime hơn</b>Vì không có schema cố định, lỗi cú pháp/logic trong Scripted Pipeline thường chỉ phát hiện lúc <b>chạy thật</b> (runtime), không được validate trước như Declarative. Luôn viết test/thử nhỏ trước khi áp dụng logic phức tạp.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Viết một Scripted Pipeline: dùng vòng <code class="inline">for</code> lặp qua danh sách 3 service, mỗi vòng bọc <code class="inline">sh</code> build trong <code class="inline">try/catch</code>, nếu lỗi thì đặt <code class="inline">currentBuild.result = 'UNSTABLE'</code> thay vì làm fail toàn bộ.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Scripted Pipeline</span></div>
+  <ol class="examples">
+    <li><span class="task">Scripted Pipeline tối giản với node và 1 stage.</span>
+<pre><span class="lbl">Jenkinsfile</span>node {
+    <span class="fn">stage</span>(<span class="str">'Hello'</span>) {
+        <span class="fn">echo</span> <span class="str">'Hello from Scripted'</span>
+    }
+}</pre></li>
+    <li><span class="task">Chỉ định label cho node.</span>
+<pre><span class="lbl">Jenkinsfile</span>node(<span class="str">'linux'</span>) {
+    <span class="fn">stage</span>(<span class="str">'Build'</span>) { <span class="fn">sh</span> <span class="str">'make'</span> }
+}</pre></li>
+    <li><span class="task">Vòng lặp for build nhiều module.</span>
+<pre><span class="lbl">Jenkinsfile</span>node {
+    <span class="kw">def</span> mods = [<span class="str">'core'</span>, <span class="str">'api'</span>]
+    <span class="fn">stage</span>(<span class="str">'Build all'</span>) {
+        <span class="kw">for</span> (m <span class="kw">in</span> mods) { <span class="fn">sh</span> <span class="str">"./build.sh ${m}"</span> }
+    }
+}</pre></li>
+    <li><span class="task">if/else quyết định deploy theo branch.</span>
+<pre><span class="lbl">Jenkinsfile</span>node {
+    <span class="fn">stage</span>(<span class="str">'Deploy'</span>) {
+        <span class="kw">if</span> (env.BRANCH_NAME == <span class="str">'main'</span>) {
+            <span class="fn">sh</span> <span class="str">'./deploy.sh prod'</span>
+        } <span class="kw">else</span> {
+            <span class="fn">echo</span> <span class="str">'Không phải main — bỏ qua deploy'</span>
+        }
+    }
+}</pre></li>
+    <li><span class="task">try/catch/finally quanh bước sh có thể lỗi.</span>
+<pre><span class="lbl">Jenkinsfile</span>node {
+    <span class="fn">stage</span>(<span class="str">'Test'</span>) {
+        <span class="kw">try</span> {
+            <span class="fn">sh</span> <span class="str">'npm test'</span>
+        } <span class="kw">catch</span> (e) {
+            currentBuild.result = <span class="str">'UNSTABLE'</span>
+        } <span class="kw">finally</span> {
+            junit <span class="str">'reports/*.xml'</span>
+        }
+    }
+}</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Scripted Pipeline</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết Scripted Pipeline với node và 1 stage "Build" chạy sh 'make'.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>node {
+    <span class="fn">stage</span>(<span class="str">'Build'</span>) { <span class="fn">sh</span> <span class="str">'make'</span> }
+}</pre></div></details></li>
+    <li><span class="task">Viết vòng lặp for in ra tên của danh sách ['a','b','c'].</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="kw">def</span> items = [<span class="str">'a'</span>, <span class="str">'b'</span>, <span class="str">'c'</span>]
+<span class="kw">for</span> (i <span class="kw">in</span> items) { <span class="fn">echo</span> <span class="str">"${i}"</span> }</pre></div></details></li>
+    <li><span class="task">Bọc lệnh sh 'flaky-cmd' trong try/catch, in lỗi nếu có.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="kw">try</span> {
+    <span class="fn">sh</span> <span class="str">'flaky-cmd'</span>
+} <span class="kw">catch</span> (Exception e) {
+    <span class="fn">echo</span> <span class="str">"Lỗi: ${e.getMessage()}"</span>
+}</pre></div></details></li>
+    <li><span class="task">Dùng khối script{} trong Declarative để in "x" nếu biến DEPLOY == true.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>steps {
+    script {
+        <span class="kw">if</span> (DEPLOY == <span class="kw">true</span>) { <span class="fn">echo</span> <span class="str">'x'</span> }
+    }
+}</pre></div></details></li>
+    <li><span class="task">Nêu 1 trường hợp nên chọn Scripted thay vì Declarative.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Cần tạo số lượng stage động lúc chạy (VD: lặp qua danh sách
+// module không biết trước để build từng cái) — Declarative
+// không hỗ trợ tạo stage động dễ dàng như Scripted.</span></pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 3.5</span>
+  <h2>Scripted Pipeline (Groovy)</h2>
+  <div class="box goal"><b>🎯 Goal</b>Understand Scripted Pipeline syntax with <code class="inline">node {}</code>/<code class="inline">stage()</code>, know when to prefer Scripted (or a <code class="inline">script {}</code> block inside Declarative), and write basic Groovy control flow: loops, if, try/catch around a <code class="inline">sh</code> step.</div>
+  <h3>Scripted Pipeline structure</h3>
+  <p>Scripted Pipeline is pure Groovy, executed sequentially — not constrained by a fixed schema like Declarative. The top-level block is <code class="inline">node {}</code> instead of <code class="inline">pipeline {}</code>.</p>
+<pre><span class="lbl">Jenkinsfile — Scripted</span>node {                                  <span class="cmt">// ① allocates an executor</span>
+    <span class="fn">stage</span>(<span class="str">'Checkout'</span>) {              <span class="cmt">// ② stage() is a Groovy function, not a fixed block</span>
+        checkout scm
+    }
+    <span class="fn">stage</span>(<span class="str">'Build'</span>) {
+        <span class="fn">sh</span> <span class="str">'npm install'</span>
+        <span class="fn">sh</span> <span class="str">'npm run build'</span>
+    }
+    <span class="fn">stage</span>(<span class="str">'Test'</span>) {
+        <span class="fn">sh</span> <span class="str">'npm test'</span>
+    }
+}</pre>
+  <table>
+    <tr><th>Aspect</th><th>Scripted</th></tr>
+    <tr><td>Root block</td><td><code>node { ... }</code></td>
+    <tr><td>stage</td><td>Groovy function <code>stage('Name') { ... }</code>, no mandatory <code>steps</code> wrapper</td></tr>
+    <tr><td>Control flow</td><td>if/else, for, while, try/catch used directly, no need to wrap in <code>script{}</code></td></tr>
+    <tr><td>When to use</td><td>Complex logic: dynamic loops over a list, sophisticated error handling, generating stages dynamically at runtime</td></tr>
+  </table>
+  <div class="box why"><b>🤔 When to pick Scripted over Declarative?</b>When you need to <b>generate stages dynamically</b> (e.g. loop over a list of modules and build each one), handle errors with nested try/catch, or call advanced Groovy APIs. For 90% of typical pipelines, Declarative plus a <code class="inline">script{}</code> block when needed is enough.</div>
+  <h3>The script{} block inside Declarative</h3>
+  <p>You don't need to write the whole pipeline as Scripted — Declarative lets you "escape" into pure Groovy inside a <code class="inline">step</code> via a <code class="inline">script {}</code> block.</p>
+<pre><span class="lbl">Jenkinsfile — Declarative + script{}</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    stages {
+        <span class="fn">stage</span>(<span class="str">'Build modules'</span>) {
+            steps {
+                script {
+                    <span class="kw">def</span> modules = [<span class="str">'api'</span>, <span class="str">'web'</span>, <span class="str">'worker'</span>]
+                    <span class="kw">for</span> (m <span class="kw">in</span> modules) {
+                        <span class="fn">echo</span> <span class="str">"Building module: ${m}"</span>
+                        <span class="fn">sh</span> <span class="str">"./gradlew :${m}:build"</span>
+                    }
+                }
+            }
+        }
+    }
+}</pre>
+  <h3>Groovy control flow: for, if, try/catch</h3>
+<pre><span class="lbl">Jenkinsfile — Scripted</span>node {
+    <span class="kw">def</span> environments = [<span class="str">'dev'</span>, <span class="str">'staging'</span>, <span class="str">'prod'</span>]
+
+    <span class="fn">stage</span>(<span class="str">'Sequential deploy'</span>) {
+        <span class="kw">for</span> (env <span class="kw">in</span> environments) {
+            <span class="kw">if</span> (env == <span class="str">'prod'</span>) {
+                <span class="fn">echo</span> <span class="str">"⚠️ Skipping prod — needs manual approval"</span>
+                <span class="kw">continue</span>
+            }
+            <span class="fn">echo</span> <span class="str">"Deploying to ${env}..."</span>
+        }
+    }
+
+    <span class="fn">stage</span>(<span class="str">'Run tests with error handling'</span>) {
+        <span class="kw">try</span> {
+            <span class="fn">sh</span> <span class="str">'./run-integration-tests.sh'</span>
+        } <span class="kw">catch</span> (Exception e) {
+            <span class="fn">echo</span> <span class="str">"Tests failed: ${e.getMessage()}"</span>
+            currentBuild.result = <span class="str">'UNSTABLE'</span>
+        } <span class="kw">finally</span> {
+            archiveArtifacts artifacts: <span class="str">'test-results/**'</span>, allowEmptyArchive: <span class="kw">true</span>
+        }
+    }
+}</pre>
+  <div class="box tip"><b>💡 sh can return a status code</b>Use <code class="inline">sh(script: '...', returnStatus: true)</code> to get the exit code instead of letting the step fail the pipeline automatically — handy when you want to decide error handling yourself inside try/catch.</div>
+  <div class="box warn"><b>⚠️ Scripted is harder to review and more runtime-fragile</b>Because there's no fixed schema, syntax/logic errors in Scripted Pipeline are often only caught <b>at runtime</b>, unlike Declarative which can be validated up front. Always test small pieces of logic before applying complex changes.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Write a Scripted Pipeline: use a <code class="inline">for</code> loop over a list of 3 services, wrap the build <code class="inline">sh</code> step in <code class="inline">try/catch</code> for each, and on error set <code class="inline">currentBuild.result = 'UNSTABLE'</code> instead of failing the whole pipeline.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Scripted Pipeline</span></div>
+  <ol class="examples">
+    <li><span class="task">Minimal Scripted Pipeline with node and 1 stage.</span>
+<pre><span class="lbl">Jenkinsfile</span>node {
+    <span class="fn">stage</span>(<span class="str">'Hello'</span>) {
+        <span class="fn">echo</span> <span class="str">'Hello from Scripted'</span>
+    }
+}</pre></li>
+    <li><span class="task">Specify a label for the node.</span>
+<pre><span class="lbl">Jenkinsfile</span>node(<span class="str">'linux'</span>) {
+    <span class="fn">stage</span>(<span class="str">'Build'</span>) { <span class="fn">sh</span> <span class="str">'make'</span> }
+}</pre></li>
+    <li><span class="task">for loop building multiple modules.</span>
+<pre><span class="lbl">Jenkinsfile</span>node {
+    <span class="kw">def</span> mods = [<span class="str">'core'</span>, <span class="str">'api'</span>]
+    <span class="fn">stage</span>(<span class="str">'Build all'</span>) {
+        <span class="kw">for</span> (m <span class="kw">in</span> mods) { <span class="fn">sh</span> <span class="str">"./build.sh ${m}"</span> }
+    }
+}</pre></li>
+    <li><span class="task">if/else deciding deployment by branch.</span>
+<pre><span class="lbl">Jenkinsfile</span>node {
+    <span class="fn">stage</span>(<span class="str">'Deploy'</span>) {
+        <span class="kw">if</span> (env.BRANCH_NAME == <span class="str">'main'</span>) {
+            <span class="fn">sh</span> <span class="str">'./deploy.sh prod'</span>
+        } <span class="kw">else</span> {
+            <span class="fn">echo</span> <span class="str">'Not main — skipping deploy'</span>
+        }
+    }
+}</pre></li>
+    <li><span class="task">try/catch/finally around a sh step that might fail.</span>
+<pre><span class="lbl">Jenkinsfile</span>node {
+    <span class="fn">stage</span>(<span class="str">'Test'</span>) {
+        <span class="kw">try</span> {
+            <span class="fn">sh</span> <span class="str">'npm test'</span>
+        } <span class="kw">catch</span> (e) {
+            currentBuild.result = <span class="str">'UNSTABLE'</span>
+        } <span class="kw">finally</span> {
+            junit <span class="str">'reports/*.xml'</span>
+        }
+    }
+}</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Scripted Pipeline</span></div>
+  <ol class="drills">
+    <li><span class="task">Write a Scripted Pipeline with node and a "Build" stage running sh 'make'.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>node {
+    <span class="fn">stage</span>(<span class="str">'Build'</span>) { <span class="fn">sh</span> <span class="str">'make'</span> }
+}</pre></div></details></li>
+    <li><span class="task">Write a for loop printing each name in the list ['a','b','c'].</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="kw">def</span> items = [<span class="str">'a'</span>, <span class="str">'b'</span>, <span class="str">'c'</span>]
+<span class="kw">for</span> (i <span class="kw">in</span> items) { <span class="fn">echo</span> <span class="str">"${i}"</span> }</pre></div></details></li>
+    <li><span class="task">Wrap sh 'flaky-cmd' in try/catch, printing the error if any.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="kw">try</span> {
+    <span class="fn">sh</span> <span class="str">'flaky-cmd'</span>
+} <span class="kw">catch</span> (Exception e) {
+    <span class="fn">echo</span> <span class="str">"Error: ${e.getMessage()}"</span>
+}</pre></div></details></li>
+    <li><span class="task">Use a script{} block inside Declarative to echo "x" if variable DEPLOY == true.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>steps {
+    script {
+        <span class="kw">if</span> (DEPLOY == <span class="kw">true</span>) { <span class="fn">echo</span> <span class="str">'x'</span> }
+    }
+}</pre></div></details></li>
+    <li><span class="task">Name one case where Scripted should be preferred over Declarative.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Needing a dynamic number of stages generated at runtime
+// (e.g. looping over an unknown list of modules to build each) —
+// Declarative doesn't support generating stages dynamically as
+// easily as Scripted.</span></pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<div class="pager">
+  <a class="prev" href="phase2-using-jenkins.html"><div class="dir"><span class="vi">← Trước</span><span class="en">← Previous</span></div><div class="ttl"><span class="vi">Giai đoạn 2 — Using Jenkins</span><span class="en">Stage 2 — Using Jenkins</span></div></a>
+  <a class="next" href="phase4-pipeline-advanced.html"><div class="dir"><span class="vi">Tiếp theo →</span><span class="en">Next →</span></div><div class="ttl"><span class="vi">Giai đoạn 4 — Pipeline Advanced</span><span class="en">Stage 4 — Pipeline Advanced</span></div></a>
+</div>
+
+</main>
+</div>
+<script src="assets/i18n.js"></script>
+<script src="assets/scrollspy.js"></script>
+</body>
+</html>

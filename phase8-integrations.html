@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Giai đoạn 8 — Integrations &amp; Notifications | Khóa học Jenkins</title>
+<link rel="stylesheet" href="assets/course.css">
+</head>
+<body class="lang-vi">
+<div class="layout">
+<nav class="side">
+  <div class="brand">🤵 Jenkins<small><span class="vi">Giai đoạn 8 · Tích hợp &amp; Thông báo</span><span class="en">Stage 8 · Integrations &amp; Notifications</span></small></div>
+  <div class="lang-toggle">
+    <button data-lang="vi" class="on">VI</button>
+    <button data-lang="en">EN</button>
+  </div>
+  <a class="nav-home" href="index.html"><span class="vi">← Mục lục khóa học</span><span class="en">← Course index</span></a>
+  <div class="grp"><span class="vi">Bài học</span><span class="en">Lessons</span></div>
+  <a class="lnk" href="#scm-webhooks">8.1 · <span class="vi">Git/GitHub &amp; Webhooks</span><span class="en">Git/GitHub &amp; Webhooks</span></a>
+  <a class="lnk" href="#blue-ocean">8.2 · Blue Ocean</a>
+  <a class="lnk" href="#notifications">8.3 · <span class="vi">Thông báo</span><span class="en">Notifications</span></a>
+  <a class="lnk" href="#artifacts">8.4 · <span class="vi">Artifacts &amp; Fingerprinting</span><span class="en">Artifacts &amp; Fingerprinting</span></a>
+  <a class="lnk" href="#quality-tools">8.5 · <span class="vi">Công cụ chất lượng</span><span class="en">Quality tools</span></a>
+</nav>
+
+<main>
+<header class="top">
+  <div class="crumb"><span class="vi">Khóa học Jenkins › <b>Giai đoạn 8 — Tích hợp &amp; Thông báo</b></span><span class="en">Jenkins Course › <b>Stage 8 — Integrations &amp; Notifications</b></span></div>
+  <h1><span class="vi">Integrations &amp; Notifications</span><span class="en">Integrations &amp; Notifications</span></h1>
+  <p class="lead"><span class="vi">Mục tiêu giai đoạn: kết nối Jenkins với GitHub qua webhook, khai thác Blue Ocean, gửi thông báo qua email/Slack, quản lý artifact/fingerprint, và tích hợp các công cụ kiểm tra chất lượng (JUnit, coverage, SonarQube).</span><span class="en">Stage goal: connect Jenkins to GitHub via webhooks, use Blue Ocean, send email/Slack notifications, manage artifacts/fingerprinting, and integrate quality tools (JUnit, coverage, SonarQube).</span></p>
+</header>
+
+<!-- ============ 8.1 ============ -->
+<section class="lesson" id="scm-webhooks">
+<div class="lang vi">
+  <span class="phase-tag">Bài 8.1</span>
+  <h2>Git/GitHub &amp; Webhooks</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Cấu hình Jenkins lấy code từ Git/GitHub, thiết lập webhook để build tự động khi có push, và biết cách bảo mật webhook.</div>
+  <h3>Cấu hình Git plugin cho Freestyle/Pipeline</h3>
+  <p>Plugin <code class="inline">Git</code> cung cấp bước SCM để checkout mã nguồn. Trong Pipeline, dùng bước <code class="inline">checkout scm</code> hoặc khai báo trực tiếp <code class="inline">git</code>.</p>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent any
+  stages {
+    stage(<span class="str">'Checkout'</span>) {
+      steps {
+        <span class="fn">git</span> branch: <span class="str">'main'</span>,
+            url: <span class="str">'https://github.com/org/repo.git'</span>,
+            credentialsId: <span class="str">'github-creds'</span>
+      }
+    }
+  }
+}</pre>
+  <h3>Webhook GitHub → Jenkins</h3>
+  <p>Vào GitHub repo → <b>Settings → Webhooks → Add webhook</b>, Payload URL trỏ về <code class="inline">http://&lt;jenkins-host&gt;/github-webhook/</code>, Content type <code class="inline">application/json</code>, chọn sự kiện <b>Push</b> (và <b>Pull request</b> nếu cần). Trong job Jenkins, bật <b>"GitHub hook trigger for GITScm polling"</b> (plugin GitHub) hoặc dùng <b>Multibranch Pipeline</b> với <b>GitHub Branch Source</b> để tự động phát hiện branch/PR mà không cần cấu hình từng job.</p>
+  <table>
+    <tr><th>Cách</th><th>Plugin</th><th>Khi dùng</th></tr>
+    <tr><td>GitHub hook trigger</td><td>GitHub plugin</td><td>Job đơn, cần build khi push lên 1 repo cụ thể</td></tr>
+    <tr><td>GitHub Branch Source</td><td>GitHub Branch Source plugin</td><td>Multibranch Pipeline — tự tạo job cho mỗi branch/PR</td></tr>
+    <tr><td>Poll SCM</td><td>Git plugin</td><td>Không mở được webhook (mạng nội bộ), chấp nhận độ trễ</td></tr>
+  </table>
+<pre><span class="lbl">Jenkinsfile (multibranch)</span>pipeline {
+  agent any
+  triggers {
+    <span class="fn">githubPush</span>() <span class="cmt">// trigger khi nhận webhook push</span>
+  }
+  stages {
+    stage(<span class="str">'Build'</span>) { steps { <span class="fn">sh</span> <span class="str">'make build'</span> } }
+  }
+}</pre>
+  <div class="box why"><b>🤔 Vì sao webhook tốt hơn polling?</b>Poll SCM phải chạy định kỳ (VD mỗi phút) kiểm tra thay đổi → tốn tài nguyên và có độ trễ. Webhook đẩy sự kiện ngay khi push xảy ra → build gần như tức thời và không tốn chu kỳ CPU chờ đợi.</div>
+  <div class="box warn"><b>⚠️ Bảo mật webhook</b>• Dùng HTTPS cho Jenkins URL nếu public.<br>• Cấu hình <b>secret token</b> trong webhook GitHub và xác thực bằng plugin (VD "Generic Webhook Trigger" hỗ trợ HMAC).<br>• Hạn chế IP nguồn (GitHub công bố dải IP webhook) bằng firewall/reverse proxy nếu Jenkins expose ra internet.<br>• Không để endpoint <code class="inline">/github-webhook/</code> lộ thông tin nhạy cảm trong response.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Tạo Multibranch Pipeline trỏ tới một repo GitHub thật, cấu hình GitHub Branch Source, thêm webhook, push một commit và quan sát Jenkins tự động phát hiện + build.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Git/GitHub &amp; Webhooks</span></div>
+  <ol class="examples">
+    <li><span class="task">Checkout repo với credentials trong Pipeline.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">git</span> branch: <span class="str">'main'</span>, credentialsId: <span class="str">'gh-token'</span>, url: <span class="str">'https://github.com/org/app.git'</span></pre></li>
+    <li><span class="task">Bật trigger nhận webhook GitHub push.</span>
+<pre><span class="lbl">Jenkinsfile</span>triggers { <span class="fn">githubPush</span>() }</pre></li>
+    <li><span class="task">Cấu hình payload URL webhook GitHub.</span>
+<pre><span class="lbl">GitHub webhook</span>Payload URL: https://ci.example.com/github-webhook/
+Content type: application/json
+Events: Just the push event</pre></li>
+    <li><span class="task">Fallback dùng Poll SCM khi không có webhook.</span>
+<pre><span class="lbl">Jenkinsfile</span>triggers { <span class="fn">pollSCM</span>(<span class="str">'H/5 * * * *'</span>) }</pre></li>
+    <li><span class="task">Multibranch Pipeline dùng GitHub Branch Source (cấu hình qua UI, tương ứng job DSL).</span>
+<pre><span class="lbl">job-dsl</span>multibranchPipelineJob(<span class="str">'app-pipeline'</span>) {
+  branchSources {
+    github {
+      id(<span class="str">'app-repo'</span>)
+      repoOwner(<span class="str">'org'</span>)
+      repository(<span class="str">'app'</span>)
+      credentialsId(<span class="str">'gh-token'</span>)
+    }
+  }
+}</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Git/GitHub &amp; Webhooks</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết bước checkout Git với branch <code class="inline">develop</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="fn">git</span> branch: <span class="str">'develop'</span>, url: <span class="str">'https://github.com/org/repo.git'</span></pre></div></details></li>
+    <li><span class="task">Endpoint webhook chuẩn của GitHub plugin là gì?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>http://&lt;jenkins-host&gt;/github-webhook/</pre></div></details></li>
+    <li><span class="task">Thêm trigger poll SCM mỗi 15 phút.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>triggers { <span class="fn">pollSCM</span>(<span class="str">'H/15 * * * *'</span>) }</pre></div></details></li>
+    <li><span class="task">Vì sao nên dùng Multibranch Pipeline thay vì tạo job riêng cho mỗi branch?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Multibranch tự động scan repo, tự tạo/xóa job theo branch & PR
+// nhờ Jenkinsfile trong repo -> không cần cấu hình thủ công từng job</span></pre></div></details></li>
+    <li><span class="task">Kể một biện pháp bảo mật webhook.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Đặt secret token cho webhook + xác thực HMAC,
+// giới hạn IP nguồn webhook, dùng HTTPS</span></pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 8.1</span>
+  <h2>Git/GitHub &amp; Webhooks</h2>
+  <div class="box goal"><b>🎯 Goal</b>Configure Jenkins to pull code from Git/GitHub, set up webhooks so builds trigger automatically on push, and know how to secure webhooks.</div>
+  <h3>Configuring the Git plugin for Freestyle/Pipeline</h3>
+  <p>The <code class="inline">Git</code> plugin provides the SCM step to check out source code. In Pipeline, use <code class="inline">checkout scm</code> or declare <code class="inline">git</code> directly.</p>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent any
+  stages {
+    stage(<span class="str">'Checkout'</span>) {
+      steps {
+        <span class="fn">git</span> branch: <span class="str">'main'</span>,
+            url: <span class="str">'https://github.com/org/repo.git'</span>,
+            credentialsId: <span class="str">'github-creds'</span>
+      }
+    }
+  }
+}</pre>
+  <h3>GitHub → Jenkins Webhook</h3>
+  <p>In the GitHub repo go to <b>Settings → Webhooks → Add webhook</b>, set the Payload URL to <code class="inline">http://&lt;jenkins-host&gt;/github-webhook/</code>, Content type <code class="inline">application/json</code>, select the <b>Push</b> event (and <b>Pull request</b> if needed). In the Jenkins job, enable <b>"GitHub hook trigger for GITScm polling"</b> (GitHub plugin) or use a <b>Multibranch Pipeline</b> with the <b>GitHub Branch Source</b> to auto-discover branches/PRs without configuring each job.</p>
+  <table>
+    <tr><th>Approach</th><th>Plugin</th><th>When to use</th></tr>
+    <tr><td>GitHub hook trigger</td><td>GitHub plugin</td><td>Single job, build on push to one specific repo</td></tr>
+    <tr><td>GitHub Branch Source</td><td>GitHub Branch Source plugin</td><td>Multibranch Pipeline — auto-creates jobs per branch/PR</td></tr>
+    <tr><td>Poll SCM</td><td>Git plugin</td><td>Webhook not reachable (internal network), latency acceptable</td></tr>
+  </table>
+<pre><span class="lbl">Jenkinsfile (multibranch)</span>pipeline {
+  agent any
+  triggers {
+    <span class="fn">githubPush</span>() <span class="cmt">// trigger on incoming push webhook</span>
+  }
+  stages {
+    stage(<span class="str">'Build'</span>) { steps { <span class="fn">sh</span> <span class="str">'make build'</span> } }
+  }
+}</pre>
+  <div class="box why"><b>🤔 Why are webhooks better than polling?</b>Poll SCM has to run periodically (e.g. every minute) checking for changes — wasting resources and adding latency. A webhook pushes the event the moment a push happens, so builds start almost instantly with no idle polling.</div>
+  <div class="box warn"><b>⚠️ Securing webhooks</b>• Use HTTPS for the Jenkins URL if public.<br>• Configure a <b>secret token</b> on the GitHub webhook and verify it with a plugin (e.g. "Generic Webhook Trigger" supports HMAC).<br>• Restrict source IPs (GitHub publishes its webhook IP ranges) via firewall/reverse proxy if Jenkins is internet-facing.<br>• Don't let the <code class="inline">/github-webhook/</code> endpoint leak sensitive info in responses.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Create a Multibranch Pipeline pointing at a real GitHub repo, configure GitHub Branch Source, add a webhook, push a commit, and watch Jenkins auto-discover and build it.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Git/GitHub &amp; Webhooks</span></div>
+  <ol class="examples">
+    <li><span class="task">Check out a repo with credentials in a Pipeline.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">git</span> branch: <span class="str">'main'</span>, credentialsId: <span class="str">'gh-token'</span>, url: <span class="str">'https://github.com/org/app.git'</span></pre></li>
+    <li><span class="task">Enable a trigger for GitHub push webhooks.</span>
+<pre><span class="lbl">Jenkinsfile</span>triggers { <span class="fn">githubPush</span>() }</pre></li>
+    <li><span class="task">Configure the GitHub webhook payload URL.</span>
+<pre><span class="lbl">GitHub webhook</span>Payload URL: https://ci.example.com/github-webhook/
+Content type: application/json
+Events: Just the push event</pre></li>
+    <li><span class="task">Fall back to Poll SCM when no webhook is available.</span>
+<pre><span class="lbl">Jenkinsfile</span>triggers { <span class="fn">pollSCM</span>(<span class="str">'H/5 * * * *'</span>) }</pre></li>
+    <li><span class="task">Multibranch Pipeline using GitHub Branch Source (via Job DSL).</span>
+<pre><span class="lbl">job-dsl</span>multibranchPipelineJob(<span class="str">'app-pipeline'</span>) {
+  branchSources {
+    github {
+      id(<span class="str">'app-repo'</span>)
+      repoOwner(<span class="str">'org'</span>)
+      repository(<span class="str">'app'</span>)
+      credentialsId(<span class="str">'gh-token'</span>)
+    }
+  }
+}</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Git/GitHub &amp; Webhooks</span></div>
+  <ol class="drills">
+    <li><span class="task">Write a checkout step for branch <code class="inline">develop</code>.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="fn">git</span> branch: <span class="str">'develop'</span>, url: <span class="str">'https://github.com/org/repo.git'</span></pre></div></details></li>
+    <li><span class="task">What is the standard GitHub plugin webhook endpoint?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>http://&lt;jenkins-host&gt;/github-webhook/</pre></div></details></li>
+    <li><span class="task">Add a poll SCM trigger every 15 minutes.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>triggers { <span class="fn">pollSCM</span>(<span class="str">'H/15 * * * *'</span>) }</pre></div></details></li>
+    <li><span class="task">Why prefer a Multibranch Pipeline over one job per branch?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// It auto-scans the repo and creates/removes jobs per branch & PR
+// based on the Jenkinsfile in the repo -- no manual per-job setup</span></pre></div></details></li>
+    <li><span class="task">Name one webhook security measure.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Set a webhook secret token + verify HMAC,
+// restrict webhook source IPs, use HTTPS</span></pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 8.2 ============ -->
+<section class="lesson" id="blue-ocean">
+<div class="lang vi">
+  <span class="phase-tag">Bài 8.2</span>
+  <h2>Blue Ocean</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Cài đặt Blue Ocean, hiểu visual pipeline editor và khả năng trực quan hóa run, biết khi nào nên/không nên dùng.</div>
+  <h3>Cài đặt</h3>
+  <p>Vào <b>Manage Jenkins → Plugins → Available</b>, tìm và cài <b>Blue Ocean</b> (đây là một tập hợp plugin, cài chung sẽ kéo theo các plugin con). Sau khi cài, truy cập tại <code class="inline">/blue</code> trên URL Jenkins.</p>
+<pre><span class="lbl">terminal (Jenkins CLI)</span>jenkins-plugin-cli --plugins blueocean</pre>
+  <h3>Visual Pipeline Editor</h3>
+  <p>Blue Ocean cho phép tạo/sửa Pipeline bằng kéo-thả các stage/step, sau đó xuất ra một <code class="inline">Jenkinsfile</code> chuẩn commit vào repo — không có "định dạng ẩn" riêng, editor chỉ sinh cú pháp Declarative Pipeline thông thường.</p>
+  <h3>Trực quan hóa build</h3>
+  <p>Màn hình run hiển thị các stage dạng sơ đồ ngang, log riêng từng bước, thời gian chạy mỗi stage, và view riêng cho Pull Request/branch trong Multibranch Pipeline.</p>
+  <table>
+    <tr><th>Tiêu chí</th><th>Blue Ocean</th><th>Classic UI</th></tr>
+    <tr><td>Trực quan hóa stage</td><td>Sơ đồ đẹp, dễ đọc</td><td>Bảng stage view cơ bản</td></tr>
+    <tr><td>Chỉnh sửa Pipeline</td><td>Kéo-thả trực quan</td><td>Chỉnh Jenkinsfile trực tiếp</td></tr>
+    <tr><td>Tình trạng phát triển</td><td><b>Bảo trì (maintenance mode)</b> từ 2020, không thêm tính năng mới</td><td>Đang phát triển tích cực</td></tr>
+    <tr><td>Plugin/tính năng mới</td><td>Nhiều plugin không hỗ trợ UI Blue Ocean</td><td>Hỗ trợ đầy đủ mọi plugin</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Vì sao vẫn học Blue Ocean?</b>Nhiều tổ chức vẫn dùng nó để xem trực quan pipeline phức tạp (parallel stage, matrix) dễ hơn nhiều so với classic UI, dù không còn phát triển thêm.</div>
+  <div class="box warn"><b>⚠️ Blue Ocean đang ở chế độ bảo trì</b>Từ 2020 team Jenkins tuyên bố chỉ vá lỗi bảo mật, không phát triển tính năng mới. Nếu cần trải nghiệm hiện đại hơn, cân nhắc các giải pháp thay thế như <b>giao diện Pipeline Stage View mới trong Jenkins core</b>, hoặc các nền tảng CI khác có UI trực quan tích hợp sẵn.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Cài Blue Ocean, mở một Multibranch Pipeline có sẵn, dùng editor tạo một stage mới bằng kéo-thả, xem Jenkinsfile được sinh ra và commit nó vào repo.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Blue Ocean</span></div>
+  <ol class="examples">
+    <li><span class="task">Cài Blue Ocean bằng Jenkins CLI plugin manager.</span>
+<pre><span class="lbl">terminal</span>jenkins-plugin-cli --plugins blueocean</pre></li>
+    <li><span class="task">Đường dẫn truy cập Blue Ocean.</span>
+<pre><span class="lbl">URL</span>https://ci.example.com/blue/organizations/jenkins/</pre></li>
+    <li><span class="task">Jenkinsfile được Blue Ocean editor sinh ra (ví dụ tối giản).</span>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent any
+  stages {
+    stage(<span class="str">'Build'</span>) { steps { <span class="fn">sh</span> <span class="str">'./build.sh'</span> } }
+  }
+}</pre></li>
+    <li><span class="task">Xem parallel stage rõ ràng hơn trong Blue Ocean.</span>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'Tests'</span>) {
+  parallel {
+    stage(<span class="str">'Unit'</span>) { steps { <span class="fn">sh</span> <span class="str">'npm test'</span> } }
+    stage(<span class="str">'Lint'</span>) { steps { <span class="fn">sh</span> <span class="str">'npm run lint'</span> } }
+  }
+}</pre></li>
+    <li><span class="task">Kiểm tra plugin Blue Ocean đã cài qua Jenkins CLI.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s http://localhost:8080/ list-plugins | grep blueocean</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Blue Ocean</span></div>
+  <ol class="drills">
+    <li><span class="task">Đường dẫn để mở giao diện Blue Ocean là gì?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>/blue</pre></div></details></li>
+    <li><span class="task">Blue Ocean hiện đang ở tình trạng phát triển nào?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Maintenance mode kể từ 2020: chỉ vá bảo mật, không thêm tính năng</span></pre></div></details></li>
+    <li><span class="task">Blue Ocean editor lưu pipeline dưới định dạng nào?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Jenkinsfile Declarative Pipeline chuẩn, commit vào repo</span></pre></div></details></li>
+    <li><span class="task">Viết lệnh cài Blue Ocean qua plugin CLI.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>jenkins-plugin-cli --plugins blueocean</pre></div></details></li>
+    <li><span class="task">Nêu một hạn chế khi dùng Blue Ocean với plugin mới.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Nhiều plugin mới không có tích hợp UI Blue Ocean vì nó không còn phát triển</span></pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 8.2</span>
+  <h2>Blue Ocean</h2>
+  <div class="box goal"><b>🎯 Goal</b>Install Blue Ocean, understand the visual pipeline editor and run visualization, and know when to use it vs. the classic UI.</div>
+  <h3>Installation</h3>
+  <p>Go to <b>Manage Jenkins → Plugins → Available</b>, find and install <b>Blue Ocean</b> (it's a bundle of plugins — installing it pulls in the dependent ones). Once installed, access it at <code class="inline">/blue</code> on your Jenkins URL.</p>
+<pre><span class="lbl">terminal (Jenkins CLI)</span>jenkins-plugin-cli --plugins blueocean</pre>
+  <h3>Visual Pipeline Editor</h3>
+  <p>Blue Ocean lets you create/edit a Pipeline by dragging and dropping stages/steps, then exports a standard <code class="inline">Jenkinsfile</code> to commit to your repo — there is no hidden proprietary format, the editor just generates plain Declarative Pipeline syntax.</p>
+  <h3>Run Visualization</h3>
+  <p>The run screen shows stages as a horizontal diagram, per-step logs, per-stage timing, and dedicated Pull Request/branch views for Multibranch Pipelines.</p>
+  <table>
+    <tr><th>Criterion</th><th>Blue Ocean</th><th>Classic UI</th></tr>
+    <tr><td>Stage visualization</td><td>Clean, readable diagram</td><td>Basic stage view table</td></tr>
+    <tr><td>Editing pipelines</td><td>Visual drag-and-drop</td><td>Edit the Jenkinsfile directly</td></tr>
+    <tr><td>Development status</td><td><b>Maintenance mode</b> since 2020, no new features</td><td>Actively developed</td></tr>
+    <tr><td>New plugin support</td><td>Many plugins lack Blue Ocean UI support</td><td>Full plugin support</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Why still learn Blue Ocean?</b>Many organizations still use it because visualizing complex pipelines (parallel stages, matrix) is much easier than the classic UI, even though it's no longer actively developed.</div>
+  <div class="box warn"><b>⚠️ Blue Ocean is in maintenance mode</b>Since 2020 the Jenkins team has stated it only receives security fixes, no new features. For a more modern experience, consider alternatives like the <b>newer Pipeline Stage View built into Jenkins core</b>, or other CI platforms with built-in visual UIs.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Install Blue Ocean, open an existing Multibranch Pipeline, use the editor to add a new stage by drag-and-drop, inspect the generated Jenkinsfile, and commit it to the repo.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Blue Ocean</span></div>
+  <ol class="examples">
+    <li><span class="task">Install Blue Ocean via the Jenkins CLI plugin manager.</span>
+<pre><span class="lbl">terminal</span>jenkins-plugin-cli --plugins blueocean</pre></li>
+    <li><span class="task">The Blue Ocean access path.</span>
+<pre><span class="lbl">URL</span>https://ci.example.com/blue/organizations/jenkins/</pre></li>
+    <li><span class="task">Jenkinsfile generated by the Blue Ocean editor (minimal example).</span>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent any
+  stages {
+    stage(<span class="str">'Build'</span>) { steps { <span class="fn">sh</span> <span class="str">'./build.sh'</span> } }
+  }
+}</pre></li>
+    <li><span class="task">Parallel stages are clearer in Blue Ocean.</span>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'Tests'</span>) {
+  parallel {
+    stage(<span class="str">'Unit'</span>) { steps { <span class="fn">sh</span> <span class="str">'npm test'</span> } }
+    stage(<span class="str">'Lint'</span>) { steps { <span class="fn">sh</span> <span class="str">'npm run lint'</span> } }
+  }
+}</pre></li>
+    <li><span class="task">Verify Blue Ocean is installed via Jenkins CLI.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s http://localhost:8080/ list-plugins | grep blueocean</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Blue Ocean</span></div>
+  <ol class="drills">
+    <li><span class="task">What path opens the Blue Ocean UI?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>/blue</pre></div></details></li>
+    <li><span class="task">What is Blue Ocean's current development status?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Maintenance mode since 2020: security fixes only, no new features</span></pre></div></details></li>
+    <li><span class="task">What format does the Blue Ocean editor save pipelines in?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// A standard Declarative Pipeline Jenkinsfile, committed to the repo</span></pre></div></details></li>
+    <li><span class="task">Write the command to install Blue Ocean via the plugin CLI.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>jenkins-plugin-cli --plugins blueocean</pre></div></details></li>
+    <li><span class="task">Name one limitation of using Blue Ocean with newer plugins.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Many newer plugins lack Blue Ocean UI integration since it's no longer developed</span></pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 8.3 ============ -->
+<section class="lesson" id="notifications">
+<div class="lang vi">
+  <span class="phase-tag">Bài 8.3</span>
+  <h2>Thông báo (Notifications)</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Cấu hình Email-ext gửi mail khi build thất bại, gửi thông báo Slack qua <code class="inline">slackSend</code>, và điều kiện hóa thông báo theo kết quả build.</div>
+  <h3>Email-ext — cấu hình SMTP</h3>
+  <p>Vào <b>Manage Jenkins → System</b>, mục <b>Extended E-mail Notification</b>: nhập SMTP server, port, bật SSL/TLS nếu cần, và thiết lập <b>Default user e-mail suffix</b>/credentials gửi mail.</p>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent any
+  stages {
+    stage(<span class="str">'Build'</span>) { steps { <span class="fn">sh</span> <span class="str">'./build.sh'</span> } }
+  }
+  post {
+    failure {
+      <span class="fn">mail</span> to: <span class="str">'team@example.com'</span>,
+           subject: <span class="str">"FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}"</span>,
+           body: <span class="str">"Xem chi tiết tại: ${env.BUILD_URL}"</span>
+    }
+  }
+}</pre>
+  <p>Với Email-ext plugin có thể dùng bước nâng cao hơn <code class="inline">emailext</code> để đính kèm log, dùng template HTML:</p>
+<pre><span class="lbl">Jenkinsfile</span>post {
+  failure {
+    <span class="fn">emailext</span> subject: <span class="str">'$DEFAULT_SUBJECT'</span>,
+             body: <span class="str">'$DEFAULT_CONTENT'</span>,
+             attachLog: <span class="kw">true</span>,
+             to: <span class="str">'team@example.com'</span>
+  }
+}</pre>
+  <h3>Slack Notification — <code class="inline">slackSend</code></h3>
+  <p>Cài plugin <b>Slack Notification</b>, tạo Slack App/Webhook, cấu hình workspace token trong <b>Manage Jenkins → System → Slack</b>. Trong Jenkinsfile:</p>
+<pre><span class="lbl">Jenkinsfile</span>post {
+  success {
+    <span class="fn">slackSend</span> channel: <span class="str">'#ci-cd'</span>,
+              color: <span class="str">'good'</span>,
+              message: <span class="str">"✅ ${env.JOB_NAME} #${env.BUILD_NUMBER} thành công"</span>
+  }
+  failure {
+    <span class="fn">slackSend</span> channel: <span class="str">'#ci-cd'</span>,
+              color: <span class="str">'danger'</span>,
+              message: <span class="str">"❌ ${env.JOB_NAME} #${env.BUILD_NUMBER} thất bại — ${env.BUILD_URL}"</span>
+  }
+}</pre>
+  <table>
+    <tr><th>Điều kiện <code>post</code></th><th>Khi trigger</th></tr>
+    <tr><td><code>always</code></td><td>Luôn chạy bất kể kết quả</td></tr>
+    <tr><td><code>success</code></td><td>Build thành công</td></tr>
+    <tr><td><code>failure</code></td><td>Build thất bại</td></tr>
+    <tr><td><code>unstable</code></td><td>Build "không ổn định" (VD test fail nhưng không dừng build)</td></tr>
+    <tr><td><code>changed</code></td><td>Kết quả khác lần build trước (VD từ failure sang success)</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Vì sao dùng <code class="inline">changed</code> thay vì gửi mọi lần?</b>Gửi thông báo mỗi build gây "spam mệt mỏi" — team sẽ bỏ qua cảnh báo. Chỉ báo khi trạng thái <b>thay đổi</b> (fail→pass, pass→fail) giúp thông báo có ý nghĩa và được chú ý.</div>
+  <div class="box warn"><b>⚠️ Đừng để lộ thông tin nhạy cảm</b>Không đưa log đầy đủ hay biến môi trường bí mật vào nội dung thông báo Slack/email công khai. Dùng <code class="inline">credentials()</code> và mask output khi cần.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Thêm khối <code class="inline">post</code> gửi Slack khi <code class="inline">failure</code> và email khi <code class="inline">changed</code>, thử làm 1 build fail rồi fix lại để thấy 2 loại thông báo khác nhau.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Thông báo</span></div>
+  <ol class="examples">
+    <li><span class="task">Gửi mail đơn giản khi build fail.</span>
+<pre><span class="lbl">Jenkinsfile</span>post { failure { <span class="fn">mail</span> to: <span class="str">'a@b.com'</span>, subject: <span class="str">'Build failed'</span>, body: <span class="str">'Xem Jenkins'</span> } }</pre></li>
+    <li><span class="task">Gửi Slack khi thành công.</span>
+<pre><span class="lbl">Jenkinsfile</span>post { success { <span class="fn">slackSend</span> channel: <span class="str">'#ci'</span>, color: <span class="str">'good'</span>, message: <span class="str">'Build OK'</span> } }</pre></li>
+    <li><span class="task">Thông báo chỉ khi trạng thái thay đổi.</span>
+<pre><span class="lbl">Jenkinsfile</span>post { changed { <span class="fn">slackSend</span> channel: <span class="str">'#ci'</span>, message: <span class="str">"Trạng thái đổi: ${currentBuild.currentResult}"</span> } }</pre></li>
+    <li><span class="task">Email đính kèm log build khi fail.</span>
+<pre><span class="lbl">Jenkinsfile</span>post { failure { <span class="fn">emailext</span> attachLog: <span class="kw">true</span>, to: <span class="str">'team@example.com'</span>, subject: <span class="str">'$DEFAULT_SUBJECT'</span>, body: <span class="str">'$DEFAULT_CONTENT'</span> } }</pre></li>
+    <li><span class="task">Thông báo unstable riêng biệt.</span>
+<pre><span class="lbl">Jenkinsfile</span>post { unstable { <span class="fn">slackSend</span> channel: <span class="str">'#ci'</span>, color: <span class="str">'warning'</span>, message: <span class="str">'Build unstable — có test fail'</span> } }</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Thông báo</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết bước <code class="inline">mail</code> gửi khi build fail.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>post { failure { <span class="fn">mail</span> to: <span class="str">'dev@example.com'</span>, subject: <span class="str">'FAILED'</span>, body: <span class="str">'check jenkins'</span> } } </pre></div></details></li>
+    <li><span class="task">Viết <code class="inline">slackSend</code> với màu "danger" khi fail.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="fn">slackSend</span> channel: <span class="str">'#ci'</span>, color: <span class="str">'danger'</span>, message: <span class="str">'Fail!'</span></pre></div></details></li>
+    <li><span class="task">Điều kiện post nào chạy khi test bị đánh dấu unstable?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>post { unstable { <span class="cmt">/* ... */</span> } }</pre></div></details></li>
+    <li><span class="task">Điều kiện post nào chỉ chạy khi kết quả khác lần build trước?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>post { changed { <span class="cmt">/* ... */</span> } }</pre></div></details></li>
+    <li><span class="task">Bật đính kèm log trong emailext.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="fn">emailext</span> attachLog: <span class="kw">true</span>, to: <span class="str">'team@example.com'</span></pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 8.3</span>
+  <h2>Notifications</h2>
+  <div class="box goal"><b>🎯 Goal</b>Configure Email-ext to send mail on build failure, send Slack notifications via <code class="inline">slackSend</code>, and condition notifications on the build result.</div>
+  <h3>Email-ext — SMTP configuration</h3>
+  <p>Go to <b>Manage Jenkins → System</b>, section <b>Extended E-mail Notification</b>: enter the SMTP server, port, enable SSL/TLS if needed, and set the <b>Default user e-mail suffix</b>/sending credentials.</p>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent any
+  stages {
+    stage(<span class="str">'Build'</span>) { steps { <span class="fn">sh</span> <span class="str">'./build.sh'</span> } }
+  }
+  post {
+    failure {
+      <span class="fn">mail</span> to: <span class="str">'team@example.com'</span>,
+           subject: <span class="str">"FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}"</span>,
+           body: <span class="str">"See details at: ${env.BUILD_URL}"</span>
+    }
+  }
+}</pre>
+  <p>With the Email-ext plugin you can use the more advanced <code class="inline">emailext</code> step to attach logs and use an HTML template:</p>
+<pre><span class="lbl">Jenkinsfile</span>post {
+  failure {
+    <span class="fn">emailext</span> subject: <span class="str">'$DEFAULT_SUBJECT'</span>,
+             body: <span class="str">'$DEFAULT_CONTENT'</span>,
+             attachLog: <span class="kw">true</span>,
+             to: <span class="str">'team@example.com'</span>
+  }
+}</pre>
+  <h3>Slack Notification — <code class="inline">slackSend</code></h3>
+  <p>Install the <b>Slack Notification</b> plugin, create a Slack App/Webhook, configure the workspace token under <b>Manage Jenkins → System → Slack</b>. In a Jenkinsfile:</p>
+<pre><span class="lbl">Jenkinsfile</span>post {
+  success {
+    <span class="fn">slackSend</span> channel: <span class="str">'#ci-cd'</span>,
+              color: <span class="str">'good'</span>,
+              message: <span class="str">"✅ ${env.JOB_NAME} #${env.BUILD_NUMBER} succeeded"</span>
+  }
+  failure {
+    <span class="fn">slackSend</span> channel: <span class="str">'#ci-cd'</span>,
+              color: <span class="str">'danger'</span>,
+              message: <span class="str">"❌ ${env.JOB_NAME} #${env.BUILD_NUMBER} failed — ${env.BUILD_URL}"</span>
+  }
+}</pre>
+  <table>
+    <tr><th><code>post</code> condition</th><th>Triggers when</th></tr>
+    <tr><td><code>always</code></td><td>Always runs regardless of result</td></tr>
+    <tr><td><code>success</code></td><td>Build succeeded</td></tr>
+    <tr><td><code>failure</code></td><td>Build failed</td></tr>
+    <tr><td><code>unstable</code></td><td>Build is "unstable" (e.g. failed tests but build not aborted)</td></tr>
+    <tr><td><code>changed</code></td><td>Result differs from the previous build (e.g. failure → success)</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Why use <code class="inline">changed</code> instead of notifying every time?</b>Notifying on every build causes "alert fatigue" — the team starts ignoring warnings. Only alerting on a status <b>change</b> (fail→pass, pass→fail) keeps notifications meaningful and noticed.</div>
+  <div class="box warn"><b>⚠️ Don't leak sensitive information</b>Don't put full logs or secret environment variables into public Slack/email notification bodies. Use <code class="inline">credentials()</code> and mask output where needed.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Add a <code class="inline">post</code> block that sends Slack on <code class="inline">failure</code> and email on <code class="inline">changed</code>; break a build and then fix it to see both types of notification fire.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Notifications</span></div>
+  <ol class="examples">
+    <li><span class="task">Send a simple email when the build fails.</span>
+<pre><span class="lbl">Jenkinsfile</span>post { failure { <span class="fn">mail</span> to: <span class="str">'a@b.com'</span>, subject: <span class="str">'Build failed'</span>, body: <span class="str">'Check Jenkins'</span> } }</pre></li>
+    <li><span class="task">Send Slack on success.</span>
+<pre><span class="lbl">Jenkinsfile</span>post { success { <span class="fn">slackSend</span> channel: <span class="str">'#ci'</span>, color: <span class="str">'good'</span>, message: <span class="str">'Build OK'</span> } }</pre></li>
+    <li><span class="task">Notify only when the status changed.</span>
+<pre><span class="lbl">Jenkinsfile</span>post { changed { <span class="fn">slackSend</span> channel: <span class="str">'#ci'</span>, message: <span class="str">"Status changed: ${currentBuild.currentResult}"</span> } }</pre></li>
+    <li><span class="task">Email with the build log attached on failure.</span>
+<pre><span class="lbl">Jenkinsfile</span>post { failure { <span class="fn">emailext</span> attachLog: <span class="kw">true</span>, to: <span class="str">'team@example.com'</span>, subject: <span class="str">'$DEFAULT_SUBJECT'</span>, body: <span class="str">'$DEFAULT_CONTENT'</span> } }</pre></li>
+    <li><span class="task">A distinct notification for unstable builds.</span>
+<pre><span class="lbl">Jenkinsfile</span>post { unstable { <span class="fn">slackSend</span> channel: <span class="str">'#ci'</span>, color: <span class="str">'warning'</span>, message: <span class="str">'Build unstable — failing tests'</span> } }</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Notifications</span></div>
+  <ol class="drills">
+    <li><span class="task">Write a <code class="inline">mail</code> step that fires on build failure.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>post { failure { <span class="fn">mail</span> to: <span class="str">'dev@example.com'</span>, subject: <span class="str">'FAILED'</span>, body: <span class="str">'check jenkins'</span> } } </pre></div></details></li>
+    <li><span class="task">Write a <code class="inline">slackSend</code> with color "danger" on failure.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="fn">slackSend</span> channel: <span class="str">'#ci'</span>, color: <span class="str">'danger'</span>, message: <span class="str">'Fail!'</span></pre></div></details></li>
+    <li><span class="task">Which post condition runs when tests are marked unstable?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>post { unstable { <span class="cmt">/* ... */</span> } }</pre></div></details></li>
+    <li><span class="task">Which post condition only runs when the result differs from the previous build?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>post { changed { <span class="cmt">/* ... */</span> } }</pre></div></details></li>
+    <li><span class="task">Enable log attachment in emailext.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="fn">emailext</span> attachLog: <span class="kw">true</span>, to: <span class="str">'team@example.com'</span></pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 8.4 ============ -->
+<section class="lesson" id="artifacts">
+<div class="lang vi">
+  <span class="phase-tag">Bài 8.4</span>
+  <h2>Artifacts &amp; Fingerprinting</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Lưu trữ artifact bằng <code class="inline">archiveArtifacts</code> kèm fingerprint, chuyển file giữa các stage bằng <code class="inline">stash</code>/<code class="inline">unstash</code>, dùng Copy Artifact giữa các job, và cấu hình retention.</div>
+  <h3>archiveArtifacts &amp; fingerprint</h3>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent any
+  stages {
+    stage(<span class="str">'Build'</span>) {
+      steps {
+        <span class="fn">sh</span> <span class="str">'./gradlew build'</span>
+        <span class="fn">archiveArtifacts</span> artifacts: <span class="str">'build/libs/*.jar'</span>,
+                        fingerprint: <span class="kw">true</span>,
+                        onlyIfSuccessful: <span class="kw">true</span>
+      }
+    }
+  }
+}</pre>
+  <p>Fingerprint tính checksum (MD5) cho file, giúp Jenkins <b>theo dõi một file cụ thể đi qua nhiều job/build</b> — hữu ích để biết một JAR được deploy lên môi trường nào, từ build nào.</p>
+  <h3>stash / unstash giữa các stage</h3>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'Build'</span>) {
+  steps {
+    <span class="fn">sh</span> <span class="str">'./gradlew build'</span>
+    <span class="fn">stash</span> name: <span class="str">'app-jar'</span>, includes: <span class="str">'build/libs/*.jar'</span>
+  }
+}
+stage(<span class="str">'Deploy'</span>) {
+  agent { label <span class="str">'deploy-node'</span> }
+  steps {
+    <span class="fn">unstash</span> <span class="str">'app-jar'</span>
+    <span class="fn">sh</span> <span class="str">'./deploy.sh build/libs/app.jar'</span>
+  }
+}</pre>
+  <h3>Copy Artifact giữa các job &amp; retention</h3>
+  <p>Plugin <b>Copy Artifact</b> cho phép một job lấy artifact đã archive từ job khác (kể cả job khác pipeline/repository):</p>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">copyArtifacts</span> projectName: <span class="str">'upstream-build'</span>,
+             selector: lastSuccessful(),
+             filter: <span class="str">'dist/*.zip'</span></pre>
+  <table>
+    <tr><th>Cơ chế</th><th>Phạm vi</th><th>Tồn tại sau khi build xong?</th></tr>
+    <tr><td><code>stash</code>/<code>unstash</code></td><td>Trong cùng 1 lần chạy pipeline, khác agent/stage</td><td>Không — bị xóa cuối run</td></tr>
+    <tr><td><code>archiveArtifacts</code></td><td>Lưu lâu dài trên Jenkins controller</td><td>Có — theo policy discard old builds</td></tr>
+    <tr><td>Copy Artifact plugin</td><td>Giữa các job khác nhau</td><td>Đọc lại artifact đã archive của job khác</td></tr>
+  </table>
+  <p>Để tránh đầy ổ đĩa, cấu hình <b>"Discard old builds"</b> trong job (Max # builds to keep / Days to keep), hoặc dùng <code class="inline">buildDiscarder</code> trong Declarative Pipeline:</p>
+<pre><span class="lbl">Jenkinsfile</span>options {
+  <span class="fn">buildDiscarder</span>(logRotator(numToKeepStr: <span class="str">'20'</span>, artifactNumToKeepStr: <span class="str">'10'</span>))
+}</pre>
+  <div class="box why"><b>🤔 stash khác archiveArtifacts thế nào?</b><code class="inline">stash</code> chỉ tồn tại tạm thời trong một lần chạy pipeline để chuyển file giữa các stage/agent khác nhau; <code class="inline">archiveArtifacts</code> lưu vĩnh viễn trên controller để tải về hoặc xem lại về sau.</div>
+  <div class="box warn"><b>⚠️ Đừng archive quá nhiều</b>Archive file build lớn (VD toàn bộ node_modules) mỗi build sẽ nhanh chóng làm đầy đĩa controller. Chỉ archive artifact cần thiết (binary, report) và luôn cấu hình discard/retention.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Viết pipeline 2 stage: stage 1 build và stash file jar, stage 2 chạy trên agent khác unstash và archive kèm fingerprint; sau đó cấu hình buildDiscarder giữ tối đa 15 build.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Artifacts &amp; Fingerprinting</span></div>
+  <ol class="examples">
+    <li><span class="task">Archive file jar kèm fingerprint.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">archiveArtifacts</span> artifacts: <span class="str">'target/*.jar'</span>, fingerprint: <span class="kw">true</span></pre></li>
+    <li><span class="task">Stash report test để dùng ở stage sau.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">stash</span> name: <span class="str">'reports'</span>, includes: <span class="str">'test-results/**'</span></pre></li>
+    <li><span class="task">Unstash trên agent khác.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">unstash</span> <span class="str">'reports'</span></pre></li>
+    <li><span class="task">Lấy artifact từ job upstream bằng Copy Artifact.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">copyArtifacts</span> projectName: <span class="str">'lib-build'</span>, selector: lastSuccessful()</pre></li>
+    <li><span class="task">Giữ tối đa 10 build gần nhất.</span>
+<pre><span class="lbl">Jenkinsfile</span>options { <span class="fn">buildDiscarder</span>(logRotator(numToKeepStr: <span class="str">'10'</span>)) }</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Artifacts &amp; Fingerprinting</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết archiveArtifacts chỉ archive khi build thành công.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="fn">archiveArtifacts</span> artifacts: <span class="str">'dist/*.zip'</span>, onlyIfSuccessful: <span class="kw">true</span></pre></div></details></li>
+    <li><span class="task">Stash file có tên "binary" gồm thư mục out/.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="fn">stash</span> name: <span class="str">'binary'</span>, includes: <span class="str">'out/**'</span></pre></div></details></li>
+    <li><span class="task">Stash tồn tại đến khi nào?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Chỉ trong phạm vi 1 lần chạy pipeline, bị xóa khi run kết thúc</span></pre></div></details></li>
+    <li><span class="task">Viết copyArtifacts lấy file cụ thể bằng filter.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="fn">copyArtifacts</span> projectName: <span class="str">'upstream'</span>, selector: lastSuccessful(), filter: <span class="str">'*.tar.gz'</span></pre></div></details></li>
+    <li><span class="task">Cấu hình giữ artifact tối đa của 5 build gần nhất.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>options { <span class="fn">buildDiscarder</span>(logRotator(artifactNumToKeepStr: <span class="str">'5'</span>)) }</pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 8.4</span>
+  <h2>Artifacts &amp; Fingerprinting</h2>
+  <div class="box goal"><b>🎯 Goal</b>Archive artifacts with <code class="inline">archiveArtifacts</code> plus fingerprinting, pass files between stages with <code class="inline">stash</code>/<code class="inline">unstash</code>, use Copy Artifact between jobs, and configure retention.</div>
+  <h3>archiveArtifacts &amp; fingerprint</h3>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent any
+  stages {
+    stage(<span class="str">'Build'</span>) {
+      steps {
+        <span class="fn">sh</span> <span class="str">'./gradlew build'</span>
+        <span class="fn">archiveArtifacts</span> artifacts: <span class="str">'build/libs/*.jar'</span>,
+                        fingerprint: <span class="kw">true</span>,
+                        onlyIfSuccessful: <span class="kw">true</span>
+      }
+    }
+  }
+}</pre>
+  <p>Fingerprinting computes a checksum (MD5) for a file, letting Jenkins <b>track a specific file across multiple jobs/builds</b> — useful to know which environment a given JAR was deployed to, and from which build.</p>
+  <h3>stash / unstash between stages</h3>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'Build'</span>) {
+  steps {
+    <span class="fn">sh</span> <span class="str">'./gradlew build'</span>
+    <span class="fn">stash</span> name: <span class="str">'app-jar'</span>, includes: <span class="str">'build/libs/*.jar'</span>
+  }
+}
+stage(<span class="str">'Deploy'</span>) {
+  agent { label <span class="str">'deploy-node'</span> }
+  steps {
+    <span class="fn">unstash</span> <span class="str">'app-jar'</span>
+    <span class="fn">sh</span> <span class="str">'./deploy.sh build/libs/app.jar'</span>
+  }
+}</pre>
+  <h3>Copy Artifact between jobs &amp; retention</h3>
+  <p>The <b>Copy Artifact</b> plugin lets one job fetch archived artifacts from another job (even a different pipeline/repository):</p>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">copyArtifacts</span> projectName: <span class="str">'upstream-build'</span>,
+             selector: lastSuccessful(),
+             filter: <span class="str">'dist/*.zip'</span></pre>
+  <table>
+    <tr><th>Mechanism</th><th>Scope</th><th>Survives after the build ends?</th></tr>
+    <tr><td><code>stash</code>/<code>unstash</code></td><td>Within a single pipeline run, across agents/stages</td><td>No — discarded at the end of the run</td></tr>
+    <tr><td><code>archiveArtifacts</code></td><td>Persisted on the Jenkins controller</td><td>Yes — subject to the discard-old-builds policy</td></tr>
+    <tr><td>Copy Artifact plugin</td><td>Between different jobs</td><td>Reads another job's already-archived artifacts</td></tr>
+  </table>
+  <p>To avoid filling up disk, configure <b>"Discard old builds"</b> on the job (Max # builds to keep / Days to keep), or use <code class="inline">buildDiscarder</code> in a Declarative Pipeline:</p>
+<pre><span class="lbl">Jenkinsfile</span>options {
+  <span class="fn">buildDiscarder</span>(logRotator(numToKeepStr: <span class="str">'20'</span>, artifactNumToKeepStr: <span class="str">'10'</span>))
+}</pre>
+  <div class="box why"><b>🤔 How is stash different from archiveArtifacts?</b><code class="inline">stash</code> only lives temporarily for one pipeline run, moving files between different stages/agents; <code class="inline">archiveArtifacts</code> persists permanently on the controller for later download or review.</div>
+  <div class="box warn"><b>⚠️ Don't over-archive</b>Archiving large build outputs (e.g. an entire node_modules) on every build quickly fills the controller's disk. Only archive what's needed (binaries, reports) and always configure discard/retention.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Write a 2-stage pipeline: stage 1 builds and stashes a jar file, stage 2 runs on a different agent, unstashes it, and archives it with fingerprinting; then configure a buildDiscarder that keeps at most 15 builds.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Artifacts &amp; Fingerprinting</span></div>
+  <ol class="examples">
+    <li><span class="task">Archive a jar file with fingerprinting.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">archiveArtifacts</span> artifacts: <span class="str">'target/*.jar'</span>, fingerprint: <span class="kw">true</span></pre></li>
+    <li><span class="task">Stash test reports for use in a later stage.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">stash</span> name: <span class="str">'reports'</span>, includes: <span class="str">'test-results/**'</span></pre></li>
+    <li><span class="task">Unstash on a different agent.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">unstash</span> <span class="str">'reports'</span></pre></li>
+    <li><span class="task">Fetch an artifact from an upstream job with Copy Artifact.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">copyArtifacts</span> projectName: <span class="str">'lib-build'</span>, selector: lastSuccessful()</pre></li>
+    <li><span class="task">Keep at most the last 10 builds.</span>
+<pre><span class="lbl">Jenkinsfile</span>options { <span class="fn">buildDiscarder</span>(logRotator(numToKeepStr: <span class="str">'10'</span>)) }</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Artifacts &amp; Fingerprinting</span></div>
+  <ol class="drills">
+    <li><span class="task">Write archiveArtifacts that only archives on a successful build.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="fn">archiveArtifacts</span> artifacts: <span class="str">'dist/*.zip'</span>, onlyIfSuccessful: <span class="kw">true</span></pre></div></details></li>
+    <li><span class="task">Stash a file named "binary" containing the out/ folder.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="fn">stash</span> name: <span class="str">'binary'</span>, includes: <span class="str">'out/**'</span></pre></div></details></li>
+    <li><span class="task">How long does a stash persist?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Only for the duration of a single pipeline run; discarded when it ends</span></pre></div></details></li>
+    <li><span class="task">Write copyArtifacts fetching a specific file via filter.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="fn">copyArtifacts</span> projectName: <span class="str">'upstream'</span>, selector: lastSuccessful(), filter: <span class="str">'*.tar.gz'</span></pre></div></details></li>
+    <li><span class="task">Configure keeping artifacts for at most the last 5 builds.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>options { <span class="fn">buildDiscarder</span>(logRotator(artifactNumToKeepStr: <span class="str">'5'</span>)) }</pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 8.5 ============ -->
+<section class="lesson" id="quality-tools">
+<div class="lang vi">
+  <span class="phase-tag">Bài 8.5</span>
+  <h2>Tích hợp công cụ chất lượng</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Publish kết quả test bằng bước <code class="inline">junit</code>, publish coverage với JaCoCo/Cobertura, chạy SonarQube Scanner qua <code class="inline">withSonarQubeEnv</code> và chờ Quality Gate.</div>
+  <h3>Publish kết quả test — <code class="inline">junit</code></h3>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'Test'</span>) {
+  steps {
+    <span class="fn">sh</span> <span class="str">'./gradlew test'</span>
+  }
+  post {
+    always {
+      <span class="fn">junit</span> testResults: <span class="str">'build/test-results/**/*.xml'</span>,
+            allowEmptyResults: <span class="kw">true</span>
+    }
+  }
+}</pre>
+  <p>Bước <code class="inline">junit</code> đọc file XML định dạng JUnit, hiển thị biểu đồ pass/fail/skip theo thời gian, và đánh dấu build <b>unstable</b> nếu có test fail (không dừng hẳn build như lỗi biên dịch).</p>
+  <h3>Coverage — JaCoCo / Cobertura</h3>
+<pre><span class="lbl">Jenkinsfile</span>post {
+  always {
+    <span class="fn">jacoco</span> execPattern: <span class="str">'build/jacoco/*.exec'</span>,
+           classPattern: <span class="str">'build/classes/java/main'</span>,
+           sourcePattern: <span class="str">'src/main/java'</span>
+  }
+}</pre>
+<pre><span class="lbl">Jenkinsfile (Cobertura)</span>post {
+  always {
+    <span class="fn">recordCoverage</span> tools: [[parser: <span class="str">'COBERTURA'</span>, pattern: <span class="str">'**/coverage.xml'</span>]]
+  }
+}</pre>
+  <h3>SonarQube Scanner &amp; Quality Gate</h3>
+  <p>Cấu hình server SonarQube tại <b>Manage Jenkins → System → SonarQube servers</b>, cài <b>SonarQube Scanner</b> plugin và tool. Trong Jenkinsfile, bọc bước phân tích trong <code class="inline">withSonarQubeEnv</code>, sau đó dùng <code class="inline">waitForQualityGate</code> (yêu cầu webhook SonarQube gọi lại Jenkins):</p>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'SonarQube Analysis'</span>) {
+  steps {
+    withSonarQubeEnv(<span class="str">'my-sonar-server'</span>) {
+      <span class="fn">sh</span> <span class="str">'./gradlew sonar'</span>
+    }
+  }
+}
+stage(<span class="str">'Quality Gate'</span>) {
+  steps {
+    timeout(time: <span class="num">10</span>, unit: <span class="str">'MINUTES'</span>) {
+      script {
+        <span class="kw">def</span> qg = <span class="fn">waitForQualityGate</span>()
+        <span class="kw">if</span> (qg.status != <span class="str">'OK'</span>) {
+          error <span class="str">"Pipeline dừng do Quality Gate: ${qg.status}"</span>
+        }
+      }
+    }
+  }
+}</pre>
+  <table>
+    <tr><th>Công cụ</th><th>Plugin</th><th>Thông tin cung cấp</th></tr>
+    <tr><td>JUnit</td><td>JUnit plugin</td><td>Số test pass/fail/skip, trend, unstable khi có fail</td></tr>
+    <tr><td>JaCoCo</td><td>JaCoCo plugin</td><td>% coverage dòng/nhánh, có thể set threshold</td></tr>
+    <tr><td>Cobertura</td><td>Coverage/Cobertura plugin</td><td>Tương tự JaCoCo, định dạng XML khác</td></tr>
+    <tr><td>SonarQube</td><td>SonarQube Scanner plugin</td><td>Code smell, bug, vulnerability, Quality Gate pass/fail</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Vì sao cần <code class="inline">waitForQualityGate</code> thay vì chỉ chạy scanner?</b>Bước phân tích SonarQube chạy <b>bất đồng bộ</b> — server phân tích xong sau khi Jenkins đã tiếp tục. <code class="inline">waitForQualityGate</code> tạm dừng pipeline, chờ SonarQube gọi webhook báo kết quả, đảm bảo pipeline có thể fail sớm nếu code không đạt chuẩn.</div>
+  <div class="box warn"><b>⚠️ Cấu hình webhook SonarQube</b><code class="inline">waitForQualityGate</code> sẽ treo vô thời hạn (hoặc timeout) nếu SonarQube server chưa cấu hình webhook trỏ về Jenkins (<b>Administration → Configuration → Webhooks</b> trong SonarQube). Luôn bọc trong <code class="inline">timeout()</code> để tránh pipeline treo mãi.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Thêm bước <code class="inline">junit</code> publish kết quả test, bước <code class="inline">jacoco</code> publish coverage, và một stage SonarQube với Quality Gate — thử cho code coverage thấp để thấy Quality Gate fail pipeline.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Công cụ chất lượng</span></div>
+  <ol class="examples">
+    <li><span class="task">Publish kết quả JUnit từ Maven.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">junit</span> testResults: <span class="str">'target/surefire-reports/*.xml'</span></pre></li>
+    <li><span class="task">Publish coverage JaCoCo.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">jacoco</span> execPattern: <span class="str">'**/jacoco.exec'</span></pre></li>
+    <li><span class="task">Chạy SonarQube Scanner cho project Maven.</span>
+<pre><span class="lbl">Jenkinsfile</span>withSonarQubeEnv(<span class="str">'sonar'</span>) { <span class="fn">sh</span> <span class="str">'mvn sonar:sonar'</span> }</pre></li>
+    <li><span class="task">Chờ Quality Gate với timeout 5 phút.</span>
+<pre><span class="lbl">Jenkinsfile</span>timeout(time: <span class="num">5</span>, unit: <span class="str">'MINUTES'</span>) { <span class="fn">waitForQualityGate</span> abortPipeline: <span class="kw">true</span> }</pre></li>
+    <li><span class="task">Cho phép build tiếp dù không có file test result (tránh lỗi khi chưa có test).</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">junit</span> testResults: <span class="str">'**/*.xml'</span>, allowEmptyResults: <span class="kw">true</span></pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Công cụ chất lượng</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết bước junit đọc kết quả Gradle test.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="fn">junit</span> testResults: <span class="str">'build/test-results/**/*.xml'</span></pre></div></details></li>
+    <li><span class="task">Build có trở thành gì nếu bước junit phát hiện test fail?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Build được đánh dấu UNSTABLE (không phải FAILURE)</span></pre></div></details></li>
+    <li><span class="task">Viết bước bọc phân tích SonarQube.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>withSonarQubeEnv(<span class="str">'my-sonar-server'</span>) { <span class="fn">sh</span> <span class="str">'./gradlew sonar'</span> }</pre></div></details></li>
+    <li><span class="task">Cho pipeline fail nếu Quality Gate không đạt.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="kw">def</span> qg = <span class="fn">waitForQualityGate</span>()
+<span class="kw">if</span> (qg.status != <span class="str">'OK'</span>) { error <span class="str">"QG failed: ${qg.status}"</span> }</pre></div></details></li>
+    <li><span class="task">Vì sao cần cấu hình webhook trong SonarQube server?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Vì phân tích SonarQube chạy async; webhook báo kết quả Quality Gate
+// về lại Jenkins để waitForQualityGate có thể nhận và tiếp tục pipeline</span></pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 8.5</span>
+  <h2>Quality Tool Integration</h2>
+  <div class="box goal"><b>🎯 Goal</b>Publish test results with the <code class="inline">junit</code> step, publish coverage with JaCoCo/Cobertura, run the SonarQube Scanner via <code class="inline">withSonarQubeEnv</code>, and wait on the Quality Gate.</div>
+  <h3>Publishing test results — <code class="inline">junit</code></h3>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'Test'</span>) {
+  steps {
+    <span class="fn">sh</span> <span class="str">'./gradlew test'</span>
+  }
+  post {
+    always {
+      <span class="fn">junit</span> testResults: <span class="str">'build/test-results/**/*.xml'</span>,
+            allowEmptyResults: <span class="kw">true</span>
+    }
+  }
+}</pre>
+  <p>The <code class="inline">junit</code> step reads JUnit-format XML files, shows a pass/fail/skip trend chart over time, and marks the build <b>unstable</b> when tests fail (rather than a hard failure like a compile error).</p>
+  <h3>Coverage — JaCoCo / Cobertura</h3>
+<pre><span class="lbl">Jenkinsfile</span>post {
+  always {
+    <span class="fn">jacoco</span> execPattern: <span class="str">'build/jacoco/*.exec'</span>,
+           classPattern: <span class="str">'build/classes/java/main'</span>,
+           sourcePattern: <span class="str">'src/main/java'</span>
+  }
+}</pre>
+<pre><span class="lbl">Jenkinsfile (Cobertura)</span>post {
+  always {
+    <span class="fn">recordCoverage</span> tools: [[parser: <span class="str">'COBERTURA'</span>, pattern: <span class="str">'**/coverage.xml'</span>]]
+  }
+}</pre>
+  <h3>SonarQube Scanner &amp; Quality Gate</h3>
+  <p>Configure the SonarQube server under <b>Manage Jenkins → System → SonarQube servers</b>, install the <b>SonarQube Scanner</b> plugin and tool. In a Jenkinsfile, wrap the analysis step in <code class="inline">withSonarQubeEnv</code>, then use <code class="inline">waitForQualityGate</code> (requires a SonarQube webhook calling back into Jenkins):</p>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'SonarQube Analysis'</span>) {
+  steps {
+    withSonarQubeEnv(<span class="str">'my-sonar-server'</span>) {
+      <span class="fn">sh</span> <span class="str">'./gradlew sonar'</span>
+    }
+  }
+}
+stage(<span class="str">'Quality Gate'</span>) {
+  steps {
+    timeout(time: <span class="num">10</span>, unit: <span class="str">'MINUTES'</span>) {
+      script {
+        <span class="kw">def</span> qg = <span class="fn">waitForQualityGate</span>()
+        <span class="kw">if</span> (qg.status != <span class="str">'OK'</span>) {
+          error <span class="str">"Pipeline aborted due to Quality Gate: ${qg.status}"</span>
+        }
+      }
+    }
+  }
+}</pre>
+  <table>
+    <tr><th>Tool</th><th>Plugin</th><th>Provides</th></tr>
+    <tr><td>JUnit</td><td>JUnit plugin</td><td>Pass/fail/skip counts, trend, unstable on failures</td></tr>
+    <tr><td>JaCoCo</td><td>JaCoCo plugin</td><td>Line/branch coverage %, threshold support</td></tr>
+    <tr><td>Cobertura</td><td>Coverage/Cobertura plugin</td><td>Similar to JaCoCo, different XML format</td></tr>
+    <tr><td>SonarQube</td><td>SonarQube Scanner plugin</td><td>Code smells, bugs, vulnerabilities, Quality Gate pass/fail</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Why is <code class="inline">waitForQualityGate</code> needed instead of just running the scanner?</b>SonarQube analysis runs <b>asynchronously</b> — the server finishes analyzing after Jenkins has already moved on. <code class="inline">waitForQualityGate</code> pauses the pipeline waiting for SonarQube's webhook to report the result, ensuring the pipeline can fail early if the code doesn't meet standards.</div>
+  <div class="box warn"><b>⚠️ Configure the SonarQube webhook</b><code class="inline">waitForQualityGate</code> will hang indefinitely (or timeout) if the SonarQube server has no webhook pointing back to Jenkins configured (<b>Administration → Configuration → Webhooks</b> in SonarQube). Always wrap it in <code class="inline">timeout()</code> to avoid a stuck pipeline.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Add a <code class="inline">junit</code> step to publish test results, a <code class="inline">jacoco</code> step to publish coverage, and a SonarQube stage with a Quality Gate — try lowering coverage to see the Quality Gate fail the pipeline.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Quality tools</span></div>
+  <ol class="examples">
+    <li><span class="task">Publish JUnit results from Maven.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">junit</span> testResults: <span class="str">'target/surefire-reports/*.xml'</span></pre></li>
+    <li><span class="task">Publish JaCoCo coverage.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">jacoco</span> execPattern: <span class="str">'**/jacoco.exec'</span></pre></li>
+    <li><span class="task">Run the SonarQube Scanner for a Maven project.</span>
+<pre><span class="lbl">Jenkinsfile</span>withSonarQubeEnv(<span class="str">'sonar'</span>) { <span class="fn">sh</span> <span class="str">'mvn sonar:sonar'</span> }</pre></li>
+    <li><span class="task">Wait for the Quality Gate with a 5-minute timeout.</span>
+<pre><span class="lbl">Jenkinsfile</span>timeout(time: <span class="num">5</span>, unit: <span class="str">'MINUTES'</span>) { <span class="fn">waitForQualityGate</span> abortPipeline: <span class="kw">true</span> }</pre></li>
+    <li><span class="task">Allow the build to continue with no test result files (avoid errors before tests exist).</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">junit</span> testResults: <span class="str">'**/*.xml'</span>, allowEmptyResults: <span class="kw">true</span></pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Quality tools</span></div>
+  <ol class="drills">
+    <li><span class="task">Write a junit step reading Gradle test results.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="fn">junit</span> testResults: <span class="str">'build/test-results/**/*.xml'</span></pre></div></details></li>
+    <li><span class="task">What does the build become if the junit step finds failing tests?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// The build is marked UNSTABLE (not FAILURE)</span></pre></div></details></li>
+    <li><span class="task">Write the step that wraps a SonarQube analysis.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>withSonarQubeEnv(<span class="str">'my-sonar-server'</span>) { <span class="fn">sh</span> <span class="str">'./gradlew sonar'</span> }</pre></div></details></li>
+    <li><span class="task">Fail the pipeline if the Quality Gate does not pass.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="kw">def</span> qg = <span class="fn">waitForQualityGate</span>()
+<span class="kw">if</span> (qg.status != <span class="str">'OK'</span>) { error <span class="str">"QG failed: ${qg.status}"</span> }</pre></div></details></li>
+    <li><span class="task">Why must you configure a webhook in the SonarQube server?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// SonarQube analysis runs async; the webhook reports the Quality Gate
+// result back to Jenkins so waitForQualityGate can receive it and continue</span></pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<div class="pager">
+  <a class="prev" href="phase7-scaling.html"><div class="dir"><span class="vi">← Trước</span><span class="en">← Previous</span></div><div class="ttl"><span class="vi">Giai đoạn 7 — Scaling</span><span class="en">Stage 7 — Scaling</span></div></a>
+  <a class="next" href="phase9-reference.html"><div class="dir"><span class="vi">Tiếp theo →</span><span class="en">Next →</span></div><div class="ttl"><span class="vi">Giai đoạn 9 — Tài liệu tham khảo</span><span class="en">Stage 9 — Reference</span></div></a>
+</div>
+
+</main>
+</div>
+<script src="assets/i18n.js"></script>
+<script src="assets/scrollspy.js"></script>
+</body>
+</html>

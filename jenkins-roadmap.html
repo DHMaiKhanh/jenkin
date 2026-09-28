@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Lộ trình học Jenkins CI/CD</title>
+<style>
+  :root {
+    --ink: #1c2430;
+    --ink-soft: #4a5568;
+    --paper: #f6f4ee;
+    --paper-raised: #ffffff;
+    --line: #d9d3c4;
+    --accent: #c4671a;
+    --accent-soft: #e8ddc9;
+    --ok: #2f7d5e;
+    --warn: #b5482a;
+    --mono-bg: #24211b;
+    --mono-fg: #ece6d6;
+  }
+
+  :root[data-theme="dark"] {
+    --ink: #ece6d9;
+    --ink-soft: #a9a08c;
+    --paper: #16140f;
+    --paper-raised: #1e1b14;
+    --line: #3a3527;
+    --accent: #e2954a;
+    --accent-soft: #332a1a;
+    --ok: #6cbf9a;
+    --warn: #e0805e;
+    --mono-bg: #0d0c09;
+    --mono-fg: #d8cfb8;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink: #ece6d9;
+      --ink-soft: #a9a08c;
+      --paper: #16140f;
+      --paper-raised: #1e1b14;
+      --line: #3a3527;
+      --accent: #e2954a;
+      --accent-soft: #332a1a;
+      --ok: #6cbf9a;
+      --warn: #e0805e;
+      --mono-bg: #0d0c09;
+      --mono-fg: #d8cfb8;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 4rem 1.5rem 6rem;
+  }
+
+  header.masthead {
+    border-bottom: 3px solid var(--ink);
+    padding-bottom: 1.75rem;
+    margin-bottom: 3rem;
+  }
+
+  .kicker {
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+    font-size: 0.78rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .kicker::before {
+    content: "";
+    width: 0.5rem;
+    height: 0.5rem;
+    background: var(--accent);
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  h1 {
+    font-family: ui-serif, Georgia, "Times New Roman", serif;
+    font-weight: 600;
+    font-size: clamp(2.1rem, 5vw, 2.9rem);
+    margin: 0.5rem 0 0.75rem;
+    text-wrap: balance;
+    letter-spacing: -0.01em;
+  }
+
+  .dek {
+    color: var(--ink-soft);
+    font-size: 1.05rem;
+    max-width: 58ch;
+    margin: 0 0 1.25rem;
+  }
+
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+  }
+
+  .meta-row strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .intro {
+    margin-bottom: 3rem;
+    padding: 1.25rem 1.5rem;
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    font-size: 0.97rem;
+    color: var(--ink-soft);
+  }
+
+  .intro b { color: var(--ink); }
+
+  .timeline {
+    position: relative;
+  }
+
+  .timeline::before {
+    content: "";
+    position: absolute;
+    left: 27px;
+    top: 10px;
+    bottom: 10px;
+    width: 2px;
+    background: var(--line);
+  }
+
+  .stage {
+    position: relative;
+    display: grid;
+    grid-template-columns: 56px 1fr;
+    gap: 1.25rem;
+    margin-bottom: 2.75rem;
+  }
+
+  .stage:last-child { margin-bottom: 0; }
+
+  .stage-num {
+    position: relative;
+    z-index: 1;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--paper-raised);
+    border: 2px solid var(--ink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: ui-serif, Georgia, serif;
+    font-weight: 600;
+    font-size: 1.3rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stage.milestone .stage-num {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+  }
+
+  .stage-body {
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 1.35rem 1.5rem 1.5rem;
+  }
+
+  .stage-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 0.7rem;
+    margin-bottom: 0.9rem;
+  }
+
+  .stage-title {
+    font-family: ui-serif, Georgia, "Times New Roman", serif;
+    font-weight: 600;
+    font-size: 1.28rem;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .duration {
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    color: var(--accent);
+    border: 1px solid var(--accent-soft);
+    background: var(--accent-soft);
+    padding: 0.2rem 0.55rem;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+
+  .topics {
+    margin: 0 0 0.9rem;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 0.45rem;
+  }
+
+  .topics li {
+    padding-left: 1.15rem;
+    position: relative;
+    font-size: 0.94rem;
+  }
+
+  .topics li::before {
+    content: "–";
+    position: absolute;
+    left: 0;
+    color: var(--ink-soft);
+  }
+
+  .topics code {
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+    background: var(--mono-bg);
+    color: var(--mono-fg);
+    padding: 0.05rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.85em;
+  }
+
+  .tip {
+    margin-top: 0.9rem;
+    font-size: 0.87rem;
+    color: var(--ink-soft);
+    background: var(--accent-soft);
+    border-left: 3px solid var(--accent);
+    padding: 0.55rem 0.8rem;
+    border-radius: 0 4px 4px 0;
+  }
+
+  .tip strong { color: var(--ink); }
+
+  .outcome {
+    margin-top: 3.5rem;
+    padding: 1.5rem;
+    background: var(--ink);
+    color: var(--paper);
+    border-radius: 6px;
+  }
+
+  .outcome h2 {
+    font-family: ui-serif, Georgia, serif;
+    margin: 0 0 0.6rem;
+    font-size: 1.25rem;
+  }
+
+  .outcome p { margin: 0; color: color-mix(in srgb, var(--paper) 80%, transparent); font-size: 0.94rem; }
+
+  footer {
+    margin-top: 3rem;
+    font-size: 0.78rem;
+    color: var(--ink-soft);
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+    border-top: 1px solid var(--line);
+    padding-top: 1rem;
+  }
+
+  @media (max-width: 520px) {
+    .stage { grid-template-columns: 40px 1fr; gap: 0.85rem; }
+    .stage-num { width: 40px; height: 40px; font-size: 1rem; }
+    .timeline::before { left: 19px; }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .stage-body { transition: border-color 0.2s ease; }
+    .stage-body:hover { border-color: var(--accent); }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="masthead">
+    <div class="kicker">Lộ trình tự học · DevOps / CI-CD</div>
+    <h1>Từ zero đến vận hành Jenkins trong production</h1>
+    <p class="dek">10 chặng, đi từ hiểu khái niệm CI/CD đến dựng pipeline tự động build – test – deploy, và vận hành Jenkins ổn định cho một team thật.</p>
+    <div class="meta-row">
+      <span><strong>Tổng thời lượng</strong> ~10–14 tuần (học song song đi làm)</span>
+      <span><strong>Yêu cầu đầu vào</strong> biết dùng Git, đọc hiểu Linux cơ bản</span>
+    </div>
+  </header>
+
+  <div class="intro">
+    Mỗi chặng nên có <b>một sản phẩm cụ thể</b> ở cuối — một job, một Jenkinsfile, một pipeline chạy được — chứ không chỉ đọc lý thuyết. Chặng 1–3 nên xong trong tuần đầu để có cảm giác "chạy được" sớm; các chặng nâng cao (7–10) có thể kéo dài hơn tùy vào việc bạn có sẵn hạ tầng (Docker/K8s) để thực hành hay không.
+  </div>
+
+  <div class="timeline">
+
+    <div class="stage">
+      <div class="stage-num">1</div>
+      <div class="stage-body">
+        <div class="stage-head">
+          <h3 class="stage-title">Nền tảng trước khi chạm vào Jenkins</h3>
+          <span class="duration">3–5 ngày</span>
+        </div>
+        <ul class="topics">
+          <li>CI/CD là gì, khác gì so với deploy thủ công — vẽ lại pipeline của một dự án bạn từng làm</li>
+          <li>Git ở mức thao tác pipeline cần: branch, tag, webhook, <code>pull request</code></li>
+          <li>Linux cơ bản: quyền file, tiến trình nền, đọc log bằng <code>tail -f</code>, biến môi trường</li>
+          <li>Docker cơ bản: image, container, <code>Dockerfile</code> — vì hầu hết pipeline hiện đại đều build trong container</li>
+        </ul>
+        <div class="tip"><strong>Mẹo:</strong> nếu đã quen Git và Docker rồi, bỏ qua chặng này — đừng học lại thứ đã biết chỉ vì nó nằm trong lộ trình.</div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-num">2</div>
+      <div class="stage-body">
+        <div class="stage-head">
+          <h3 class="stage-title">Cài đặt và làm quen giao diện Jenkins</h3>
+          <span class="duration">2–3 ngày</span>
+        </div>
+        <ul class="topics">
+          <li>Cài Jenkins bằng Docker (<code>docker run jenkins/jenkins:lts</code>) thay vì cài trực tiếp lên máy</li>
+          <li>Tour qua Dashboard: <code>Manage Jenkins</code>, Build History, Console Output</li>
+          <li>Tạo thử một <code>Freestyle Project</code> chạy một script shell đơn giản</li>
+          <li>Hiểu khái niệm Job, Build, Executor, Workspace</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-num">3</div>
+      <div class="stage-body">
+        <div class="stage-head">
+          <h3 class="stage-title">Pipeline as Code — trái tim của Jenkins</h3>
+          <span class="duration">1 tuần</span>
+        </div>
+        <ul class="topics">
+          <li>Vì sao Declarative Pipeline nên là lựa chọn mặc định, Scripted chỉ dùng khi cần logic phức tạp</li>
+          <li>Cấu trúc <code>Jenkinsfile</code>: <code>pipeline</code>, <code>agent</code>, <code>stages</code>, <code>steps</code>, <code>post</code></li>
+          <li>Biến môi trường, tham số hoá build (<code>parameters</code>), điều kiện chạy (<code>when</code>)</li>
+          <li>Viết Jenkinsfile đầu tiên cho một repo cá nhân, commit thẳng vào repo đó</li>
+        </ul>
+        <div class="tip"><strong>Mẹo:</strong> luôn để Jenkinsfile sống trong repo của dự án, không viết pipeline trực tiếp trên UI — đó là khác biệt giữa "pipeline as code" và cấu hình thủ công khó tái tạo.</div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-num">4</div>
+      <div class="stage-body">
+        <div class="stage-head">
+          <h3 class="stage-title">Kết nối với source control thật</h3>
+          <span class="duration">3–4 ngày</span>
+        </div>
+        <ul class="topics">
+          <li>Webhook từ GitHub/GitLab để trigger build tự động khi push</li>
+          <li><code>Multibranch Pipeline</code> — mỗi branch tự có pipeline riêng, tự dọn khi branch bị xoá</li>
+          <li>Trigger theo Pull Request, build trạng thái hiển thị ngược lại trên GitHub</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-num">5</div>
+      <div class="stage-body">
+        <div class="stage-head">
+          <h3 class="stage-title">Build và test tự động cho thật</h3>
+          <span class="duration">1 tuần</span>
+        </div>
+        <ul class="topics">
+          <li>Tích hợp công cụ build của stack bạn dùng: Maven/Gradle, npm/yarn, pip, hoặc go build</li>
+          <li>Publish kết quả unit test (<code>junit</code> step) để Jenkins hiển thị pass/fail trực quan</li>
+          <li>Báo cáo code coverage (JaCoCo, Istanbul...) và archive artifact sau build</li>
+          <li>Đánh dấu build <code>UNSTABLE</code> khi test fail thay vì để im lặng trôi qua</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-num">6</div>
+      <div class="stage-body">
+        <div class="stage-head">
+          <h3 class="stage-title">Plugin và quản lý credentials an toàn</h3>
+          <span class="duration">2–3 ngày</span>
+        </div>
+        <ul class="topics">
+          <li>Cách chọn plugin: ưu tiên plugin chính thức, kiểm tra ngày cập nhật gần nhất trước khi cài</li>
+          <li><code>Credentials Store</code>: lưu SSH key, token, mật khẩu — không bao giờ hardcode trong Jenkinsfile</li>
+          <li>Inject credentials vào pipeline bằng <code>withCredentials</code></li>
+        </ul>
+        <div class="tip"><strong>Mẹo:</strong> đây là chặng dễ bị bỏ qua nhất — nhưng lộ credentials trong log build là lỗi bảo mật phổ biến nhất ở người mới dùng Jenkins.</div>
+      </div>
+    </div>
+
+    <div class="stage milestone">
+      <div class="stage-num">7</div>
+      <div class="stage-body">
+        <div class="stage-head">
+          <h3 class="stage-title">Docker bên trong pipeline</h3>
+          <span class="duration">1 tuần</span>
+        </div>
+        <ul class="topics">
+          <li>Build Docker image ngay trong stage của Jenkinsfile (<code>docker.build</code>)</li>
+          <li>Đẩy image lên registry: Docker Hub, GitHub Container Registry, hoặc registry nội bộ</li>
+          <li>Dùng <code>agent { docker { image ... } }</code> để mỗi stage chạy trong container riêng, môi trường build sạch và nhất quán</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="stage milestone">
+      <div class="stage-num">8</div>
+      <div class="stage-body">
+        <div class="stage-head">
+          <h3 class="stage-title">Continuous Deployment — đưa code ra production</h3>
+          <span class="duration">1–2 tuần</span>
+        </div>
+        <ul class="topics">
+          <li>Deploy lên server qua SSH, hoặc lên Kubernetes qua <code>kubectl</code>/Helm trong stage riêng</li>
+          <li>Chiến lược triển khai: rolling update, blue-green, canary — chọn theo mức chịu rủi ro của hệ thống</li>
+          <li>Cơ chế rollback khi deploy thất bại, và approval thủ công (<code>input</code> step) trước khi deploy production</li>
+        </ul>
+        <div class="tip"><strong>Mẹo:</strong> luôn tách rõ pipeline CI (build/test) khỏi pipeline CD (deploy) — gộp chung khiến việc debug khi deploy lỗi trở nên rối.</div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-num">9</div>
+      <div class="stage-body">
+        <div class="stage-head">
+          <h3 class="stage-title">Vận hành Jenkins ở quy mô team</h3>
+          <span class="duration">1–2 tuần</span>
+        </div>
+        <ul class="topics">
+          <li><code>Shared Libraries</code> — dùng chung logic pipeline giữa nhiều repo, tránh copy-paste Jenkinsfile</li>
+          <li>Kiến trúc Controller–Agent (Master–Slave cũ): phân tán build ra nhiều node, scale theo tải</li>
+          <li>Phân quyền RBAC — ai được thấy job nào, ai được deploy lên production</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-num">10</div>
+      <div class="stage-body">
+        <div class="stage-head">
+          <h3 class="stage-title">Giám sát, backup và best practices dài hạn</h3>
+          <span class="duration">liên tục</span>
+        </div>
+        <ul class="topics">
+          <li>Backup <code>JENKINS_HOME</code> định kỳ, có kế hoạch khôi phục đã thử qua ít nhất một lần</li>
+          <li>Theo dõi sức khoẻ hệ thống: số executor đang bận, thời gian chờ trong queue, dung lượng đĩa</li>
+          <li>Dọn dẹp build cũ tự động (<code>discardOldBuilds</code>), review lại plugin không dùng định kỳ</li>
+          <li>Đọc release note của Jenkins LTS trước mỗi lần nâng cấp — tránh nâng cấp mù</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="outcome">
+    <h2>Khi hoàn thành lộ trình này</h2>
+    <p>Bạn sẽ có thể tự dựng một pipeline CI/CD hoàn chỉnh cho một dự án thật — từ commit đến chạy trên production — và đủ hiểu Jenkins để vận hành, debug, và mở rộng nó cho một team, không chỉ chạy demo cá nhân.</p>
+  </div>
+
+  <footer>jenkins-ci-cd-roadmap · cập nhật 2026-07-08</footer>
+</div>
+</body>
+</html>

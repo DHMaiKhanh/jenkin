@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Giai đoạn 5 — Managing Jenkins | Khóa học Jenkins</title>
+<link rel="stylesheet" href="assets/course.css">
+</head>
+<body class="lang-vi">
+<div class="layout">
+<nav class="side">
+  <div class="brand">🤵 Jenkins<small><span class="vi">Giai đoạn 5 · Quản trị Jenkins</span><span class="en">Stage 5 · Managing Jenkins</span></small></div>
+  <div class="lang-toggle">
+    <button data-lang="vi" class="on">VI</button>
+    <button data-lang="en">EN</button>
+  </div>
+  <a class="nav-home" href="index.html"><span class="vi">← Mục lục khóa học</span><span class="en">← Course index</span></a>
+  <div class="grp"><span class="vi">Bài học</span><span class="en">Lessons</span></div>
+  <a class="lnk" href="#system-config">5.1 · <span class="vi">Cấu hình hệ thống</span><span class="en">System Configuration</span></a>
+  <a class="lnk" href="#plugin-management">5.2 · <span class="vi">Quản lý Plugin</span><span class="en">Plugin Management</span></a>
+  <a class="lnk" href="#global-tools">5.3 · <span class="vi">Cấu hình công cụ toàn cục</span><span class="en">Global Tool Configuration</span></a>
+  <a class="lnk" href="#nodes-agents">5.4 · <span class="vi">Nodes &amp; Agents</span><span class="en">Nodes &amp; Agents</span></a>
+  <a class="lnk" href="#script-console">5.5 · <span class="vi">Script Console &amp; CLI</span><span class="en">Script Console &amp; CLI</span></a>
+</nav>
+
+<main>
+<header class="top">
+  <div class="crumb"><span class="vi">Khóa học Jenkins › <b>Giai đoạn 5 — Quản trị Jenkins</b></span><span class="en">Jenkins Course › <b>Stage 5 — Managing Jenkins</b></span></div>
+  <h1>Managing Jenkins</h1>
+  <p class="lead"><span class="vi">Mục tiêu giai đoạn: làm chủ vai trò quản trị viên Jenkins — cấu hình hệ thống, quản lý plugin, cài đặt công cụ toàn cục, thêm agent build, và dùng Script Console/CLI để thao tác nâng cao một cách an toàn.</span><span class="en">Stage goal: master the Jenkins administrator role — system configuration, plugin management, global tool setup, adding build agents, and safely using the Script Console/CLI for advanced operations.</span></p>
+</header>
+
+<!-- ============ 5.1 ============ -->
+<section class="lesson" id="system-config">
+<div class="lang vi">
+  <span class="phase-tag">Bài 5.1</span>
+  <h2>Cấu hình hệ thống (System Configuration)</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Hiểu trang <b>Manage Jenkins → System</b>, các thiết lập cốt lõi (số executor, JENKINS_HOME, biến môi trường toàn cục, System Message, Quiet Period) và khi nào nên chỉnh chúng.</div>
+  <h3>Manage Jenkins → System nằm ở đâu</h3>
+  <p>Vào <code class="inline">Manage Jenkins</code> (biểu tượng bánh răng) → <code class="inline">System</code> (hoặc URL <code class="inline">/manage/configure</code>). Đây là trang cấu hình lớn nhất, chứa hầu hết thiết lập toàn instance — khác với <code class="inline">Configure Global Security</code> hay <code class="inline">Plugins</code> là các trang riêng.</p>
+<pre><span class="lbl">URL</span>http://<span class="fn">jenkins-host</span>:8080/manage/configure</pre>
+  <h3>Số lượng executor (# of executors)</h3>
+  <p>Executor là "slot" cho phép controller (hoặc agent) chạy song song bao nhiêu build. Controller mặc định có <b>2 executor</b> — trong thực tế nên giảm về <b>0</b> trên controller và để toàn bộ build chạy trên agent, giữ controller chỉ lo điều phối.</p>
+  <table>
+    <tr><th>Thiết lập</th><th>Ý nghĩa</th><th>Khuyến nghị</th></tr>
+    <tr><td># of executors</td><td>Số build đồng thời controller/agent có thể chạy</td><td>Controller: 0, Agent: theo số CPU</td></tr>
+    <tr><td>Labels</td><td>Nhãn để pipeline chọn agent (<code>agent { label 'linux' }</code>)</td><td>Đặt tên rõ ràng theo môi trường</td></tr>
+    <tr><td>Usage</td><td>"Use this node as much as possible" hoặc "Only build jobs with matching label"</td><td>Chọn vế 2 cho controller</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Vì sao nên đưa executor về 0 trên controller?</b>Chạy build trực tiếp trên controller khiến job có toàn quyền truy cập <code class="inline">JENKINS_HOME</code>, credentials, và tiến trình Jenkins — rủi ro bảo mật và ổn định. Tách build ra agent giúp cô lập lỗi và cho phép scale ngang.</div>
+  <h3>JENKINS_HOME &amp; biến môi trường toàn cục</h3>
+  <p><code class="inline">JENKINS_HOME</code> là thư mục gốc lưu toàn bộ cấu hình, job, build history, plugin. Backup thư mục này = backup toàn bộ Jenkins.</p>
+<pre><span class="lbl">JENKINS_HOME (mặc định)</span>~/.jenkins/                 <span class="cmt"># Linux, cài thủ công</span>
+/var/lib/jenkins/          <span class="cmt"># Linux, gói .deb/.rpm</span>
+C:\ProgramData\Jenkins\.jenkins  <span class="cmt"># Windows service</span></pre>
+  <p>Trong <b>Manage Jenkins → System</b>, mục <b>Global properties → Environment variables</b> cho phép khai báo biến môi trường áp dụng cho <i>mọi</i> job/pipeline trên toàn instance.</p>
+<pre><span class="lbl">Global properties</span><span class="cmt"># Tick "Environment variables" rồi thêm cặp Name/Value</span>
+Name:  <span class="fn">MAVEN_OPTS</span>
+Value: <span class="str">-Xmx1024m</span></pre>
+  <h3>System Message &amp; Quiet Period</h3>
+  <p><b>System Message</b> hiển thị banner thông báo cho mọi người dùng (VD: "Bảo trì 22h tối nay"). <b>Quiet Period</b> là số giây Jenkins chờ trước khi thực sự bắt đầu build sau khi bị trigger, giúp gộp các trigger liên tiếp (nhiều commit dồn dập) thành một lần build.</p>
+<pre><span class="lbl">System</span>System Message: <span class="str">"⚠ Bảo trì lúc 22:00, các job sẽ tạm dừng."</span>
+Quiet Period:  <span class="num">5</span>  <span class="cmt"># giây, mặc định</span></pre>
+  <div class="box tip"><b>💡 Mẹo</b>Đặt Quiet Period cao hơn (VD 30-60s) trên các repo hay bị nhiều commit dồn dập trong vài giây, để tránh build lãng phí cho từng commit riêng lẻ.</div>
+  <div class="box warn"><b>⚠️ Thận trọng</b>Thay đổi ở trang System ảnh hưởng <b>toàn bộ instance</b>, không phải một job. Luôn ghi chú lại thay đổi (đổi tên thư mục config trong Git nếu dùng JCasC) trước khi sửa trên production.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Vào <code class="inline">Manage Jenkins → System</code>, đặt # of executors của controller về 0, thêm một biến môi trường toàn cục <code class="inline">DEPLOY_ENV=staging</code>, rồi kiểm tra biến này xuất hiện trong log của một pipeline đơn giản (<code class="inline">sh 'echo $DEPLOY_ENV'</code>).</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Cấu hình hệ thống</span></div>
+  <ol class="examples">
+    <li><span class="task">In biến môi trường toàn cục trong pipeline.</span>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'Debug'</span>) {
+  steps { sh <span class="str">'echo $DEPLOY_ENV'</span> }
+}</pre></li>
+    <li><span class="task">Kiểm tra đường dẫn JENKINS_HOME từ trong job.</span>
+<pre><span class="lbl">Jenkinsfile</span>sh <span class="str">'echo $JENKINS_HOME'</span></pre></li>
+    <li><span class="task">Đặt số executor cho một agent Linux có 4 CPU.</span>
+<pre><span class="lbl">Node config</span># of executors: <span class="num">4</span>
+Labels: <span class="str">linux docker</span></pre></li>
+    <li><span class="task">Thiết lập Quiet Period 60 giây cho repo hay bị spam commit.</span>
+<pre><span class="lbl">Manage Jenkins → System</span>Quiet Period: <span class="num">60</span></pre></li>
+    <li><span class="task">Thêm System Message cảnh báo bảo trì.</span>
+<pre><span class="lbl">Manage Jenkins → System</span>System Message: <span class="str">"Bảo trì Chủ nhật 02:00-04:00"</span></pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Cấu hình hệ thống</span></div>
+  <ol class="drills">
+    <li><span class="task">JENKINS_HOME mặc định trên Linux khi cài bằng gói .deb là gì?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>/var/lib/jenkins/</pre></div></details></li>
+    <li><span class="task">Viết bước Jenkinsfile in ra biến môi trường toàn cục <code class="inline">BUILD_ENV</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>sh <span class="str">'echo $BUILD_ENV'</span></pre></div></details></li>
+    <li><span class="task">Vì sao nên đặt # of executors = 0 trên controller?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Tránh chạy build trực tiếp trên controller (rủi ro bảo mật/ổn định),
+// buộc mọi build phải chạy trên agent có label phù hợp.</span></pre></div></details></li>
+    <li><span class="task">Quiet Period dùng để làm gì?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Thời gian chờ (giây) trước khi build thực sự bắt đầu,
+// gộp các trigger dồn dập thành một lần build duy nhất.</span></pre></div></details></li>
+    <li><span class="task">Đường dẫn URL để vào trang cấu hình hệ thống là gì?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>/manage/configure</pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 5.1</span>
+  <h2>System Configuration</h2>
+  <div class="box goal"><b>🎯 Goal</b>Understand the <b>Manage Jenkins → System</b> page, core settings (number of executors, JENKINS_HOME, global environment variables, System Message, Quiet Period), and when to touch them.</div>
+  <h3>Where Manage Jenkins → System lives</h3>
+  <p>Go to <code class="inline">Manage Jenkins</code> (gear icon) → <code class="inline">System</code> (or URL <code class="inline">/manage/configure</code>). This is the largest configuration page, holding most instance-wide settings — distinct from <code class="inline">Configure Global Security</code> or <code class="inline">Plugins</code>, which are separate pages.</p>
+<pre><span class="lbl">URL</span>http://<span class="fn">jenkins-host</span>:8080/manage/configure</pre>
+  <h3>Number of executors</h3>
+  <p>An executor is a "slot" allowing the controller (or an agent) to run a certain number of builds in parallel. The controller defaults to <b>2 executors</b> — in practice you should lower this to <b>0</b> on the controller and let all builds run on agents, keeping the controller focused on orchestration.</p>
+  <table>
+    <tr><th>Setting</th><th>Meaning</th><th>Recommendation</th></tr>
+    <tr><td># of executors</td><td>Concurrent builds a controller/agent can run</td><td>Controller: 0, Agent: per CPU count</td></tr>
+    <tr><td>Labels</td><td>Tags used by pipelines to pick an agent (<code>agent { label 'linux' }</code>)</td><td>Name clearly by environment</td></tr>
+    <tr><td>Usage</td><td>"Use this node as much as possible" or "Only build jobs with matching label"</td><td>Pick option 2 for the controller</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Why set executors to 0 on the controller?</b>Running builds directly on the controller gives job code full access to <code class="inline">JENKINS_HOME</code>, credentials, and the Jenkins process — a security and stability risk. Offloading builds to agents isolates failures and enables horizontal scaling.</div>
+  <h3>JENKINS_HOME &amp; global environment variables</h3>
+  <p><code class="inline">JENKINS_HOME</code> is the root directory storing all configuration, jobs, build history, and plugins. Backing up this directory backs up the whole Jenkins instance.</p>
+<pre><span class="lbl">JENKINS_HOME (defaults)</span>~/.jenkins/                 <span class="cmt"># Linux, manual install</span>
+/var/lib/jenkins/          <span class="cmt"># Linux, .deb/.rpm package</span>
+C:\ProgramData\Jenkins\.jenkins  <span class="cmt"># Windows service</span></pre>
+  <p>On <b>Manage Jenkins → System</b>, the <b>Global properties → Environment variables</b> section lets you declare environment variables applied to <i>every</i> job/pipeline on the instance.</p>
+<pre><span class="lbl">Global properties</span><span class="cmt"># Check "Environment variables" then add Name/Value pairs</span>
+Name:  <span class="fn">MAVEN_OPTS</span>
+Value: <span class="str">-Xmx1024m</span></pre>
+  <h3>System Message &amp; Quiet Period</h3>
+  <p><b>System Message</b> shows a banner to every user (e.g. "Maintenance tonight at 10 PM"). <b>Quiet Period</b> is the number of seconds Jenkins waits before actually starting a build after being triggered, coalescing rapid successive triggers (e.g. bursty commits) into a single build.</p>
+<pre><span class="lbl">System</span>System Message: <span class="str">"⚠ Maintenance at 22:00, jobs will pause."</span>
+Quiet Period:  <span class="num">5</span>  <span class="cmt"># seconds, default</span></pre>
+  <div class="box tip"><b>💡 Tip</b>Set a higher Quiet Period (e.g. 30-60s) on repos prone to bursty commits, to avoid wasteful builds for each individual commit.</div>
+  <div class="box warn"><b>⚠️ Caution</b>Changes on the System page affect the <b>entire instance</b>, not a single job. Always note down changes (or version the JCasC config in Git) before editing production.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Go to <code class="inline">Manage Jenkins → System</code>, set the controller's # of executors to 0, add a global environment variable <code class="inline">DEPLOY_ENV=staging</code>, then verify it shows up in a simple pipeline's log (<code class="inline">sh 'echo $DEPLOY_ENV'</code>).</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · System Configuration</span></div>
+  <ol class="examples">
+    <li><span class="task">Print a global environment variable in a pipeline.</span>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'Debug'</span>) {
+  steps { sh <span class="str">'echo $DEPLOY_ENV'</span> }
+}</pre></li>
+    <li><span class="task">Check the JENKINS_HOME path from inside a job.</span>
+<pre><span class="lbl">Jenkinsfile</span>sh <span class="str">'echo $JENKINS_HOME'</span></pre></li>
+    <li><span class="task">Set the executor count for a 4-CPU Linux agent.</span>
+<pre><span class="lbl">Node config</span># of executors: <span class="num">4</span>
+Labels: <span class="str">linux docker</span></pre></li>
+    <li><span class="task">Set a 60-second Quiet Period for a repo prone to commit spam.</span>
+<pre><span class="lbl">Manage Jenkins → System</span>Quiet Period: <span class="num">60</span></pre></li>
+    <li><span class="task">Add a System Message warning about maintenance.</span>
+<pre><span class="lbl">Manage Jenkins → System</span>System Message: <span class="str">"Maintenance Sunday 02:00-04:00"</span></pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · System Configuration</span></div>
+  <ol class="drills">
+    <li><span class="task">What is the default JENKINS_HOME on Linux when installed via .deb package?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>/var/lib/jenkins/</pre></div></details></li>
+    <li><span class="task">Write a Jenkinsfile step that prints the global env var <code class="inline">BUILD_ENV</code>.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>sh <span class="str">'echo $BUILD_ENV'</span></pre></div></details></li>
+    <li><span class="task">Why should # of executors be set to 0 on the controller?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Avoids running builds directly on the controller (security/stability risk),
+// forcing all builds onto agents with a matching label.</span></pre></div></details></li>
+    <li><span class="task">What is the Quiet Period used for?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// The wait time (seconds) before a build actually starts,
+// coalescing bursty triggers into a single build.</span></pre></div></details></li>
+    <li><span class="task">What is the URL path to the system configuration page?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>/manage/configure</pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 5.2 ============ -->
+<section class="lesson" id="plugin-management">
+<div class="lang vi">
+  <span class="phase-tag">Bài 5.2</span>
+  <h2>Quản lý Plugin (Plugin Management)</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Biết dùng Update Center để cài/cập nhật/gỡ plugin, hiểu dependency giữa các plugin, khi nào cần restart, cách ghim (pin) phiên bản, và nhận diện cảnh báo bảo mật plugin lỗi thời.</div>
+  <h3>Update Center</h3>
+  <p><code class="inline">Manage Jenkins → Plugins</code> mở <b>Update Center</b> với 4 tab chính: <b>Updates</b> (bản cập nhật có sẵn), <b>Available plugins</b> (cài mới), <b>Installed plugins</b> (đã cài), <b>Advanced settings</b> (proxy, upload .hpi thủ công).</p>
+<pre><span class="lbl">URL</span>/manage/pluginManager/</pre>
+  <table>
+    <tr><th>Tab</th><th>Chức năng</th></tr>
+    <tr><td>Available plugins</td><td>Tìm và tick chọn plugin mới, bấm "Install without restart" hoặc "Download now and install after restart"</td></tr>
+    <tr><td>Updates</td><td>Liệt kê plugin có bản mới hơn phiên bản đang cài</td></tr>
+    <tr><td>Installed plugins</td><td>Uncheck để vô hiệu hóa, hoặc bấm Uninstall để gỡ hẳn</td></tr>
+  </table>
+  <h3>Dependency &amp; restart</h3>
+  <p>Nhiều plugin phụ thuộc lẫn nhau (VD: Pipeline plugin phụ thuộc Structs, Workflow-step-api...). Update Center tự động chọn kèm plugin phụ thuộc khi bạn cài. Một số thay đổi (đặc biệt plugin core hoặc thay đổi lớn) yêu cầu <b>restart Jenkins</b> mới có hiệu lực đầy đủ.</p>
+<pre><span class="lbl">terminal (restart an toàn)</span><span class="cmt"># Restart khi không có build đang chạy</span>
+curl -X POST http://jenkins:8080/safeRestart --user admin:token</pre>
+  <div class="box why"><b>🤔 Vì sao có "Install without restart" và "…after restart"?</b>Nhiều plugin (đặc biệt loại UI/Pipeline step) có thể nạp động (dynamic classloading) — không cần restart. Plugin đụng tới core hoặc security thường cần restart để đảm bảo trạng thái nhất quán.</div>
+  <h3>Ghim phiên bản plugin (pin)</h3>
+  <p>Trong <b>Advanced settings</b>, có thể tải file <code class="inline">.hpi</code>/<code class="inml">.jpi</code> cụ thể để cài đúng phiên bản mong muốn thay vì bản mới nhất — hữu ích khi cần giữ ổn định trước khi test bản nâng cấp.</p>
+<pre><span class="lbl">terminal — cài plugin bằng CLI</span>java -jar jenkins-cli.jar -s http://localhost:8080/ \
+  install-plugin git@5.2.1 -restart</pre>
+  <div class="box warn"><b>⚠️ Cảnh báo bảo mật plugin lỗi thời</b>Trang Plugins hiển thị biểu tượng <b>⚠</b> cạnh plugin có lỗ hổng bảo mật đã công bố (tham chiếu security advisories của Jenkins). Không nên trì hoãn cập nhật các plugin này, đặc biệt plugin liên quan credentials, script security, hoặc SCM.</div>
+  <div class="box tip"><b>💡 Mẹo</b>Trước khi cập nhật hàng loạt plugin trên production, thử trên một instance staging có snapshot JENKINS_HOME giống hệt để phát hiện breaking change.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Vào <code class="inline">Manage Jenkins → Plugins → Available plugins</code>, cài plugin <code class="inline">Slack Notification</code>, quan sát các plugin phụ thuộc được tự động chọn kèm, sau đó thực hiện safe restart.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Quản lý Plugin</span></div>
+  <ol class="examples">
+    <li><span class="task">Cài một plugin qua Jenkins CLI.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s http://localhost:8080/ install-plugin git</pre></li>
+    <li><span class="task">Liệt kê tất cả plugin đã cài qua CLI.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s http://localhost:8080/ list-plugins</pre></li>
+    <li><span class="task">Safe-restart Jenkins sau khi cài plugin.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s http://localhost:8080/ safe-restart</pre></li>
+    <li><span class="task">Cài plugin đúng phiên bản cụ thể qua CLI.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s http://localhost:8080/ install-plugin workflow-aggregator@600.vb_57cdd26fdd7</pre></li>
+    <li><span class="task">Vô hiệu hóa (disable) một plugin không dùng nữa.</span>
+<pre><span class="lbl">Manage Jenkins → Plugins → Installed</span><span class="cmt"># Bỏ tick checkbox "Enabled" cạnh plugin, không cần gỡ hẳn</span></pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Quản lý Plugin</span></div>
+  <ol class="drills">
+    <li><span class="task">Lệnh CLI cài plugin tên <code class="inline">docker-workflow</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>java -jar jenkins-cli.jar -s http://localhost:8080/ install-plugin docker-workflow</pre></div></details></li>
+    <li><span class="task">Tab nào trong Update Center cho thấy plugin có bản cập nhật mới?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>Updates</pre></div></details></li>
+    <li><span class="task">Vì sao một số plugin yêu cầu restart Jenkins sau khi cài?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Plugin đụng tới core/security cần nạp lại toàn bộ để đảm bảo
+// trạng thái nhất quán, không thể dynamic classload an toàn.</span></pre></div></details></li>
+    <li><span class="task">Lệnh CLI safe-restart Jenkins.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>java -jar jenkins-cli.jar -s http://localhost:8080/ safe-restart</pre></div></details></li>
+    <li><span class="task">Biểu tượng nào cảnh báo plugin có lỗ hổng bảo mật đã công bố?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>⚠ <span class="cmt">// icon cảnh báo bên cạnh tên plugin trong danh sách Installed</span></pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 5.2</span>
+  <h2>Plugin Management</h2>
+  <div class="box goal"><b>🎯 Goal</b>Learn to use the Update Center to install/update/uninstall plugins, understand plugin dependencies, when a restart is needed, how to pin a version, and how to spot security warnings for outdated plugins.</div>
+  <h3>The Update Center</h3>
+  <p><code class="inline">Manage Jenkins → Plugins</code> opens the <b>Update Center</b> with 4 main tabs: <b>Updates</b> (available updates), <b>Available plugins</b> (install new), <b>Installed plugins</b> (already installed), <b>Advanced settings</b> (proxy, manual .hpi upload).</p>
+<pre><span class="lbl">URL</span>/manage/pluginManager/</pre>
+  <table>
+    <tr><th>Tab</th><th>Function</th></tr>
+    <tr><td>Available plugins</td><td>Search and check new plugins, click "Install without restart" or "Download now and install after restart"</td></tr>
+    <tr><td>Updates</td><td>Lists plugins with a newer version than currently installed</td></tr>
+    <tr><td>Installed plugins</td><td>Uncheck to disable, or click Uninstall to remove entirely</td></tr>
+  </table>
+  <h3>Dependencies &amp; restarting</h3>
+  <p>Many plugins depend on each other (e.g. the Pipeline plugin depends on Structs, Workflow-step-api...). The Update Center automatically selects dependent plugins when you install one. Some changes (especially core plugins or major changes) require <b>restarting Jenkins</b> to take full effect.</p>
+<pre><span class="lbl">terminal (safe restart)</span><span class="cmt"># Restart when no builds are currently running</span>
+curl -X POST http://jenkins:8080/safeRestart --user admin:token</pre>
+  <div class="box why"><b>🤔 Why "Install without restart" vs "…after restart"?</b>Many plugins (especially UI/Pipeline step ones) support dynamic classloading — no restart needed. Plugins touching core or security typically need a restart to guarantee consistent state.</div>
+  <h3>Pinning a plugin version</h3>
+  <p>In <b>Advanced settings</b>, you can upload a specific <code class="inline">.hpi</code>/<code class="inline">.jpi</code> file to install an exact desired version instead of the latest — useful to stay stable before testing an upgrade.</p>
+<pre><span class="lbl">terminal — install plugin via CLI</span>java -jar jenkins-cli.jar -s http://localhost:8080/ \
+  install-plugin git@5.2.1 -restart</pre>
+  <div class="box warn"><b>⚠️ Outdated-plugin security warnings</b>The Plugins page shows a <b>⚠</b> icon next to plugins with a published security vulnerability (referencing Jenkins security advisories). Don't delay updating these, especially plugins related to credentials, script security, or SCM.</div>
+  <div class="box tip"><b>💡 Tip</b>Before bulk-updating plugins in production, test on a staging instance with an identical JENKINS_HOME snapshot to catch breaking changes.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Go to <code class="inline">Manage Jenkins → Plugins → Available plugins</code>, install the <code class="inline">Slack Notification</code> plugin, observe which dependent plugins get auto-selected, then perform a safe restart.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Plugin Management</span></div>
+  <ol class="examples">
+    <li><span class="task">Install a plugin via the Jenkins CLI.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s http://localhost:8080/ install-plugin git</pre></li>
+    <li><span class="task">List all installed plugins via CLI.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s http://localhost:8080/ list-plugins</pre></li>
+    <li><span class="task">Safe-restart Jenkins after installing a plugin.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s http://localhost:8080/ safe-restart</pre></li>
+    <li><span class="task">Install an exact plugin version via CLI.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s http://localhost:8080/ install-plugin workflow-aggregator@600.vb_57cdd26fdd7</pre></li>
+    <li><span class="task">Disable a plugin no longer in use.</span>
+<pre><span class="lbl">Manage Jenkins → Plugins → Installed</span><span class="cmt"># Uncheck "Enabled" next to the plugin, no need to uninstall</span></pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Plugin Management</span></div>
+  <ol class="drills">
+    <li><span class="task">CLI command to install the <code class="inline">docker-workflow</code> plugin.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>java -jar jenkins-cli.jar -s http://localhost:8080/ install-plugin docker-workflow</pre></div></details></li>
+    <li><span class="task">Which Update Center tab shows plugins with a newer version available?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>Updates</pre></div></details></li>
+    <li><span class="task">Why do some plugins require a Jenkins restart after install?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Plugins touching core/security must be fully reloaded to guarantee
+// consistent state, which cannot be safely dynamic-classloaded.</span></pre></div></details></li>
+    <li><span class="task">CLI command to safe-restart Jenkins.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>java -jar jenkins-cli.jar -s http://localhost:8080/ safe-restart</pre></div></details></li>
+    <li><span class="task">What icon warns of a published security vulnerability in a plugin?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>⚠ <span class="cmt">// warning icon next to the plugin name in the Installed list</span></pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 5.3 ============ -->
+<section class="lesson" id="global-tools">
+<div class="lang vi">
+  <span class="phase-tag">Bài 5.3</span>
+  <h2>Cấu hình công cụ toàn cục (Global Tool Configuration)</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Cấu hình auto-installer cho JDK, Git, Maven, Gradle, NodeJS trong <code class="inline">Manage Jenkins → Tools</code>, và biết cách tham chiếu tool bằng tên trong khối <code class="inline">tools {}</code> của Jenkinsfile.</div>
+  <h3>Manage Jenkins → Tools</h3>
+  <p>Trang này (URL <code class="inline">/manage/configureTools/</code>) cho phép khai báo <b>nhiều phiên bản</b> của cùng một công cụ, mỗi phiên bản có một <b>tên định danh (Name)</b> duy nhất mà Jenkinsfile sẽ tham chiếu tới — Jenkins tự tải và cài đặt (auto-install) khi build cần.</p>
+  <table>
+    <tr><th>Công cụ</th><th>Plugin cần</th><th>Ví dụ Name</th></tr>
+    <tr><td>JDK</td><td>tích hợp sẵn (core)</td><td><code>jdk17</code></td></tr>
+    <tr><td>Git</td><td>Git plugin</td><td><code>Default</code></td></tr>
+    <tr><td>Maven</td><td>Maven Integration</td><td><code>maven-3.9</code></td></tr>
+    <tr><td>Gradle</td><td>Gradle plugin</td><td><code>gradle-8</code></td></tr>
+    <tr><td>NodeJS</td><td>NodeJS plugin</td><td><code>node20</code></td></tr>
+  </table>
+  <h3>Auto-installer</h3>
+  <p>Với mỗi tool, tick <b>Install automatically</b> rồi chọn nguồn tải (VD: Adoptium cho JDK, Apache cho Maven, nodejs.org cho NodeJS). Jenkins tải về agent lần đầu cần dùng và cache lại cho lần sau.</p>
+<pre><span class="lbl">Manage Jenkins → Tools</span>JDK installations
+  Name: jdk17
+  ☑ Install automatically
+    Add Installer → Install from adoptium.net → Version: jdk-17.0.10+7
+
+Maven installations
+  Name: maven-3.9
+  ☑ Install automatically
+    Add Installer → Install from Apache → Version: 3.9.6</pre>
+  <h3>Dùng trong Jenkinsfile qua khối tools {}</h3>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent any
+  <span class="kw">tools</span> {
+    jdk    <span class="str">'jdk17'</span>
+    maven  <span class="str">'maven-3.9'</span>
+    nodejs <span class="str">'node20'</span>
+  }
+  stages {
+    stage(<span class="str">'Build'</span>) {
+      steps {
+        sh <span class="str">'java -version'</span>
+        sh <span class="str">'mvn -v'</span>
+        sh <span class="str">'node -v'</span>
+      }
+    }
+  }
+}</pre>
+  <div class="box why"><b>🤔 Vì sao dùng tên tool thay vì cài cứng đường dẫn?</b>Tham chiếu bằng <b>tên logic</b> giúp Jenkinsfile <b>portable</b> — cùng pipeline chạy được trên agent Windows/Linux khác nhau miễn có tool cùng tên được cấu hình, không cần sửa path tuyệt đối.</div>
+  <div class="box warn"><b>⚠️ Lưu ý</b><code class="inline">tools {}</code> chỉ hoạt động với <code class="inline">agent</code> có kết nối mạng để tải tool lần đầu; agent air-gapped cần cài thủ công và khai báo installation trỏ tới path có sẵn (bỏ tick "Install automatically").</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Khai báo một Maven installation tên <code class="inline">maven-3.9</code> với auto-installer từ Apache, rồi viết Jenkinsfile dùng <code class="inline">tools { maven 'maven-3.9' }</code> và chạy <code class="inline">mvn -v</code> để xác nhận.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Global Tools</span></div>
+  <ol class="examples">
+    <li><span class="task">Khai báo JDK 17 dùng tools block.</span>
+<pre><span class="lbl">Jenkinsfile</span>tools { jdk <span class="str">'jdk17'</span> }</pre></li>
+    <li><span class="task">Khai báo cả Maven và NodeJS trong cùng pipeline.</span>
+<pre><span class="lbl">Jenkinsfile</span>tools {
+  maven  <span class="str">'maven-3.9'</span>
+  nodejs <span class="str">'node20'</span>
+}</pre></li>
+    <li><span class="task">Dùng Gradle Wrapper thay vì global tool (không cần tools block).</span>
+<pre><span class="lbl">Jenkinsfile</span>sh <span class="str">'./gradlew build'</span></pre></li>
+    <li><span class="task">Kiểm tra phiên bản Node sau khi auto-install.</span>
+<pre><span class="lbl">Jenkinsfile</span>tools { nodejs <span class="str">'node20'</span> }
+steps { sh <span class="str">'node -v && npm -v'</span> }</pre></li>
+    <li><span class="task">Cấu hình Git tool tùy chỉnh (đường dẫn binary khác mặc định).</span>
+<pre><span class="lbl">Manage Jenkins → Tools</span>Git installations
+  Name: git-custom
+  Path to Git executable: /usr/local/bin/git</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Global Tools</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết khối <code class="inline">tools {}</code> tham chiếu JDK tên <code class="inline">jdk21</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>tools { jdk <span class="str">'jdk21'</span> }</pre></div></details></li>
+    <li><span class="task">Trang nào để cấu hình global tool installer?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>Manage Jenkins → Tools <span class="cmt">// /manage/configureTools/</span></pre></div></details></li>
+    <li><span class="task">Vì sao Jenkinsfile nên tham chiếu tool bằng tên thay vì path tuyệt đối?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Để pipeline portable trên nhiều agent khác hệ điều hành,
+// miễn agent đó có tool cùng tên được cấu hình.</span></pre></div></details></li>
+    <li><span class="task">Viết tools block khai báo cả maven và nodejs.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>tools {
+  maven  <span class="str">'maven-3.9'</span>
+  nodejs <span class="str">'node20'</span>
+}</pre></div></details></li>
+    <li><span class="task">Tại sao agent air-gapped không nên dùng "Install automatically"?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Không có kết nối internet để tải installer; cần cài tool thủ công
+// và khai báo installation trỏ tới đường dẫn có sẵn trên agent.</span></pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 5.3</span>
+  <h2>Global Tool Configuration</h2>
+  <div class="box goal"><b>🎯 Goal</b>Configure auto-installers for JDK, Git, Maven, Gradle, and NodeJS under <code class="inline">Manage Jenkins → Tools</code>, and know how to reference a tool by name in a Jenkinsfile's <code class="inline">tools {}</code> block.</div>
+  <h3>Manage Jenkins → Tools</h3>
+  <p>This page (URL <code class="inline">/manage/configureTools/</code>) lets you declare <b>multiple versions</b> of the same tool, each with a unique <b>identifying Name</b> that Jenkinsfiles reference — Jenkins downloads and installs it automatically when a build needs it.</p>
+  <table>
+    <tr><th>Tool</th><th>Plugin required</th><th>Example Name</th></tr>
+    <tr><td>JDK</td><td>built-in (core)</td><td><code>jdk17</code></td></tr>
+    <tr><td>Git</td><td>Git plugin</td><td><code>Default</code></td></tr>
+    <tr><td>Maven</td><td>Maven Integration</td><td><code>maven-3.9</code></td></tr>
+    <tr><td>Gradle</td><td>Gradle plugin</td><td><code>gradle-8</code></td></tr>
+    <tr><td>NodeJS</td><td>NodeJS plugin</td><td><code>node20</code></td></tr>
+  </table>
+  <h3>Auto-installer</h3>
+  <p>For each tool, check <b>Install automatically</b> then choose a download source (e.g. Adoptium for JDK, Apache for Maven, nodejs.org for NodeJS). Jenkins downloads it to the agent the first time it's needed and caches it afterwards.</p>
+<pre><span class="lbl">Manage Jenkins → Tools</span>JDK installations
+  Name: jdk17
+  ☑ Install automatically
+    Add Installer → Install from adoptium.net → Version: jdk-17.0.10+7
+
+Maven installations
+  Name: maven-3.9
+  ☑ Install automatically
+    Add Installer → Install from Apache → Version: 3.9.6</pre>
+  <h3>Using it in a Jenkinsfile via tools {}</h3>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent any
+  <span class="kw">tools</span> {
+    jdk    <span class="str">'jdk17'</span>
+    maven  <span class="str">'maven-3.9'</span>
+    nodejs <span class="str">'node20'</span>
+  }
+  stages {
+    stage(<span class="str">'Build'</span>) {
+      steps {
+        sh <span class="str">'java -version'</span>
+        sh <span class="str">'mvn -v'</span>
+        sh <span class="str">'node -v'</span>
+      }
+    }
+  }
+}</pre>
+  <div class="box why"><b>🤔 Why reference tools by name instead of hardcoded paths?</b>Referencing by <b>logical name</b> makes the Jenkinsfile <b>portable</b> — the same pipeline runs on different Windows/Linux agents as long as a tool of the same name is configured there, no absolute-path edits needed.</div>
+  <div class="box warn"><b>⚠️ Note</b><code class="inline">tools {}</code> only works when the <code class="inline">agent</code> has network access to download the tool the first time; air-gapped agents need the tool installed manually with the installation declared pointing at an existing path (uncheck "Install automatically").</div>
+  <div class="box practice"><b>✍️ Exercise</b>Declare a Maven installation named <code class="inline">maven-3.9</code> with an Apache auto-installer, then write a Jenkinsfile using <code class="inline">tools { maven 'maven-3.9' }</code> and run <code class="inline">mvn -v</code> to confirm.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Global Tools</span></div>
+  <ol class="examples">
+    <li><span class="task">Declare JDK 17 using the tools block.</span>
+<pre><span class="lbl">Jenkinsfile</span>tools { jdk <span class="str">'jdk17'</span> }</pre></li>
+    <li><span class="task">Declare both Maven and NodeJS in the same pipeline.</span>
+<pre><span class="lbl">Jenkinsfile</span>tools {
+  maven  <span class="str">'maven-3.9'</span>
+  nodejs <span class="str">'node20'</span>
+}</pre></li>
+    <li><span class="task">Use the Gradle Wrapper instead of a global tool (no tools block needed).</span>
+<pre><span class="lbl">Jenkinsfile</span>sh <span class="str">'./gradlew build'</span></pre></li>
+    <li><span class="task">Verify the Node version after auto-install.</span>
+<pre><span class="lbl">Jenkinsfile</span>tools { nodejs <span class="str">'node20'</span> }
+steps { sh <span class="str">'node -v && npm -v'</span> }</pre></li>
+    <li><span class="task">Configure a custom Git tool (non-default binary path).</span>
+<pre><span class="lbl">Manage Jenkins → Tools</span>Git installations
+  Name: git-custom
+  Path to Git executable: /usr/local/bin/git</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Global Tools</span></div>
+  <ol class="drills">
+    <li><span class="task">Write a <code class="inline">tools {}</code> block referencing a JDK named <code class="inline">jdk21</code>.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>tools { jdk <span class="str">'jdk21'</span> }</pre></div></details></li>
+    <li><span class="task">Which page configures global tool installers?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>Manage Jenkins → Tools <span class="cmt">// /manage/configureTools/</span></pre></div></details></li>
+    <li><span class="task">Why should a Jenkinsfile reference a tool by name instead of an absolute path?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Makes the pipeline portable across agents on different OSes,
+// as long as that agent has a tool configured with the same name.</span></pre></div></details></li>
+    <li><span class="task">Write a tools block declaring both maven and nodejs.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>tools {
+  maven  <span class="str">'maven-3.9'</span>
+  nodejs <span class="str">'node20'</span>
+}</pre></div></details></li>
+    <li><span class="task">Why shouldn't an air-gapped agent use "Install automatically"?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// No internet access to download the installer; the tool must be
+// installed manually with the installation pointing at an existing path.</span></pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 5.4 ============ -->
+<section class="lesson" id="nodes-agents">
+<div class="lang vi">
+  <span class="phase-tag">Bài 5.4</span>
+  <h2>Nodes &amp; Agents</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Hiểu khái niệm controller/built-in node vs agent, thêm một permanent agent qua SSH launch method, cấu hình label &amp; executor, và biết các node monitor cơ bản (disk space...).</div>
+  <h3>Manage Jenkins → Nodes</h3>
+  <p>URL <code class="inline">/manage/computer/</code> liệt kê mọi node: <b>Built-In Node</b> (chính controller, trước đây gọi "master") và các agent đã thêm. Mỗi node có trạng thái online/offline, số executor, label.</p>
+  <table>
+    <tr><th>Khái niệm</th><th>Giải thích</th></tr>
+    <tr><td>Controller / Built-in Node</td><td>Tiến trình Jenkins chính, điều phối job, lưu JENKINS_HOME</td></tr>
+    <tr><td>Agent (Node)</td><td>Máy/container riêng chạy build, kết nối tới controller</td></tr>
+    <tr><td>Label</td><td>Nhãn gắn cho agent để pipeline chọn đúng nơi chạy (<code>agent { label 'linux-docker' }</code>)</td></tr>
+    <tr><td>Executor</td><td>Số build song song trên node đó</td></tr>
+  </table>
+  <h3>Thêm permanent agent qua SSH</h3>
+  <p><b>New Node → Permanent Agent</b>, chọn <b>Launch method: Launch agents via SSH</b> — controller sẽ tự SSH vào máy agent, tải <code class="inline">agent.jar</code> và khởi động kết nối, không cần cài gì thủ công trên agent ngoài Java + SSH server.</p>
+<pre><span class="lbl">New Node → Permanent Agent</span>Name:              linux-agent-01
+Remote root directory: /home/jenkins/agent
+Labels:            linux docker
+# of executors:    4
+Launch method:     Launch agents via SSH
+  Host:            10.0.1.20
+  Credentials:     jenkins-ssh-key (SSH Username with private key)
+  Host Key Verification Strategy: Known hosts file</pre>
+  <div class="box why"><b>🤔 Vì sao chọn SSH launch thay vì JNLP?</b>SSH launch để <b>controller chủ động</b> kết nối tới agent (dễ quản lý, tự reconnect), phù hợp khi controller có thể reach IP agent trực tiếp. JNLP (inbound) phù hợp khi agent ở sau NAT/firewall và phải là agent chủ động kết nối ra controller.</div>
+  <h3>Node monitors</h3>
+  <p>Jenkins tự động theo dõi sức khỏe từng node qua các <b>Node Monitor</b> có sẵn: dung lượng đĩa trống (<code class="inline">Free Disk Space</code>), dung lượng <code class="inline">/tmp</code>, response time, số lượng swap còn trống. Node bị đánh dấu <b>offline tạm thời</b> nếu vi phạm ngưỡng (mặc định &lt; 1GB đĩa trống).</p>
+<pre><span class="lbl">Manage Jenkins → Nodes → (agent) → Configure</span><span class="cmt"># Xem cảnh báo tại trang chi tiết node, VD:</span>
+⚠ Free Space threshold: 1 GiB (agent hiện còn 512 MiB → tự offline)</pre>
+  <div class="box warn"><b>⚠️ Thận trọng khi built-in node giữ nhiều executor</b>Nếu Built-In Node vẫn còn executor > 0 và không gắn label, job không chỉ định label có thể vô tình chạy trên controller. Luôn set label rõ ràng và giảm executor controller xuống 0 nếu muốn cách ly hoàn toàn.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Thêm một Permanent Agent qua SSH tới một máy Linux có Java cài sẵn, gắn label <code class="inline">linux</code>, sau đó viết một pipeline dùng <code class="inline">agent { label 'linux' }</code> để xác nhận job chạy đúng trên agent đó.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Nodes &amp; Agents</span></div>
+  <ol class="examples">
+    <li><span class="task">Pipeline chỉ định chạy trên agent có label cụ thể.</span>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent { label <span class="str">'linux-docker'</span> }
+  stages { stage(<span class="str">'Build'</span>) { steps { sh <span class="str">'echo hi'</span> } } }
+}</pre></li>
+    <li><span class="task">Thêm agent bằng CLI thay vì UI.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s http://localhost:8080/ create-node linux-agent-01 &lt; node-config.xml</pre></li>
+    <li><span class="task">Kiểm tra trạng thái tất cả node qua CLI.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s http://localhost:8080/ list-nodes</pre></li>
+    <li><span class="task">Đưa một node offline tạm thời để bảo trì.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s http://localhost:8080/ offline-node linux-agent-01 -m <span class="str">"bảo trì"</span></pre></li>
+    <li><span class="task">Đưa node online trở lại sau bảo trì.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s http://localhost:8080/ online-node linux-agent-01</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Nodes &amp; Agents</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết đoạn Jenkinsfile chạy trên agent có label <code class="inline">windows</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>pipeline { agent { label <span class="str">'windows'</span> } stages { <span class="cmt">/* ... */</span> } }</pre></div></details></li>
+    <li><span class="task">Launch method nào để controller tự SSH vào agent?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>Launch agents via SSH</pre></div></details></li>
+    <li><span class="task">Node monitor nào khiến agent tự offline khi thiếu đĩa?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>Free Disk Space monitor <span class="cmt">// ngưỡng mặc định &lt; 1 GiB</span></pre></div></details></li>
+    <li><span class="task">Lệnh CLI đưa node <code class="inline">agent-02</code> offline kèm lý do.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>java -jar jenkins-cli.jar -s http://localhost:8080/ offline-node agent-02 -m <span class="str">"lý do"</span></pre></div></details></li>
+    <li><span class="task">Vì sao nên gắn label rõ ràng thay vì để job chạy "bất kỳ đâu"?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Tránh job vô tình chạy trên controller hoặc agent không phù hợp
+// (thiếu tool/OS cần thiết), đảm bảo build nhất quán và cô lập.</span></pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 5.4</span>
+  <h2>Nodes &amp; Agents</h2>
+  <div class="box goal"><b>🎯 Goal</b>Understand controller/built-in node vs agent, add a permanent agent via the SSH launch method, configure labels &amp; executors, and know the basic node monitors (disk space, etc.).</div>
+  <h3>Manage Jenkins → Nodes</h3>
+  <p>URL <code class="inline">/manage/computer/</code> lists every node: the <b>Built-In Node</b> (the controller itself, formerly "master") and any added agents. Each node shows online/offline status, executor count, and labels.</p>
+  <table>
+    <tr><th>Concept</th><th>Explanation</th></tr>
+    <tr><td>Controller / Built-in Node</td><td>The main Jenkins process, orchestrates jobs, stores JENKINS_HOME</td></tr>
+    <tr><td>Agent (Node)</td><td>A separate machine/container running builds, connected to the controller</td></tr>
+    <tr><td>Label</td><td>Tag attached to an agent so pipelines pick the right place to run (<code>agent { label 'linux-docker' }</code>)</td></tr>
+    <tr><td>Executor</td><td>Number of parallel builds on that node</td></tr>
+  </table>
+  <h3>Adding a permanent agent via SSH</h3>
+  <p>Under <b>New Node → Permanent Agent</b>, choose <b>Launch method: Launch agents via SSH</b> — the controller will SSH into the agent machine itself, download <code class="inline">agent.jar</code>, and start the connection, with nothing to install manually on the agent beyond Java + an SSH server.</p>
+<pre><span class="lbl">New Node → Permanent Agent</span>Name:              linux-agent-01
+Remote root directory: /home/jenkins/agent
+Labels:            linux docker
+# of executors:    4
+Launch method:     Launch agents via SSH
+  Host:            10.0.1.20
+  Credentials:     jenkins-ssh-key (SSH Username with private key)
+  Host Key Verification Strategy: Known hosts file</pre>
+  <div class="box why"><b>🤔 Why choose SSH launch over JNLP?</b>SSH launch lets the <b>controller initiate</b> the connection to the agent (easier to manage, auto-reconnects), suited to cases where the controller can reach the agent's IP directly. JNLP (inbound) suits agents behind NAT/firewalls where the agent must initiate the connection out to the controller.</div>
+  <h3>Node monitors</h3>
+  <p>Jenkins automatically tracks each node's health via built-in <b>Node Monitors</b>: free disk space (<code class="inline">Free Disk Space</code>), <code class="inline">/tmp</code> space, response time, and free swap. A node is marked <b>temporarily offline</b> if it crosses a threshold (default &lt; 1GB free disk).</p>
+<pre><span class="lbl">Manage Jenkins → Nodes → (agent) → Configure</span><span class="cmt"># Warnings appear on the node detail page, e.g.:</span>
+⚠ Free Space threshold: 1 GiB (agent currently has 512 MiB → auto-offlined)</pre>
+  <div class="box warn"><b>⚠️ Caution with the built-in node keeping executors</b>If the Built-In Node still has executors > 0 and no label, jobs without a specified label may accidentally run on the controller. Always set clear labels and drop the controller's executor count to 0 for full isolation.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Add a Permanent Agent via SSH to a Linux machine with Java pre-installed, tag it with the label <code class="inline">linux</code>, then write a pipeline using <code class="inline">agent { label 'linux' }</code> to confirm the job runs on that agent.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Nodes &amp; Agents</span></div>
+  <ol class="examples">
+    <li><span class="task">Pipeline that pins execution to a specific label.</span>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent { label <span class="str">'linux-docker'</span> }
+  stages { stage(<span class="str">'Build'</span>) { steps { sh <span class="str">'echo hi'</span> } } }
+}</pre></li>
+    <li><span class="task">Add an agent via CLI instead of the UI.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s http://localhost:8080/ create-node linux-agent-01 &lt; node-config.xml</pre></li>
+    <li><span class="task">Check the status of all nodes via CLI.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s http://localhost:8080/ list-nodes</pre></li>
+    <li><span class="task">Take a node temporarily offline for maintenance.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s http://localhost:8080/ offline-node linux-agent-01 -m <span class="str">"maintenance"</span></pre></li>
+    <li><span class="task">Bring a node back online after maintenance.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s http://localhost:8080/ online-node linux-agent-01</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Nodes &amp; Agents</span></div>
+  <ol class="drills">
+    <li><span class="task">Write a Jenkinsfile snippet running on an agent labeled <code class="inline">windows</code>.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>pipeline { agent { label <span class="str">'windows'</span> } stages { <span class="cmt">/* ... */</span> } }</pre></div></details></li>
+    <li><span class="task">Which launch method has the controller SSH into the agent itself?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>Launch agents via SSH</pre></div></details></li>
+    <li><span class="task">Which node monitor auto-offlines an agent low on disk?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>Free Disk Space monitor <span class="cmt">// default threshold &lt; 1 GiB</span></pre></div></details></li>
+    <li><span class="task">CLI command to take node <code class="inline">agent-02</code> offline with a reason.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>java -jar jenkins-cli.jar -s http://localhost:8080/ offline-node agent-02 -m <span class="str">"reason"</span></pre></div></details></li>
+    <li><span class="task">Why should you assign clear labels instead of letting jobs run "anywhere"?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Prevents jobs from accidentally running on the controller or an
+// unsuitable agent (missing tools/OS), keeping builds consistent and isolated.</span></pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 5.5 ============ -->
+<section class="lesson" id="script-console">
+<div class="lang vi">
+  <span class="phase-tag">Bài 5.5</span>
+  <h2>Script Console &amp; CLI cơ bản</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Dùng Groovy Script Console cho tác vụ quản trị (VD: xóa hàng loạt build cũ), hiểu rủi ro của nó, và làm quen các lệnh Jenkins CLI cơ bản như <code class="inline">list-jobs</code>, <code class="inline">build</code>.</div>
+  <h3>Script Console là gì</h3>
+  <p><code class="inline">Manage Jenkins → Script Console</code> (URL <code class="inline">/manage/script</code>) cho phép chạy mã <b>Groovy</b> trực tiếp trong tiến trình Jenkins, với toàn quyền truy cập API nội bộ (<code class="inline">Jenkins.instance</code>, mọi job, mọi node). Rất mạnh cho tác vụ hàng loạt không có sẵn UI.</p>
+<pre><span class="lbl">Script Console — xóa build cũ hơn 30 ngày</span><span class="kw">import</span> jenkins.model.Jenkins
+
+<span class="kw">def</span> cutoff = System.<span class="fn">currentTimeMillis</span>() - (<span class="num">30</span> * <span class="num">24</span> * <span class="num">60</span> * <span class="num">60</span> * <span class="num">1000</span>)
+
+Jenkins.instance.<span class="fn">getAllItems</span>(hudson.model.Job.class).<span class="fn">each</span> { job ->
+  job.<span class="fn">getBuilds</span>().<span class="fn">each</span> { build ->
+    <span class="kw">if</span> (build.getTimeInMillis() &lt; cutoff) {
+      println <span class="str">"Deleting ${job.name} #${build.number}"</span>
+      build.<span class="fn">delete</span>()
+    }
+  }
+}</pre>
+  <div class="box warn"><b>⚠️ Cực kỳ thận trọng</b>Script Console chạy với quyền <b>SYSTEM</b>, có thể đọc/ghi/xóa <i>bất cứ thứ gì</i> trên controller — kể cả file hệ thống ngoài Jenkins qua Groovy I/O. Không có "undo". Chỉ cấp quyền <code class="inline">RUN_SCRIPTS</code> cho admin tin cậy tuyệt đối, và luôn thử trên <code class="inline">println</code>/dry-run trước khi gọi hành động ghi/xóa thật.</div>
+  <h3>Jenkins CLI</h3>
+  <p>Tải <code class="inline">jenkins-cli.jar</code> từ chính instance (<code class="inline">/jnlpJars/jenkins-cli.jar</code>) để chạy lệnh quản trị từ terminal, thay thế thao tác UI, dễ script hóa trong CI/CD khác hoặc cron.</p>
+<pre><span class="lbl">terminal</span><span class="cmt"># Tải CLI jar</span>
+curl -O http://localhost:8080/jnlpJars/jenkins-cli.jar
+
+<span class="cmt"># Liệt kê job</span>
+java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN list-jobs
+
+<span class="cmt"># Trigger một build và chờ log</span>
+java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN build my-job -s -v</pre>
+  <table>
+    <tr><th>Lệnh CLI</th><th>Chức năng</th></tr>
+    <tr><td><code>list-jobs</code></td><td>Liệt kê job (tùy chọn theo folder)</td></tr>
+    <tr><td><code>build &lt;job&gt; -s</code></td><td>Trigger build và chờ (synchronous) tới khi xong</td></tr>
+    <tr><td><code>console &lt;job&gt; &lt;#&gt;</code></td><td>In console log của một build</td></tr>
+    <tr><td><code>groovy = &lt; script.groovy</code></td><td>Chạy script Groovy qua CLI (tương đương Script Console)</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Vì sao dùng CLI thay vì click UI?</b>CLI cho phép <b>tự động hóa</b> tác vụ quản trị lặp lại (dọn job cũ, trigger hàng loạt, backup) trong script shell/cron mà không cần mở trình duyệt.</div>
+  <div class="box tip"><b>💡 Mẹo an toàn</b>Luôn dùng API token (<code class="inline">-auth user:token</code>) thay vì mật khẩu thật khi chạy CLI trong script, và giới hạn token đó bằng quyền tối thiểu cần thiết.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Tải <code class="inline">jenkins-cli.jar</code>, chạy <code class="inline">list-jobs</code> để xem danh sách job, sau đó viết một script Groovy an toàn (chỉ <code class="inline">println</code>, không <code class="inline">delete()</code>) trong Script Console để liệt kê build nào cũ hơn 30 ngày trước khi thật sự xóa.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Script Console &amp; CLI</span></div>
+  <ol class="examples">
+    <li><span class="task">In danh sách toàn bộ job qua Script Console.</span>
+<pre><span class="lbl">Script Console</span>Jenkins.instance.<span class="fn">getAllItems</span>(hudson.model.Job.class).<span class="fn">each</span> { println it.fullName }</pre></li>
+    <li><span class="task">Trigger build qua CLI và chờ kết quả.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN build my-job -s</pre></li>
+    <li><span class="task">Xem console log của build số 42.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s http://localhost:8080/ console my-job 42</pre></li>
+    <li><span class="task">Đếm số job đang tồn tại bằng Groovy.</span>
+<pre><span class="lbl">Script Console</span>println Jenkins.instance.<span class="fn">getAllItems</span>(hudson.model.Job.class).size()</pre></li>
+    <li><span class="task">Chạy script Groovy từ file qua CLI (không mở UI).</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN groovy = &lt; cleanup.groovy</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Script Console &amp; CLI</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết lệnh CLI liệt kê tất cả job.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>java -jar jenkins-cli.jar -s http://localhost:8080/ list-jobs</pre></div></details></li>
+    <li><span class="task">Script Console chạy với quyền gì trên controller?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>SYSTEM <span class="cmt">// toàn quyền, không giới hạn như user thường</span></pre></div></details></li>
+    <li><span class="task">Viết dòng Groovy in tên tất cả job (không xóa gì).</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>Jenkins.instance.<span class="fn">getAllItems</span>(hudson.model.Job.class).<span class="fn">each</span> { println it.fullName }</pre></div></details></li>
+    <li><span class="task">Vì sao nên dùng API token thay vì mật khẩu khi chạy CLI trong script?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Token có thể thu hồi/giới hạn quyền riêng, không lộ mật khẩu thật
+// trong script hay log CI.</span></pre></div></details></li>
+    <li><span class="task">Lệnh CLI tải file jenkins-cli.jar từ chính instance.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>curl -O http://localhost:8080/jnlpJars/jenkins-cli.jar</pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 5.5</span>
+  <h2>Script Console &amp; CLI Basics</h2>
+  <div class="box goal"><b>🎯 Goal</b>Use the Groovy Script Console for admin tasks (e.g. bulk-deleting old builds), understand its risks, and get familiar with basic Jenkins CLI commands like <code class="inline">list-jobs</code> and <code class="inline">build</code>.</div>
+  <h3>What is the Script Console</h3>
+  <p><code class="inline">Manage Jenkins → Script Console</code> (URL <code class="inline">/manage/script</code>) lets you run <b>Groovy</b> code directly inside the Jenkins process, with full access to internal APIs (<code class="inline">Jenkins.instance</code>, every job, every node). Extremely powerful for bulk tasks with no dedicated UI.</p>
+<pre><span class="lbl">Script Console — delete builds older than 30 days</span><span class="kw">import</span> jenkins.model.Jenkins
+
+<span class="kw">def</span> cutoff = System.<span class="fn">currentTimeMillis</span>() - (<span class="num">30</span> * <span class="num">24</span> * <span class="num">60</span> * <span class="num">60</span> * <span class="num">1000</span>)
+
+Jenkins.instance.<span class="fn">getAllItems</span>(hudson.model.Job.class).<span class="fn">each</span> { job ->
+  job.<span class="fn">getBuilds</span>().<span class="fn">each</span> { build ->
+    <span class="kw">if</span> (build.getTimeInMillis() &lt; cutoff) {
+      println <span class="str">"Deleting ${job.name} #${build.number}"</span>
+      build.<span class="fn">delete</span>()
+    }
+  }
+}</pre>
+  <div class="box warn"><b>⚠️ Extreme caution</b>The Script Console runs with <b>SYSTEM</b> privileges, able to read/write/delete <i>anything</i> on the controller — including files outside Jenkins via Groovy I/O. There is no "undo". Only grant <code class="inline">RUN_SCRIPTS</code> to fully trusted admins, and always test with <code class="inline">println</code>/dry-run before invoking real write/delete actions.</div>
+  <h3>Jenkins CLI</h3>
+  <p>Download <code class="inline">jenkins-cli.jar</code> from the instance itself (<code class="inline">/jnlpJars/jenkins-cli.jar</code>) to run admin commands from a terminal, replacing UI clicks and making it easy to script from other CI/CD tools or cron.</p>
+<pre><span class="lbl">terminal</span><span class="cmt"># Download the CLI jar</span>
+curl -O http://localhost:8080/jnlpJars/jenkins-cli.jar
+
+<span class="cmt"># List jobs</span>
+java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN list-jobs
+
+<span class="cmt"># Trigger a build and wait for the log</span>
+java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN build my-job -s -v</pre>
+  <table>
+    <tr><th>CLI command</th><th>Function</th></tr>
+    <tr><td><code>list-jobs</code></td><td>List jobs (optionally within a folder)</td></tr>
+    <tr><td><code>build &lt;job&gt; -s</code></td><td>Trigger a build and wait synchronously until it finishes</td></tr>
+    <tr><td><code>console &lt;job&gt; &lt;#&gt;</code></td><td>Print a build's console log</td></tr>
+    <tr><td><code>groovy = &lt; script.groovy</code></td><td>Run a Groovy script via CLI (equivalent to the Script Console)</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Why use the CLI instead of clicking around the UI?</b>The CLI enables <b>automating</b> repetitive admin tasks (cleaning up old jobs, bulk triggering, backups) in shell scripts/cron without opening a browser.</div>
+  <div class="box tip"><b>💡 Safety tip</b>Always use an API token (<code class="inline">-auth user:token</code>) instead of a real password when running the CLI in scripts, and scope that token to the minimum permissions needed.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Download <code class="inline">jenkins-cli.jar</code>, run <code class="inline">list-jobs</code> to see the job list, then write a safe Groovy script (only <code class="inline">println</code>, no <code class="inline">delete()</code>) in the Script Console to list which builds are older than 30 days before actually deleting anything.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Script Console &amp; CLI</span></div>
+  <ol class="examples">
+    <li><span class="task">Print the list of all jobs via the Script Console.</span>
+<pre><span class="lbl">Script Console</span>Jenkins.instance.<span class="fn">getAllItems</span>(hudson.model.Job.class).<span class="fn">each</span> { println it.fullName }</pre></li>
+    <li><span class="task">Trigger a build via CLI and wait for the result.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN build my-job -s</pre></li>
+    <li><span class="task">View the console log of build number 42.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s http://localhost:8080/ console my-job 42</pre></li>
+    <li><span class="task">Count existing jobs using Groovy.</span>
+<pre><span class="lbl">Script Console</span>println Jenkins.instance.<span class="fn">getAllItems</span>(hudson.model.Job.class).size()</pre></li>
+    <li><span class="task">Run a Groovy script from a file via CLI (no UI needed).</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN groovy = &lt; cleanup.groovy</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Script Console &amp; CLI</span></div>
+  <ol class="drills">
+    <li><span class="task">Write the CLI command to list all jobs.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>java -jar jenkins-cli.jar -s http://localhost:8080/ list-jobs</pre></div></details></li>
+    <li><span class="task">What privilege level does the Script Console run with on the controller?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>SYSTEM <span class="cmt">// full privileges, unlike a normal user</span></pre></div></details></li>
+    <li><span class="task">Write a Groovy line that prints every job's name (no deletion).</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>Jenkins.instance.<span class="fn">getAllItems</span>(hudson.model.Job.class).<span class="fn">each</span> { println it.fullName }</pre></div></details></li>
+    <li><span class="task">Why use an API token instead of a password when running the CLI in a script?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Tokens can be revoked/scoped independently, avoiding exposing
+// a real password in scripts or CI logs.</span></pre></div></details></li>
+    <li><span class="task">CLI command to download the jenkins-cli.jar file from the instance itself.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>curl -O http://localhost:8080/jnlpJars/jenkins-cli.jar</pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<div class="pager">
+  <a class="prev" href="phase4-pipeline-advanced.html"><span class="dir">← <span class="vi">Trước</span><span class="en">Prev</span></span><span class="ttl"><span class="vi">Giai đoạn 4 · Pipeline nâng cao</span><span class="en">Stage 4 · Pipeline Advanced</span></span></a>
+  <a class="next" href="phase6-security.html"><span class="dir"><span class="vi">Tiếp theo</span><span class="en">Next</span> →</span><span class="ttl"><span class="vi">Giai đoạn 6 · Bảo mật</span><span class="en">Stage 6 · Security</span></span></a>
+</div>
+
+</main>
+</div>
+<script src="assets/i18n.js"></script>
+<script src="assets/scrollspy.js"></script>
+</body>
+</html>

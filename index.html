@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Khóa học Jenkins CI/CD chi tiết — Mục lục</title>
+<style>
+  :root{--blue:#335061;--blue-d:#22333f;--accent:#d33833;--bg:#0f1419;--card:#161d26;--border:#28323e;--text:#e6edf3;--dim:#9aa7b4;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:linear-gradient(160deg,#0f1419,#131b24);color:var(--text);line-height:1.7;padding-bottom:80px;}
+  a{text-decoration:none;color:inherit;}
+  .en{display:none;}
+  body.lang-en .en{display:revert;}
+  body.lang-en .vi{display:none;}
+  header{background:linear-gradient(135deg,#22333f,#335061);padding:56px 24px 46px;text-align:center;position:relative;overflow:hidden;}
+  header::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 72% 18%,rgba(211,56,51,.22),transparent 50%);}
+  header .logo{font-size:3.2rem;position:relative;}
+  header h1{font-size:2.3rem;margin:10px 0 6px;position:relative;}
+  header p{color:rgba(255,255,255,.92);position:relative;font-size:1.08rem;}
+  .lang-toggle{position:absolute;top:18px;right:22px;display:flex;border:1px solid rgba(255,255,255,.5);border-radius:9px;overflow:hidden;z-index:5;}
+  .lang-toggle button{background:rgba(0,0,0,.15);border:none;color:#fff;padding:7px 16px;font-size:.85rem;font-weight:700;cursor:pointer;font-family:inherit;}
+  .lang-toggle button.on{background:#fff;color:var(--accent);}
+  .lang-toggle button + button{border-left:1px solid rgba(255,255,255,.5);}
+  .wrap{max-width:980px;margin:0 auto;padding:0 22px;}
+  .intro{margin-top:34px;color:var(--dim);text-align:center;max-width:700px;margin-left:auto;margin-right:auto;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:22px;margin-top:34px;}
+  .phase-card{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;transition:transform .15s,border-color .15s;display:block;}
+  .phase-card:hover{transform:translateY(-3px);border-color:var(--accent);}
+  .phase-card .head{padding:20px 22px 14px;display:flex;align-items:center;gap:14px;border-left:5px solid var(--accent);}
+  .phase-card .num{width:46px;height:46px;flex-shrink:0;background:linear-gradient(135deg,var(--blue-d),var(--accent));border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.3rem;}
+  .phase-card .head h2{font-size:1.25rem;}
+  .phase-card .head .sub{font-size:.82rem;color:var(--dim);font-weight:400;}
+  .phase-card ul{list-style:none;padding:4px 22px 20px 22px;}
+  .phase-card li{padding:6px 0 6px 22px;position:relative;color:var(--dim);font-size:.92rem;border-bottom:1px solid rgba(40,50,62,.5);}
+  .phase-card li:last-child{border-bottom:none;}
+  .phase-card li::before{content:"▸";position:absolute;left:0;color:var(--accent);}
+  .extra{display:flex;gap:16px;flex-wrap:wrap;margin-top:30px;}
+  .extra a{flex:1;min-width:240px;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px 20px;}
+  .extra a:hover{border-color:var(--accent);}
+  .extra h3{color:var(--accent);font-size:1.05rem;margin-bottom:4px;}
+  .extra p{color:var(--dim);font-size:.9rem;}
+  footer{text-align:center;color:var(--dim);font-size:.85rem;margin-top:46px;}
+</style>
+</head>
+<body class="lang-vi">
+<header>
+  <div class="lang-toggle">
+    <button data-lang="vi" class="on">VI</button>
+    <button data-lang="en">EN</button>
+  </div>
+  <div class="logo">🤵</div>
+  <h1><span class="vi">Khóa học Jenkins CI/CD chi tiết</span><span class="en">Detailed Jenkins CI/CD Course</span></h1>
+  <p><span class="vi">Bám sát document chính thức jenkins.io/doc · Giải thích từng bài · Ví dụ Jenkinsfile thực tế</span><span class="en">Based on the official jenkins.io/doc · Lesson-by-lesson · Real Jenkinsfile examples</span></p>
+</header>
+
+<div class="wrap">
+  <p class="intro">
+    <span class="vi">Khóa học chia 9 giai đoạn bám sát cấu trúc Jenkins User Handbook (jenkins.io/doc/book). Mỗi bài có: <b>🎯 Mục tiêu · giải thích cơ chế · 🤔 Tại sao · ⚠️ Lỗi thường gặp · ✍️ Bài thực hành</b>.</span>
+    <span class="en">The course has 9 stages following the Jenkins User Handbook structure (jenkins.io/doc/book). Each lesson includes: <b>🎯 Goal · how it works · 🤔 Why · ⚠️ Common mistakes · ✍️ Exercise</b>.</span>
+  </p>
+
+  <div class="grid">
+    <a class="phase-card" href="phase1-getting-started.html">
+      <div class="head"><div class="num">1</div><div><h2>Getting Started</h2><span class="sub"><span class="vi">Cài đặt · giao diện · pipeline đầu tiên</span><span class="en">Install · UI tour · your first pipeline</span></span></div></div>
+      <ul>
+        <li><span class="vi">Cài đặt Jenkins (WAR, Docker, gói hệ điều hành)</span><span class="en">Installing Jenkins (WAR, Docker, native packages)</span></li>
+        <li><span class="vi">Vòng thiết lập lần đầu (Setup Wizard)</span><span class="en">Post-installation setup wizard</span></li>
+        <li><span class="vi">Tổng quan giao diện Jenkins</span><span class="en">Jenkins UI overview</span></li>
+        <li><span class="vi">Tạo Pipeline đầu tiên</span><span class="en">Creating your first Pipeline</span></li>
+        <li><span class="vi">Jenkins với Docker</span><span class="en">Jenkins with Docker</span></li>
+      </ul>
+    </a>
+
+    <a class="phase-card" href="phase2-using-jenkins.html">
+      <div class="head"><div class="num">2</div><div><h2><span class="vi">Sử dụng Jenkins</span><span class="en">Using Jenkins</span></h2><span class="sub"><span class="vi">Jobs, Views, build trigger, credentials</span><span class="en">Jobs, Views, build triggers, credentials</span></span></div></div>
+      <ul>
+        <li><span class="vi">Freestyle Project</span><span class="en">Freestyle projects</span></li>
+        <li><span class="vi">Build Triggers (poll SCM, webhook, cron)</span><span class="en">Build Triggers (poll SCM, webhook, cron)</span></li>
+        <li>Views &amp; Dashboard</li>
+        <li>Credentials</li>
+        <li><span class="vi">Quản lý người dùng &amp; quyền</span><span class="en">Managing users &amp; permissions</span></li>
+      </ul>
+    </a>
+
+    <a class="phase-card" href="phase3-pipeline-fundamentals.html">
+      <div class="head"><div class="num">3</div><div><h2><span class="vi">Pipeline căn bản</span><span class="en">Pipeline Fundamentals</span></h2><span class="sub"><span class="vi">Jenkinsfile, Declarative syntax, stages/steps</span><span class="en">Jenkinsfile, Declarative syntax, stages/steps</span></span></div></div>
+      <ul>
+        <li>Jenkinsfile là gì</li>
+        <li><span class="vi">Cú pháp Declarative Pipeline</span><span class="en">Declarative Pipeline syntax</span></li>
+        <li>Agent, Stages, Steps</li>
+        <li>Post Conditions</li>
+        <li><span class="vi">Scripted Pipeline (Groovy)</span><span class="en">Scripted Pipeline (Groovy)</span></li>
+      </ul>
+    </a>
+
+    <a class="phase-card" href="phase4-pipeline-advanced.html">
+      <div class="head"><div class="num">4</div><div><h2><span class="vi">Pipeline nâng cao</span><span class="en">Advanced Pipeline</span></h2><span class="sub"><span class="vi">Multibranch, Shared Library, parallel, matrix</span><span class="en">Multibranch, Shared Library, parallel, matrix</span></span></div></div>
+      <ul>
+        <li>Multibranch Pipeline</li>
+        <li>Shared Libraries</li>
+        <li>Parallel &amp; Matrix</li>
+        <li>When Conditions</li>
+        <li>Input &amp; Parameters</li>
+      </ul>
+    </a>
+
+    <a class="phase-card" href="phase5-managing-jenkins.html">
+      <div class="head"><div class="num">5</div><div><h2><span class="vi">Quản trị Jenkins</span><span class="en">Managing Jenkins</span></h2><span class="sub"><span class="vi">Cấu hình hệ thống, plugin, node, tool</span><span class="en">System config, plugins, nodes, tools</span></span></div></div>
+      <ul>
+        <li><span class="vi">Cấu hình hệ thống</span><span class="en">System Configuration</span></li>
+        <li><span class="vi">Quản lý Plugin</span><span class="en">Plugin Management</span></li>
+        <li>Global Tool Configuration</li>
+        <li>Nodes &amp; Agents</li>
+        <li>Script Console</li>
+      </ul>
+    </a>
+
+    <a class="phase-card" href="phase6-security.html">
+      <div class="head"><div class="num">6</div><div><h2><span class="vi">Bảo mật Jenkins</span><span class="en">Security</span></h2><span class="sub"><span class="vi">Authentication, Authorization, Credentials</span><span class="en">Authentication, Authorization, Credentials</span></span></div></div>
+      <ul>
+        <li>Authentication</li>
+        <li><span class="vi">Authorization (Matrix, Role Strategy)</span><span class="en">Authorization (Matrix, Role Strategy)</span></li>
+        <li><span class="vi">Quản lý Credentials nâng cao</span><span class="en">Advanced Credentials management</span></li>
+        <li><span class="vi">Thực hành bảo mật tốt nhất</span><span class="en">Security best practices</span></li>
+        <li>Audit Trail</li>
+      </ul>
+    </a>
+
+    <a class="phase-card" href="phase7-scaling.html">
+      <div class="head"><div class="num">7</div><div><h2><span class="vi">Mở rộng &amp; Phân tán</span><span class="en">Scaling &amp; Distributed Builds</span></h2><span class="sub"><span class="vi">Kiến trúc Controller/Agent, Docker, Kubernetes</span><span class="en">Controller/Agent architecture, Docker, Kubernetes</span></span></div></div>
+      <ul>
+        <li><span class="vi">Kiến trúc Controller — Agent</span><span class="en">Controller — Agent architecture</span></li>
+        <li>SSH / JNLP Agents</li>
+        <li>Docker Agents</li>
+        <li>Kubernetes Plugin</li>
+        <li><span class="vi">Cloud Agents (EC2, Azure)</span><span class="en">Cloud Agents (EC2, Azure)</span></li>
+      </ul>
+    </a>
+
+    <a class="phase-card" href="phase8-integrations.html">
+      <div class="head"><div class="num">8</div><div><h2><span class="vi">Tích hợp &amp; Thông báo</span><span class="en">Integrations &amp; Notifications</span></h2><span class="sub"><span class="vi">SCM webhook, Blue Ocean, Slack/Email, artifact</span><span class="en">SCM webhooks, Blue Ocean, Slack/Email, artifacts</span></span></div></div>
+      <ul>
+        <li><span class="vi">Tích hợp Git/GitHub &amp; Webhook</span><span class="en">Git/GitHub integration &amp; Webhooks</span></li>
+        <li>Blue Ocean</li>
+        <li><span class="vi">Thông báo (Email, Slack)</span><span class="en">Notifications (Email, Slack)</span></li>
+        <li>Artifacts &amp; Fingerprinting</li>
+        <li><span class="vi">Tích hợp công cụ chất lượng (SonarQube, JUnit)</span><span class="en">Quality tool integration (SonarQube, JUnit)</span></li>
+      </ul>
+    </a>
+
+    <a class="phase-card" href="phase9-reference.html">
+      <div class="head"><div class="num">9</div><div><h2><span class="vi">Tra cứu &amp; Best Practices</span><span class="en">Reference &amp; Best Practices</span></h2><span class="sub"><span class="vi">CLI, REST API, cú pháp Pipeline, khắc phục sự cố</span><span class="en">CLI, REST API, Pipeline syntax, troubleshooting</span></span></div></div>
+      <ul>
+        <li>Jenkins CLI</li>
+        <li>REST API</li>
+        <li><span class="vi">Pipeline Syntax Reference</span><span class="en">Pipeline Syntax Reference</span></li>
+        <li><span class="vi">Khắc phục sự cố thường gặp</span><span class="en">Common troubleshooting</span></li>
+        <li><span class="vi">Best Practices tổng hợp</span><span class="en">Distilled best practices</span></li>
+      </ul>
+    </a>
+  </div>
+
+  <div class="extra">
+    <a href="jenkins-roadmap.html">
+      <h3><span class="vi">🗺️ Roadmap có checklist</span><span class="en">🗺️ Roadmap with checklist</span></h3>
+      <p><span class="vi">Lộ trình tổng quan với checkbox tick tiến độ, lưu tự động.</span><span class="en">Overview roadmap with progress checkboxes, auto-saved.</span></p>
+    </a>
+    <a href="https://www.jenkins.io/doc/" target="_blank">
+      <h3><span class="vi">📖 Document chính thức</span><span class="en">📖 Official docs</span></h3>
+      <p><span class="vi">jenkins.io/doc — nguồn tham chiếu gốc của toàn bộ khóa học.</span><span class="en">jenkins.io/doc — the source this whole course is based on.</span></p>
+    </a>
+    <a href="https://www.jenkins.io/doc/pipeline/tour/getting-started/" target="_blank">
+      <h3><span class="vi">🧪 Pipeline Tour thực hành</span><span class="en">🧪 Practice Pipeline Tour</span></h3>
+      <p><span class="vi">Trang thực hành pipeline tương tác chính thức của Jenkins.</span><span class="en">Jenkins' official interactive pipeline practice tour.</span></p>
+    </a>
+  </div>
+
+  <footer><span class="vi">Tạo theo cấu trúc document chính thức Jenkins User Handbook</span><span class="en">Built following the official Jenkins User Handbook structure</span></footer>
+</div>
+<script src="assets/i18n.js"></script>
+</body>
+</html>

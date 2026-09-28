@@ -1,0 +1,1299 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Giai đoạn 2 — Using Jenkins | Khóa học Jenkins</title>
+<link rel="stylesheet" href="assets/course.css">
+</head>
+<body class="lang-vi">
+<div class="layout">
+<nav class="side">
+  <div class="brand">🤵 Jenkins<small><span class="vi">Giai đoạn 2 · Using Jenkins</span><span class="en">Stage 2 · Using Jenkins</span></small></div>
+  <div class="lang-toggle">
+    <button data-lang="vi" class="on">VI</button>
+    <button data-lang="en">EN</button>
+  </div>
+  <a class="nav-home" href="index.html"><span class="vi">← Mục lục khóa học</span><span class="en">← Course index</span></a>
+  <div class="grp"><span class="vi">Bài học</span><span class="en">Lessons</span></div>
+  <a class="lnk" href="#freestyle">2.1 · <span class="vi">Freestyle Project</span><span class="en">Freestyle Projects</span></a>
+  <a class="lnk" href="#build-triggers">2.2 · <span class="vi">Build Triggers</span><span class="en">Build Triggers</span></a>
+  <a class="lnk" href="#views-dashboard">2.3 · <span class="vi">Views &amp; Dashboard</span><span class="en">Views &amp; Dashboard</span></a>
+  <a class="lnk" href="#credentials">2.4 · Credentials</a>
+  <a class="lnk" href="#users-permissions">2.5 · <span class="vi">Người dùng &amp; Phân quyền</span><span class="en">Users &amp; Permissions</span></a>
+  <a class="lnk" href="#upgrade-jenkins">2.6 · <span class="vi">Nâng cấp Jenkins (case study)</span><span class="en">Upgrading Jenkins (case study)</span></a>
+</nav>
+
+<main>
+<header class="top">
+  <div class="crumb"><span class="vi">Khóa học Jenkins › <b>Giai đoạn 2 — Using Jenkins</b></span><span class="en">Jenkins Course › <b>Stage 2 — Using Jenkins</b></span></div>
+  <h1><span class="vi">Using Jenkins</span><span class="en">Using Jenkins</span></h1>
+  <p class="lead">
+    <span class="vi">Mục tiêu giai đoạn: tạo và cấu hình được một Freestyle job hoàn chỉnh, hiểu các cơ chế trigger build, làm chủ dashboard/views, quản lý credentials an toàn, và biết tạo user + phân quyền cơ bản trước khi bước sang Pipeline.</span>
+    <span class="en">Stage goal: build and configure a full Freestyle job, understand build-trigger mechanisms, master the dashboard/views, manage credentials securely, and know how to create users with basic permissions before moving on to Pipeline.</span>
+  </p>
+</header>
+
+<!-- ============ 2.1 Freestyle ============ -->
+<section class="lesson" id="freestyle">
+<div class="lang vi">
+  <span class="phase-tag">Bài 2.1</span>
+  <h2>Freestyle Project</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Tạo được một Freestyle job từ đầu đến cuối: lấy code từ SCM, chuẩn bị môi trường build, chạy build step, và lưu lại kết quả (artifact) sau khi build xong.</div>
+
+  <h3>Freestyle project là gì?</h3>
+  <p>Freestyle project là loại job <b>cổ điển, đa năng</b>, cấu hình <b>hoàn toàn bằng giao diện web</b> (click chuột, điền form) — không cần viết code. Đây là loại job đầu tiên và dễ học nhất của Jenkins, rất hợp cho người mới.</p>
+  <div class="box example"><b>📖 Đọc mô tả gốc trên màn hình chọn loại job</b><i>"Classic, general-purpose job type that checks out from up to one SCM, executes build steps serially, followed by post-build steps..."</i> → Loại job kinh điển, đa dụng — checkout từ tối đa <b>1 nguồn code (SCM)</b>, chạy các bước build <b>tuần tự</b> (lần lượt), sau đó chạy các bước <b>post-build</b> như archive artifact và gửi email.</div>
+
+  <div class="box note"><b>🧠 Đặc điểm cần nhớ</b>
+  <ul>
+    <li>✅ <b>Không cần code</b> — chỉ click và điền form → dễ cho người mới.</li>
+    <li>➡️ <b>Chạy tuần tự (serial)</b> — các Build Steps chạy lần lượt từ trên xuống, không song song.</li>
+    <li>🔗 <b>Tối đa 1 SCM</b> — chỉ checkout được từ 1 repo.</li>
+    <li>💾 <b>Cấu hình lưu trong <code class="inline">config.xml</code> trên server</b>, không nằm trong Git → khó review, khó backup bằng version control.</li>
+  </ul></div>
+
+  <h3>Freestyle project vs Pipeline</h3>
+  <table>
+    <tr><th>Tiêu chí</th><th>Freestyle project</th><th>Pipeline</th></tr>
+    <tr><td>Cách cấu hình</td><td>Click chuột trên web</td><td>Viết code (Jenkinsfile, Groovy)</td></tr>
+    <tr><td>Độ khó</td><td>Dễ, hợp người mới</td><td>Khó hơn</td></tr>
+    <tr><td>Song song / nhiều stage</td><td>❌ Không</td><td>✅ Có</td></tr>
+    <tr><td>Lưu cùng code trong Git</td><td>❌ Không</td><td>✅ Có (Jenkinsfile)</td></tr>
+    <tr><td>Phù hợp</td><td>Job đơn giản, học tập</td><td>Dự án CI/CD thật, phức tạp</td></tr>
+  </table>
+  <div class="box tip"><b>👉 Kết luận</b>Với bài tập "Hello Jenkins", <b>Freestyle</b> là lựa chọn đúng vì đơn giản, trực quan, không cần code. Khi lên dự án thật với nhiều bước (build → test → deploy), người ta mới chuyển sang <b>Pipeline</b>.</div>
+
+  <h3>Tạo Freestyle project</h3>
+  <p>Trên dashboard Jenkins: <b>New Item</b> → nhập tên job → chọn <b>Freestyle project</b> → OK. Đây là loại job cổ điển nhất của Jenkins, cấu hình hoàn toàn qua giao diện web (khác với Pipeline dùng code <code class="inline">Jenkinsfile</code>).</p>
+  <table>
+    <tr><th>Khu vực cấu hình</th><th>Chức năng</th><th>Ví dụ (bài Hello Jenkins)</th></tr>
+    <tr><td>General</td><td>Mô tả job, giới hạn concurrent build, tham số hóa job (This project is parameterized)</td><td>Để mặc định</td></tr>
+    <tr><td>Source Code Management</td><td>Khai báo Git/SVN, branch, credentials để checkout code</td><td>Chọn <b>None</b> cho nhanh</td></tr>
+    <tr><td>Build Triggers</td><td>Khi nào job tự chạy (xem Bài 2.2)</td><td>Không cần — bấm <b>Build Now</b> tay</td></tr>
+    <tr><td>Build Environment</td><td>Dọn workspace, inject biến môi trường, timeout...</td><td>Để mặc định</td></tr>
+    <tr><td>Build Steps</td><td>Các lệnh thực thi tuần tự: shell, batch, Invoke Ant/Maven...</td><td><code class="inline">echo "Hello Jenkins" &gt; result.txt</code></td></tr>
+    <tr><td>Post-build Actions</td><td>Việc làm sau build: archive artifact, gửi mail, publish report...</td><td>Archive <code class="inline">result.txt</code></td></tr>
+  </table>
+
+  <h3>Source Code Management</h3>
+  <p>Chọn <b>Git</b>, nhập Repository URL, chọn Credentials (nếu repo private), khai báo Branch Specifier (mặc định <code class="inline">*/main</code>). Jenkins sẽ tự động <code class="inline">git clone</code>/<code class="inline">fetch</code> vào workspace của job trước khi chạy build step.</p>
+<pre><span class="lbl">Source Code Management</span><span class="cmt"># Repository URL</span>
+https://github.com/example/my-app.git
+<span class="cmt"># Credentials</span>
+github-pat  <span class="cmt"># chọn từ Credentials store</span>
+<span class="cmt"># Branch Specifier</span>
+*/main</pre>
+
+  <h3>Build Environment &amp; Build Steps</h3>
+  <p>Build Environment thường bật <b>"Delete workspace before build starts"</b> để đảm bảo build sạch, hoặc <b>"Add timestamps to the Console Output"</b> để dễ debug log. Build Steps là nơi khai báo lệnh thực thi — hai lựa chọn phổ biến nhất: <code class="inline">Execute shell</code> (Linux/macOS) và <code class="inline">Execute Windows batch command</code> (Windows).</p>
+<pre><span class="lbl">Execute shell</span><span class="cmt">#!/bin/bash</span>
+<span class="kw">set</span> -e
+npm <span class="fn">install</span>
+npm <span class="fn">run</span> build
+npm <span class="fn">test</span></pre>
+<pre><span class="lbl">Execute Windows batch command</span><span class="fn">call</span> npm install
+<span class="fn">call</span> npm run build
+<span class="fn">call</span> npm test</pre>
+  <div class="box why"><b>🤔 Vì sao Freestyle vẫn đáng học dù có Pipeline?</b>Freestyle giúp bạn hiểu <b>từng khối cấu hình</b> (SCM, trigger, build step, post-build) một cách trực quan trước khi trừu tượng hóa chúng thành code Pipeline. Nhiều job đơn giản, một-bước trong thực tế vẫn dùng Freestyle vì nhanh, dễ đọc trên UI.</div>
+
+  <h3>Post-build Actions</h3>
+  <p>Sau khi Build Steps chạy xong (dù thành công hay thất bại), Jenkins thực hiện các Post-build Actions đã cấu hình. Phổ biến nhất là <b>Archive the artifacts</b> — lưu file build (jar, zip, report...) để tải về sau, kể cả khi workspace bị xóa ở lần build tiếp theo.</p>
+<pre><span class="lbl">Post-build Actions</span><span class="cmt"># Archive the artifacts</span>
+Files to archive: build/libs/*.jar, target/*.war
+<span class="cmt"># Editable Email Notification / E-mail Notification</span>
+Recipients: team@example.com</pre>
+  <div class="box warn"><b>⚠️ Pattern archive quá rộng</b>Dùng <code class="inline">**/*</code> để archive sẽ kéo theo toàn bộ workspace (kể cả node_modules), làm job chậm và tốn dung lượng <code class="inline">$JENKINS_HOME</code>. Luôn giới hạn pattern cụ thể.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Tạo một Freestyle job, trỏ Source Code Management vào một repo Git công khai, thêm Execute shell chạy <code class="inline">echo "Hello Jenkins" &gt; result.txt</code>, rồi Archive artifact <code class="inline">result.txt</code>. Chạy Build Now và kiểm tra file trong trang build.</div>
+  <details class="ans"><summary>✅ Lời giải chi tiết — làm từng bước trên Jenkins thật</summary><div class="a-body">
+    <p><b>Bạn KHÔNG cần file input nào cả.</b> Bước <code class="inline">echo "Hello Jenkins" &gt; result.txt</code> tự sinh ra file — nó không đọc gì từ Git repo. Vì vậy để chạy nhanh nhất có thể bỏ luôn bước SCM.</p>
+    <ol class="steps">
+      <li><b>New Item</b> → nhập tên <code class="inline">hello-jenkins</code> → chọn <b>Freestyle project</b> → <b>OK</b>.</li>
+      <li><b>Source Code Management</b> → chọn <b>None</b> (bỏ qua Git cho nhanh, không cần credentials).</li>
+      <li>Kéo xuống mục <b>Build Steps</b> → bấm <b>Add build step</b> → chọn <b>Execute shell</b> (Linux/Docker) hoặc <b>Execute Windows batch command</b> (Windows).</li>
+      <li>Nhập lệnh tạo file:
+<pre><span class="lbl">Execute shell — Linux/Docker</span>echo "Hello Jenkins" &gt; result.txt</pre>
+<pre><span class="lbl">Execute Windows batch command — Windows</span>echo Hello Jenkins &gt; result.txt</pre>
+<div class="jcfg" role="img" aria-label="Màn hình Configure — Build Steps: Execute Windows batch command với lệnh echo Hello Jenkins > result.txt">
+  <div class="jcfg-h">Build Steps</div>
+  <div class="jcfg-sub">Automate your build process with ordered tasks like code compilation, testing, and deployment.</div>
+  <div class="jcfg-card">
+    <span class="jcfg-x">✕</span>
+    <div class="jcfg-card-head"><span class="jcfg-grip">⣿</span><span class="jcfg-title">Execute Windows batch command</span><span class="jcfg-q">?</span></div>
+    <div class="jcfg-label">Command</div>
+    <a class="jcfg-link">See the list of available environment variables</a>
+    <div class="jcfg-textarea">echo "Hello Jenkins" &gt; result.txt</div>
+    <span class="jcfg-adv">Advanced ⌄</span>
+  </div>
+  <span class="jcfg-add">＋ Add build step</span>
+</div>
+<p class="jk-cap">Màn hình <b>Configure → Build Steps</b>: chọn <i>Execute Windows batch command</i> và gõ lệnh vào ô Command.</p></li>
+      <li><b>Post-build Actions</b> → <b>Add post-build action</b> → <b>Archive the artifacts</b> → ô <i>Files to archive</i> nhập <code class="inline">result.txt</code>.
+<div class="jcfg" role="img" aria-label="Màn hình Configure — Post-build Actions: Archive the artifacts với result.txt">
+  <div class="jcfg-h">Post-build Actions</div>
+  <div class="jcfg-sub">Define what happens after a build completes, like sending notifications, archiving artifacts, or triggering other jobs.</div>
+  <div class="jcfg-card">
+    <span class="jcfg-x">✕</span>
+    <div class="jcfg-card-head"><span class="jcfg-grip">⣿</span><span class="jcfg-title">Archive the artifacts</span><span class="jcfg-q">?</span></div>
+    <div class="jcfg-label">Files to archive <span class="jcfg-q">?</span></div>
+    <div class="jcfg-input">result.txt</div>
+    <span class="jcfg-adv">Advanced ⌄</span>
+  </div>
+  <span class="jcfg-add">＋ Add post-build action</span>
+  <div class="jcfg-actions"><span class="jcfg-btn-primary">Save</span><span class="jcfg-btn-ghost">Apply</span></div>
+</div>
+<p class="jk-cap">Màn hình <b>Configure → Post-build Actions</b>: Archive the artifacts, ô <i>Files to archive</i> = <b>result.txt</b>, rồi bấm <b>Save</b>.</p></li>
+      <li><b>Save</b> → menu trái bấm <b>Build Now</b>.</li>
+      <li>Mở build <code class="inline">#1</code> trong <i>Build History</i> → trên trang build thấy mục <b>Build Artifacts</b> → bấm <code class="inline">result.txt</code> để xem/tải nội dung <code class="inline">Hello Jenkins</code>.</li>
+    </ol>
+    <div class="box tip"><b>💡 Build Steps nằm ở đâu?</b>Không phải ở trang <b>Status</b>. Bấm <b>Configure</b> (⚙️) ở menu trái của job → kéo xuống theo thứ tự: General → Source Code Management → Build Triggers → Build Environment → <b>Build Steps</b> → Post-build Actions. Trang dài thì nhấn <kbd>Ctrl</kbd>+<kbd>F</kbd> gõ "Build Steps" để nhảy tới.</div>
+    <div class="box note"><b>🪟 Windows vs Linux</b>Nếu trong <b>Add build step</b> <b>không</b> có "Execute shell" → Jenkins đang chạy trên Windows → dùng <b>Execute Windows batch command</b> với lệnh <code class="inline">echo Hello Jenkins &gt; result.txt</code> (không có dấu ngoặc kép). "Execute shell" chỉ xuất hiện khi Jenkins chạy trên Linux/Docker.</div>
+    <p><b>Muốn gói cả job vào 1 file duy nhất?</b> Dùng Pipeline job với một <code class="inline">Jenkinsfile</code>:</p>
+<pre><span class="lbl">Jenkinsfile (Pipeline)</span>pipeline {
+  agent any
+  stages {
+    stage(<span class="str">'Create'</span>) {
+      steps {
+        sh <span class="str">'echo "Hello Jenkins" &gt; result.txt'</span>   <span class="cmt">// Windows: bat 'echo Hello Jenkins &gt; result.txt'</span>
+      }
+    }
+  }
+  post {
+    always {
+      archiveArtifacts artifacts: <span class="str">'result.txt'</span>
+    }
+  }
+}</pre>
+  </div></details>
+
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Freestyle</span></div>
+  <ol class="examples">
+    <li><span class="task">Tạo job build một ứng dụng Node.js từ GitHub.</span>
+<pre><span class="lbl">Execute shell</span>npm ci
+npm run build</pre></li>
+    <li><span class="task">Job chạy test Maven và archive báo cáo JUnit.</span>
+<pre><span class="lbl">Execute shell</span>mvn clean test
+<span class="cmt"># Post-build: Publish JUnit test result report -> target/surefire-reports/*.xml</span></pre></li>
+    <li><span class="task">Job Windows build project .NET.</span>
+<pre><span class="lbl">Execute Windows batch command</span>dotnet restore
+dotnet build --configuration Release</pre></li>
+    <li><span class="task">Xóa workspace trước mỗi lần build để tránh cache cũ.</span>
+<pre><span class="lbl">Build Environment</span>☑ Delete workspace before build starts</pre></li>
+    <li><span class="task">Archive file zip đóng gói sau khi build xong.</span>
+<pre><span class="lbl">Post-build Actions</span>Files to archive: dist/*.zip</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Freestyle</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết Execute shell cài dependency và build project Node.js.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>npm install
+npm run build</pre></div></details></li>
+    <li><span class="task">Khai báo Branch Specifier để chỉ build nhánh <code class="inline">develop</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>*/develop</pre></div></details></li>
+    <li><span class="task">Cấu hình archive các file jar trong <code class="inline">build/libs</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>Files to archive: build/libs/*.jar</pre></div></details></li>
+    <li><span class="task">Bật tùy chọn xóa workspace sạch trước mỗi build.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>Build Environment → ☑ Delete workspace before build starts</pre></div></details></li>
+    <li><span class="task">Viết Execute Windows batch command chạy test .NET.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>dotnet test</pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 2.1</span>
+  <h2>Freestyle Projects</h2>
+  <div class="box goal"><b>🎯 Goal</b>Build a Freestyle job from start to finish: pull code from SCM, prepare the build environment, run build steps, and preserve results (artifacts) after the build finishes.</div>
+
+  <h3>What is a Freestyle project?</h3>
+  <p>A Freestyle project is the <b>classic, general-purpose</b> job type, configured <b>entirely through the web UI</b> (clicking and filling in forms) — no code required. It's Jenkins' first and easiest job type to learn, ideal for beginners.</p>
+  <div class="box example"><b>📖 Reading the original description on the job-type picker</b><i>"Classic, general-purpose job type that checks out from up to one SCM, executes build steps serially, followed by post-build steps..."</i> → a classic, all-purpose job that checks out from <b>at most one SCM</b>, runs build steps <b>serially</b> (one after another), then runs <b>post-build</b> steps like archiving artifacts and sending email.</div>
+
+  <div class="box note"><b>🧠 Key things to remember</b>
+  <ul>
+    <li>✅ <b>No code needed</b> — just click and fill in forms → beginner-friendly.</li>
+    <li>➡️ <b>Runs serially</b> — Build Steps run top to bottom in order, never in parallel.</li>
+    <li>🔗 <b>At most one SCM</b> — checks out from a single repo only.</li>
+    <li>💾 <b>Config lives in <code class="inline">config.xml</code> on the server</b>, not in Git → harder to review and to back up via version control.</li>
+  </ul></div>
+
+  <h3>Freestyle project vs Pipeline</h3>
+  <table>
+    <tr><th>Criterion</th><th>Freestyle project</th><th>Pipeline</th></tr>
+    <tr><td>Configuration</td><td>Clicking in the web UI</td><td>Writing code (Jenkinsfile, Groovy)</td></tr>
+    <tr><td>Difficulty</td><td>Easy, beginner-friendly</td><td>Harder</td></tr>
+    <tr><td>Parallel / multi-stage</td><td>❌ No</td><td>✅ Yes</td></tr>
+    <tr><td>Stored in Git with the code</td><td>❌ No</td><td>✅ Yes (Jenkinsfile)</td></tr>
+    <tr><td>Best for</td><td>Simple jobs, learning</td><td>Real, complex CI/CD projects</td></tr>
+  </table>
+  <div class="box tip"><b>👉 Bottom line</b>For the "Hello Jenkins" exercise, <b>Freestyle</b> is the right choice — simple, visual, no code. Only when a real project grows multiple steps (build → test → deploy) do people move to <b>Pipeline</b>.</div>
+
+  <h3>Creating a Freestyle project</h3>
+  <p>From the dashboard: <b>New Item</b> → enter a name → choose <b>Freestyle project</b> → OK. This is Jenkins' oldest job type, configured entirely through the web UI (unlike Pipeline, which uses a <code class="inline">Jenkinsfile</code>).</p>
+  <table>
+    <tr><th>Config section</th><th>Purpose</th><th>Example (Hello Jenkins)</th></tr>
+    <tr><td>General</td><td>Job description, concurrent build limits, parameterizing the job (This project is parameterized)</td><td>Leave default</td></tr>
+    <tr><td>Source Code Management</td><td>Declares Git/SVN, branch, credentials used to check out code</td><td>Choose <b>None</b> for speed</td></tr>
+    <tr><td>Build Triggers</td><td>When the job runs automatically (see Lesson 2.2)</td><td>Not needed — click <b>Build Now</b></td></tr>
+    <tr><td>Build Environment</td><td>Wipe workspace, inject env vars, timeouts...</td><td>Leave default</td></tr>
+    <tr><td>Build Steps</td><td>Commands executed in sequence: shell, batch, Invoke Ant/Maven...</td><td><code class="inline">echo "Hello Jenkins" &gt; result.txt</code></td></tr>
+    <tr><td>Post-build Actions</td><td>What to do after the build: archive artifacts, email, publish reports...</td><td>Archive <code class="inline">result.txt</code></td></tr>
+  </table>
+
+  <h3>Source Code Management</h3>
+  <p>Select <b>Git</b>, enter the Repository URL, pick Credentials (for private repos), and set the Branch Specifier (defaults to <code class="inline">*/main</code>). Jenkins automatically clones/fetches into the job's workspace before running build steps.</p>
+<pre><span class="lbl">Source Code Management</span><span class="cmt"># Repository URL</span>
+https://github.com/example/my-app.git
+<span class="cmt"># Credentials</span>
+github-pat  <span class="cmt"># selected from the Credentials store</span>
+<span class="cmt"># Branch Specifier</span>
+*/main</pre>
+
+  <h3>Build Environment &amp; Build Steps</h3>
+  <p>Build Environment often enables <b>"Delete workspace before build starts"</b> for a clean build, or <b>"Add timestamps to the Console Output"</b> for easier debugging. Build Steps declare the commands to run — the two most common are <code class="inline">Execute shell</code> (Linux/macOS) and <code class="inline">Execute Windows batch command</code> (Windows).</p>
+<pre><span class="lbl">Execute shell</span><span class="cmt">#!/bin/bash</span>
+<span class="kw">set</span> -e
+npm <span class="fn">install</span>
+npm <span class="fn">run</span> build
+npm <span class="fn">test</span></pre>
+<pre><span class="lbl">Execute Windows batch command</span><span class="fn">call</span> npm install
+<span class="fn">call</span> npm run build
+<span class="fn">call</span> npm test</pre>
+  <div class="box why"><b>🤔 Why bother learning Freestyle when Pipeline exists?</b>Freestyle helps you see each config block (SCM, trigger, build step, post-build) visually before abstracting it into Pipeline code. Plenty of simple, one-shot jobs in the real world still use Freestyle for speed and UI readability.</div>
+
+  <h3>Post-build Actions</h3>
+  <p>After Build Steps finish (success or failure), Jenkins runs the configured Post-build Actions. The most common is <b>Archive the artifacts</b> — saving build outputs (jars, zips, reports...) for later download, even after the workspace is wiped on the next build.</p>
+<pre><span class="lbl">Post-build Actions</span><span class="cmt"># Archive the artifacts</span>
+Files to archive: build/libs/*.jar, target/*.war
+<span class="cmt"># Editable Email Notification / E-mail Notification</span>
+Recipients: team@example.com</pre>
+  <div class="box warn"><b>⚠️ Archive patterns that are too broad</b>Using <code class="inline">**/*</code> archives the entire workspace (including node_modules), slowing builds and bloating <code class="inline">$JENKINS_HOME</code>. Always scope the pattern tightly.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Create a Freestyle job, point Source Code Management at a public Git repo, add an Execute shell step running <code class="inline">echo "Hello Jenkins" &gt; result.txt</code>, then archive the <code class="inline">result.txt</code> artifact. Run Build Now and check the file on the build page.</div>
+  <details class="ans"><summary>✅ Step-by-step solution — on a real Jenkins</summary><div class="a-body">
+    <p><b>You need ZERO input files.</b> The step <code class="inline">echo "Hello Jenkins" &gt; result.txt</code> creates the file itself — it reads nothing from the Git repo. So you can even skip SCM for the fastest run.</p>
+    <ol class="steps">
+      <li><b>New Item</b> → enter <code class="inline">hello-jenkins</code> → pick <b>Freestyle project</b> → <b>OK</b>.</li>
+      <li><b>Source Code Management</b> → select <b>None</b> (skip Git for speed, no credentials needed).</li>
+      <li>Scroll down to <b>Build Steps</b> → click <b>Add build step</b> → choose <b>Execute shell</b> (Linux/Docker) or <b>Execute Windows batch command</b> (Windows).</li>
+      <li>Enter the command:
+<pre><span class="lbl">Execute shell — Linux/Docker</span>echo "Hello Jenkins" &gt; result.txt</pre>
+<pre><span class="lbl">Execute Windows batch command — Windows</span>echo Hello Jenkins &gt; result.txt</pre>
+<div class="jcfg" role="img" aria-label="Configure page — Build Steps: Execute Windows batch command running echo Hello Jenkins > result.txt">
+  <div class="jcfg-h">Build Steps</div>
+  <div class="jcfg-sub">Automate your build process with ordered tasks like code compilation, testing, and deployment.</div>
+  <div class="jcfg-card">
+    <span class="jcfg-x">✕</span>
+    <div class="jcfg-card-head"><span class="jcfg-grip">⣿</span><span class="jcfg-title">Execute Windows batch command</span><span class="jcfg-q">?</span></div>
+    <div class="jcfg-label">Command</div>
+    <a class="jcfg-link">See the list of available environment variables</a>
+    <div class="jcfg-textarea">echo "Hello Jenkins" &gt; result.txt</div>
+    <span class="jcfg-adv">Advanced ⌄</span>
+  </div>
+  <span class="jcfg-add">＋ Add build step</span>
+</div>
+<p class="jk-cap">The <b>Configure → Build Steps</b> screen: pick <i>Execute Windows batch command</i> and type the command into the Command box.</p></li>
+      <li><b>Post-build Actions</b> → <b>Add post-build action</b> → <b>Archive the artifacts</b> → set <i>Files to archive</i> to <code class="inline">result.txt</code>.
+<div class="jcfg" role="img" aria-label="Configure page — Post-build Actions: Archive the artifacts with result.txt">
+  <div class="jcfg-h">Post-build Actions</div>
+  <div class="jcfg-sub">Define what happens after a build completes, like sending notifications, archiving artifacts, or triggering other jobs.</div>
+  <div class="jcfg-card">
+    <span class="jcfg-x">✕</span>
+    <div class="jcfg-card-head"><span class="jcfg-grip">⣿</span><span class="jcfg-title">Archive the artifacts</span><span class="jcfg-q">?</span></div>
+    <div class="jcfg-label">Files to archive <span class="jcfg-q">?</span></div>
+    <div class="jcfg-input">result.txt</div>
+    <span class="jcfg-adv">Advanced ⌄</span>
+  </div>
+  <span class="jcfg-add">＋ Add post-build action</span>
+  <div class="jcfg-actions"><span class="jcfg-btn-primary">Save</span><span class="jcfg-btn-ghost">Apply</span></div>
+</div>
+<p class="jk-cap">The <b>Configure → Post-build Actions</b> screen: Archive the artifacts, <i>Files to archive</i> = <b>result.txt</b>, then click <b>Save</b>.</p></li>
+      <li><b>Save</b> → click <b>Build Now</b> in the left menu.</li>
+      <li>Open build <code class="inline">#1</code> in <i>Build History</i> → the build page shows a <b>Build Artifacts</b> section → click <code class="inline">result.txt</code> to view/download the <code class="inline">Hello Jenkins</code> content.</li>
+    </ol>
+    <div class="box tip"><b>💡 Where are Build Steps?</b>Not on the <b>Status</b> page. Click <b>Configure</b> (⚙️) in the job's left menu → scroll down in order: General → Source Code Management → Build Triggers → Build Environment → <b>Build Steps</b> → Post-build Actions. On a long page, press <kbd>Ctrl</kbd>+<kbd>F</kbd> and search "Build Steps".</div>
+    <div class="box note"><b>🪟 Windows vs Linux</b>If <b>Add build step</b> has <b>no</b> "Execute shell" → Jenkins is running on Windows → use <b>Execute Windows batch command</b> with <code class="inline">echo Hello Jenkins &gt; result.txt</code> (no quotes). "Execute shell" only appears when Jenkins runs on Linux/Docker.</div>
+    <p><b>Want the whole job in one file?</b> Use a Pipeline job with a <code class="inline">Jenkinsfile</code>:</p>
+<pre><span class="lbl">Jenkinsfile (Pipeline)</span>pipeline {
+  agent any
+  stages {
+    stage(<span class="str">'Create'</span>) {
+      steps {
+        sh <span class="str">'echo "Hello Jenkins" &gt; result.txt'</span>   <span class="cmt">// Windows: bat 'echo Hello Jenkins &gt; result.txt'</span>
+      }
+    }
+  }
+  post {
+    always {
+      archiveArtifacts artifacts: <span class="str">'result.txt'</span>
+    }
+  }
+}</pre>
+  </div></details>
+
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Freestyle</span></div>
+  <ol class="examples">
+    <li><span class="task">Job that builds a Node.js app from GitHub.</span>
+<pre><span class="lbl">Execute shell</span>npm ci
+npm run build</pre></li>
+    <li><span class="task">Job that runs Maven tests and archives the JUnit report.</span>
+<pre><span class="lbl">Execute shell</span>mvn clean test
+<span class="cmt"># Post-build: Publish JUnit test result report -> target/surefire-reports/*.xml</span></pre></li>
+    <li><span class="task">Windows job building a .NET project.</span>
+<pre><span class="lbl">Execute Windows batch command</span>dotnet restore
+dotnet build --configuration Release</pre></li>
+    <li><span class="task">Wipe the workspace before every build to avoid stale caches.</span>
+<pre><span class="lbl">Build Environment</span>☑ Delete workspace before build starts</pre></li>
+    <li><span class="task">Archive a zip package after the build finishes.</span>
+<pre><span class="lbl">Post-build Actions</span>Files to archive: dist/*.zip</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Freestyle</span></div>
+  <ol class="drills">
+    <li><span class="task">Write an Execute shell step that installs deps and builds a Node.js project.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>npm install
+npm run build</pre></div></details></li>
+    <li><span class="task">Set the Branch Specifier to build only the <code class="inline">develop</code> branch.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>*/develop</pre></div></details></li>
+    <li><span class="task">Configure archiving of the jar files under <code class="inline">build/libs</code>.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>Files to archive: build/libs/*.jar</pre></div></details></li>
+    <li><span class="task">Enable a clean workspace wipe before every build.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>Build Environment → ☑ Delete workspace before build starts</pre></div></details></li>
+    <li><span class="task">Write an Execute Windows batch command that runs .NET tests.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>dotnet test</pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 2.2 Build Triggers ============ -->
+<section class="lesson" id="build-triggers">
+<div class="lang vi">
+  <span class="phase-tag">Bài 2.2</span>
+  <h2>Build Triggers</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Biết cách cho job tự động chạy: theo lịch, theo thay đổi SCM, khi có project khác chạy xong, hoặc gọi từ xa qua API token.</div>
+
+  <h3>Poll SCM</h3>
+  <p>Jenkins định kỳ kiểm tra repository xem có commit mới không (không cần webhook). Cấu hình bằng cú pháp cron 5 trường: <code class="inline">MINUTE HOUR DOM MONTH DOW</code>.</p>
+<pre><span class="lbl">Build Triggers → Poll SCM</span><span class="cmt"># Kiểm tra mỗi 5 phút</span>
+H/5 * * * *
+<span class="cmt"># Kiểm tra mỗi giờ, phút do Jenkins tự "hash" để rải tải</span>
+H * * * *</pre>
+  <div class="box tip"><b>💡 Ký tự H là gì?</b><code class="inline">H</code> (hash) thay cho một số cố định, được Jenkins băm theo tên job để rải đều thời điểm chạy giữa nhiều job — tránh tất cả job cùng poll vào đúng phút 0.</div>
+
+  <h3>Đào sâu: cú pháp cron 5 trường &amp; ký tự H</h3>
+  <p>Jenkins dùng cron <b>5 trường</b>. Mỗi trường điều khiển một chiều thời gian, cách nhau bởi khoảng trắng:</p>
+<pre><span class="lbl">Cấu trúc cron Jenkins</span>┌───────────── phút (0-59)
+│ ┌───────────── giờ (0-23)
+│ │ ┌───────────── ngày trong tháng (1-31)
+│ │ │ ┌───────────── tháng (1-12)
+│ │ │ │ ┌───────────── thứ trong tuần (0-7, 0 và 7 = Chủ nhật)
+│ │ │ │ │
+* * * * *</pre>
+  <p><b>Vấn đề mà <code class="inline">H</code> giải quyết:</b> nếu 1000 job đều đặt <code class="inline">0 2 * * *</code> (2h sáng), <b>tất cả nổ cùng lúc lúc 2:00:00</b> → Jenkins nghẽn, Git server bị 1000 request đồng thời. <code class="inline">H</code> bảo Jenkins tự chọn một giá trị cố định <b>dựa trên tên job</b>: mỗi job ra một phút khác nhau (rải đều tải) nhưng <b>ổn định</b> — cùng job luôn chạy đúng phút đó.</p>
+<pre><span class="lbl">Ví dụ với H</span><span class="cmt"># ~2h sáng — Jenkins chọn phút cụ thể, vd 2:37</span>
+H 2 * * *
+<span class="cmt"># mỗi 5 phút nhưng lệch pha (vd :02, :07, :12...)</span>
+H/5 * * * *
+<span class="cmt"># hash trong khoảng phút 0-29</span>
+H(0-29) * * * *
+<span class="cmt"># ~10h tối, thứ 2 đến thứ 6</span>
+H 22 * * 1-5</pre>
+  <div class="box tip"><b>👉 Quy tắc vàng</b>Gần như luôn dùng <code class="inline">H</code> thay cho số cố định ở trường phút, trừ khi bạn thật sự cần chạy đúng giây phút đó.</div>
+
+  <h3>Poll SCM hoạt động bên trong ra sao?</h3>
+  <p>Cứ mỗi chu kỳ (vd 5 phút với <code class="inline">H/5 * * * *</code>), Jenkins làm:</p>
+  <ol class="steps">
+    <li>Chạy <code class="inline">git ls-remote</code> / <code class="inline">git fetch</code> để lấy commit hash mới nhất trên remote.</li>
+    <li>So sánh với hash của lần build trước.</li>
+    <li><b>Khác nhau → trigger build. Giống nhau → không làm gì.</b></li>
+  </ol>
+  <div class="box note"><b>🧠 Điểm dễ nhầm</b>Poll SCM <b>không</b> clone toàn bộ repo mỗi lần — nó chỉ hỏi "hash mới nhất là gì?". Nhưng vẫn tốn: một tiến trình poll trên Jenkins + một request tới Git server <b>mỗi chu kỳ</b>, kể cả khi 3 tuần không ai commit. Và <b>độ trễ = chu kỳ cron</b>: commit lúc 10:01 nhưng poll lúc 10:05 → build trễ 4 phút.</div>
+
+  <h3>Webhook — GitHub hook trigger</h3>
+  <p>Thay vì poll định kỳ (có độ trễ, tốn tài nguyên), GitHub/GitLab có thể gọi thẳng vào Jenkins ngay khi có push, qua endpoint <code class="inline">/github-webhook/</code>. Bật <b>"GitHub hook trigger for GITScm polling"</b> trong Build Triggers, và cấu hình webhook phía GitHub trỏ về Jenkins.</p>
+<pre><span class="lbl">GitHub → Settings → Webhooks</span>Payload URL: https://jenkins.example.com/github-webhook/
+Content type: application/json
+Events: Just the push event</pre>
+  <table>
+    <tr><th>Cơ chế</th><th>Độ trễ</th><th>Yêu cầu</th></tr>
+    <tr><td>Poll SCM</td><td>Theo chu kỳ cron (vài phút)</td><td>Không cần Jenkins public</td></tr>
+    <tr><td>Webhook</td><td>Gần như tức thời</td><td>Jenkins phải có URL truy cập được từ GitHub</td></tr>
+  </table>
+  <p>Khác biệt cốt lõi là <b>chiều gọi</b>: Poll SCM là Jenkins <b>kéo (pull)</b> lặp lại, webhook là GitHub <b>đẩy (push)</b> khi có sự kiện.</p>
+<pre><span class="lbl">Pull vs Push</span>Poll SCM (kéo):   Jenkins  ──"có gì mới không?"──►  GitHub   (lặp lại mãi)
+Webhook  (đẩy):   GitHub   ──"vừa có push!"──────►  Jenkins  (chỉ khi có event)</pre>
+  <div class="box note"><b>🧠 Tinh tế: webhook không trực tiếp build</b>Checkbox tên là "GitHub hook trigger for GITScm <b>polling</b>" — khi GitHub POST tới <code class="inline">/github-webhook/</code>, Jenkins chỉ <b>chạy một lần poll ngay lập tức</b>, thấy commit mới rồi mới build. Vì thế job vẫn cần bật Git SCM. Nếu Jenkins nằm sau firewall, GitHub không gọi vào được → buộc phải dùng Poll SCM.</div>
+
+  <h3>Build periodically &amp; Trigger remotely</h3>
+  <p><b>Build periodically</b> dùng cùng cú pháp cron nhưng chạy job <b>bất kể</b> có thay đổi SCM hay không — hợp cho job dọn dẹp, báo cáo định kỳ, nightly build.</p>
+<pre><span class="lbl">Build Triggers → Build periodically</span><span class="cmt"># Nightly build lúc 2 giờ sáng</span>
+H 2 * * *</pre>
+  <p><b>Cùng cú pháp cron nhưng logic khác hẳn Poll SCM</b> — đây là chỗ hay nhầm:</p>
+  <table>
+    <tr><th>Trigger</th><th>Đến giờ thì...</th></tr>
+    <tr><td>Poll SCM</td><td>Kiểm tra <i>có commit mới không</i> → <b>có mới mới build</b></td></tr>
+    <tr><td>Build periodically</td><td><b>Build ngay</b>, không quan tâm code có đổi hay không</td></tr>
+  </table>
+  <p>Dùng Build periodically cho: nightly build, dọn artifact cũ, báo cáo định kỳ, health-check — những việc cần chạy đều đặn bất kể có commit.</p>
+  <p><b>Trigger builds remotely</b> cho phép gọi build qua HTTP bằng một token bí mật, không cần đăng nhập Jenkins.</p>
+<pre><span class="lbl">Trigger builds remotely</span><span class="cmt"># Authentication Token: my-secret-token</span>
+<span class="cmt"># Gọi từ ngoài:</span>
+curl "https://jenkins.example.com/job/my-job/build?token=my-secret-token"
+<span class="cmt"># Kèm tham số:</span>
+curl "https://jenkins.example.com/job/my-job/buildWithParameters?token=xxx&amp;BRANCH=main"</pre>
+
+  <h3>Build after other projects are built</h3>
+  <p>Tạo pipeline đơn giản kiểu upstream/downstream: job B tự chạy sau khi job A build xong (có thể lọc theo trạng thái: stable/unstable/failed).</p>
+<pre><span class="lbl">Build Triggers</span>☑ Build after other projects are built
+Projects to watch: build-app
+Trigger only if build is stable</pre>
+<pre><span class="lbl">Chuỗi upstream → downstream</span>build-app  ──(nếu stable)──►  run-tests  ──►  deploy  ──►  notify
+(upstream)                     (downstream)</pre>
+  <p>Bộ lọc theo trạng thái job trước:</p>
+  <table>
+    <tr><th>Lọc</th><th>Chạy khi job trước...</th><th>Dùng cho</th></tr>
+    <tr><td>stable</td><td>Xanh hoàn toàn</td><td>An toàn nhất — hay dùng cho deploy</td></tr>
+    <tr><td>unstable</td><td>Có test fail nhưng build không sập</td><td>Gửi cảnh báo</td></tr>
+    <tr><td>failed</td><td>Hỏng</td><td>Job dọn dẹp / báo lỗi</td></tr>
+  </table>
+  <div class="box note"><b>🧠 Cổ điển vs hiện đại</b>Đây là cách nối job kiểu <b>Freestyle</b>. Dự án hiện đại thường gộp các bước này thành <b>một Pipeline</b> (<code class="inline">Jenkinsfile</code>) với các <code class="inline">stage</code> nối tiếp — versioned theo code và thấy toàn bộ luồng trong một chỗ.</div>
+  <div class="box why"><b>🤔 Vì sao ưu tiên webhook hơn Poll SCM?</b>Poll SCM tạo tải lặp lại lên cả Jenkins lẫn Git server dù không có gì thay đổi, và luôn có độ trễ bằng chu kỳ cron. Webhook chỉ gọi khi thực sự có sự kiện, nên nhanh và tiết kiệm tài nguyên hơn — chỉ dùng Poll SCM khi Jenkins không thể nhận request từ bên ngoài (mạng nội bộ, sau firewall).</div>
+  <div class="box warn"><b>⚠️ Token trong Trigger remotely lộ trên URL</b>Token gọi qua query string dễ lọt vào log truy cập, lịch sử trình duyệt. Nên dùng cùng với HTTPS và coi token như một secret cần rotate định kỳ, tương tự API token của user.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Cấu hình một job với Poll SCM <code class="inline">H/5 * * * *</code>, sau đó thử tạo thêm job thứ hai chạy "Build after other projects are built" trỏ về job đầu, chỉ khi build stable.</div>
+
+  <h3>Tóm tắt: chọn trigger nào?</h3>
+<pre><span class="lbl">Cây quyết định</span>Muốn build khi có code mới?
+├─ Jenkins ra Internet được?  → Webhook   (nhanh, rẻ)  ✅ ưu tiên
+└─ Jenkins trong mạng kín?    → Poll SCM  (H/5 * * * *)
+
+Muốn chạy định kỳ bất kể code?      → Build periodically (H 2 * * *)
+Muốn hệ thống ngoài kích hoạt?      → Trigger remotely (token + HTTPS)
+Muốn nối job A → job B?             → Build after other projects (hoặc Pipeline)</pre>
+
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Build Triggers</span></div>
+  <ol class="examples">
+    <li><span class="task">Poll repository mỗi 5 phút.</span>
+<pre><span class="lbl">Poll SCM</span>H/5 * * * *</pre></li>
+    <li><span class="task">Nightly build chạy lúc 1 giờ sáng mỗi ngày.</span>
+<pre><span class="lbl">Build periodically</span>H 1 * * *</pre></li>
+    <li><span class="task">Chỉ build vào các ngày trong tuần lúc 22h.</span>
+<pre><span class="lbl">Build periodically</span>H 22 * * 1-5</pre></li>
+    <li><span class="task">Kích hoạt build từ CI bên ngoài bằng token.</span>
+<pre><span class="lbl">terminal</span>curl "https://jenkins.example.com/job/deploy/build?token=deploy-secret"</pre></li>
+    <li><span class="task">Chạy job "notify" sau khi job "build-app" thành công.</span>
+<pre><span class="lbl">Build Triggers</span>☑ Build after other projects are built
+Projects to watch: build-app
+Trigger only if build is stable</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Build Triggers</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết biểu thức cron Poll SCM chạy mỗi 15 phút.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>H/15 * * * *</pre></div></details></li>
+    <li><span class="task">Viết biểu thức Build periodically chạy mỗi Chủ Nhật lúc 3 giờ sáng.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>H 3 * * 0</pre></div></details></li>
+    <li><span class="task">Viết endpoint webhook GitHub cần cấu hình cho Jenkins.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>https://jenkins.example.com/github-webhook/</pre></div></details></li>
+    <li><span class="task">Viết lệnh curl trigger build từ xa với token <code class="inline">abc123</code> cho job <code class="inline">release</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>curl "https://jenkins.example.com/job/release/build?token=abc123"</pre></div></details></li>
+    <li><span class="task">Cấu hình job chạy sau khi job <code class="inline">unit-tests</code> build ổn định.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>☑ Build after other projects are built
+Projects to watch: unit-tests
+Trigger only if build is stable</pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 2.2</span>
+  <h2>Build Triggers</h2>
+  <div class="box goal"><b>🎯 Goal</b>Learn how to make a job run automatically: on a schedule, on SCM changes, after another project finishes, or remotely via an API token.</div>
+
+  <h3>Poll SCM</h3>
+  <p>Jenkins periodically checks the repository for new commits (no webhook needed). Configured with a 5-field cron syntax: <code class="inline">MINUTE HOUR DOM MONTH DOW</code>.</p>
+<pre><span class="lbl">Build Triggers → Poll SCM</span><span class="cmt"># Check every 5 minutes</span>
+H/5 * * * *
+<span class="cmt"># Check hourly, minute hashed by Jenkins to spread the load</span>
+H * * * *</pre>
+  <div class="box tip"><b>💡 What does the H mean?</b><code class="inline">H</code> (hash) stands in for a fixed number, hashed by Jenkins from the job name to spread execution times across many jobs — avoiding every job polling at minute 0 simultaneously.</div>
+
+  <h3>Deeper: the 5-field cron syntax &amp; the H character</h3>
+  <p>Jenkins uses <b>5 fields</b>, each controlling one axis of time, separated by spaces:</p>
+<pre><span class="lbl">Jenkins cron layout</span>┌───────────── minute (0-59)
+│ ┌───────────── hour (0-23)
+│ │ ┌───────────── day of month (1-31)
+│ │ │ ┌───────────── month (1-12)
+│ │ │ │ ┌───────────── day of week (0-7, 0 and 7 = Sunday)
+│ │ │ │ │
+* * * * *</pre>
+  <p><b>The problem <code class="inline">H</code> solves:</b> if 1000 jobs all set <code class="inline">0 2 * * *</code> (2am), <b>they all fire at exactly 2:00:00</b> → Jenkins stalls, the Git server takes 1000 simultaneous requests. <code class="inline">H</code> tells Jenkins to pick a fixed value <b>from the job name</b>: each job lands on a different minute (load spread out) yet is <b>stable</b> — the same job always runs at that minute.</p>
+<pre><span class="lbl">Examples with H</span><span class="cmt"># ~2am — Jenkins picks a concrete minute, e.g. 2:37</span>
+H 2 * * *
+<span class="cmt"># every 5 minutes but phase-shifted (e.g. :02, :07, :12...)</span>
+H/5 * * * *
+<span class="cmt"># hash within the 0-29 minute range</span>
+H(0-29) * * * *
+<span class="cmt"># ~10pm, Monday to Friday</span>
+H 22 * * 1-5</pre>
+  <div class="box tip"><b>👉 Golden rule</b>Almost always use <code class="inline">H</code> instead of a fixed number in the minute field, unless you truly need it to run at an exact minute.</div>
+
+  <h3>How does Poll SCM work internally?</h3>
+  <p>Every cycle (e.g. 5 minutes with <code class="inline">H/5 * * * *</code>), Jenkins:</p>
+  <ol class="steps">
+    <li>Runs <code class="inline">git ls-remote</code> / <code class="inline">git fetch</code> to get the latest commit hash on the remote.</li>
+    <li>Compares it with the hash from the previous build.</li>
+    <li><b>Different → trigger a build. Same → do nothing.</b></li>
+  </ol>
+  <div class="box note"><b>🧠 Easy to get wrong</b>Poll SCM does <b>not</b> clone the whole repo each time — it just asks "what's the latest hash?". But it still costs one poll process on Jenkins + one request to the Git server <b>every cycle</b>, even after three weeks with no commits. And <b>latency = the cron interval</b>: a commit at 10:01 with a poll at 10:05 means the build is 4 minutes late.</div>
+
+  <h3>Webhook — GitHub hook trigger</h3>
+  <p>Instead of periodic polling (adds delay, wastes resources), GitHub/GitLab can call Jenkins directly on push via the <code class="inline">/github-webhook/</code> endpoint. Enable <b>"GitHub hook trigger for GITScm polling"</b> under Build Triggers, and configure a webhook on the GitHub side pointing at Jenkins.</p>
+<pre><span class="lbl">GitHub → Settings → Webhooks</span>Payload URL: https://jenkins.example.com/github-webhook/
+Content type: application/json
+Events: Just the push event</pre>
+  <table>
+    <tr><th>Mechanism</th><th>Latency</th><th>Requirement</th></tr>
+    <tr><td>Poll SCM</td><td>Cron interval (minutes)</td><td>Jenkins need not be publicly reachable</td></tr>
+    <tr><td>Webhook</td><td>Nearly instant</td><td>Jenkins must have a URL reachable from GitHub</td></tr>
+  </table>
+  <p>The core difference is the <b>direction of the call</b>: Poll SCM is Jenkins <b>pulling</b> repeatedly; a webhook is GitHub <b>pushing</b> when an event happens.</p>
+<pre><span class="lbl">Pull vs Push</span>Poll SCM (pull):   Jenkins  ──"anything new?"──►  GitHub   (repeats forever)
+Webhook  (push):   GitHub   ──"just got a push!"──►  Jenkins  (only on an event)</pre>
+  <div class="box note"><b>🧠 Subtlety: the webhook doesn't build directly</b>The checkbox is named "GitHub hook trigger for GITScm <b>polling</b>" — when GitHub POSTs to <code class="inline">/github-webhook/</code>, Jenkins just <b>runs a single poll immediately</b>, sees the new commit, and then builds. So the job still needs Git SCM enabled. If Jenkins sits behind a firewall, GitHub can't reach it → you're forced to use Poll SCM.</div>
+
+  <h3>Build periodically &amp; Trigger remotely</h3>
+  <p><b>Build periodically</b> uses the same cron syntax but runs the job <b>regardless</b> of SCM changes — good for cleanup jobs, periodic reports, nightly builds.</p>
+<pre><span class="lbl">Build Triggers → Build periodically</span><span class="cmt"># Nightly build at 2am</span>
+H 2 * * *</pre>
+  <p><b>Same cron syntax, completely different logic from Poll SCM</b> — this is a common mix-up:</p>
+  <table>
+    <tr><th>Trigger</th><th>When the time comes...</th></tr>
+    <tr><td>Poll SCM</td><td>Checks <i>whether there's a new commit</i> → <b>builds only if there is</b></td></tr>
+    <tr><td>Build periodically</td><td><b>Builds immediately</b>, regardless of whether the code changed</td></tr>
+  </table>
+  <p>Use Build periodically for: nightly builds, cleaning old artifacts, periodic reports, health checks — anything that must run on a fixed cadence regardless of commits.</p>
+  <p><b>Trigger builds remotely</b> lets you kick off a build over HTTP with a secret token, without logging into Jenkins.</p>
+<pre><span class="lbl">Trigger builds remotely</span><span class="cmt"># Authentication Token: my-secret-token</span>
+<span class="cmt"># Call from outside:</span>
+curl "https://jenkins.example.com/job/my-job/build?token=my-secret-token"
+<span class="cmt"># With parameters:</span>
+curl "https://jenkins.example.com/job/my-job/buildWithParameters?token=xxx&amp;BRANCH=main"</pre>
+
+  <h3>Build after other projects are built</h3>
+  <p>Creates a simple upstream/downstream chain: job B runs automatically after job A finishes (optionally filtered by status: stable/unstable/failed).</p>
+<pre><span class="lbl">Build Triggers</span>☑ Build after other projects are built
+Projects to watch: build-app
+Trigger only if build is stable</pre>
+<pre><span class="lbl">Upstream → downstream chain</span>build-app  ──(if stable)──►  run-tests  ──►  deploy  ──►  notify
+(upstream)                    (downstream)</pre>
+  <p>Filtering by the upstream job's status:</p>
+  <table>
+    <tr><th>Filter</th><th>Runs when the upstream job is...</th><th>Used for</th></tr>
+    <tr><td>stable</td><td>Fully green</td><td>Safest — typically used for deploy</td></tr>
+    <tr><td>unstable</td><td>Tests failed but the build didn't crash</td><td>Sending alerts</td></tr>
+    <tr><td>failed</td><td>Broken</td><td>Cleanup / failure-notification jobs</td></tr>
+  </table>
+  <div class="box note"><b>🧠 Classic vs modern</b>This is the <b>Freestyle</b> way to chain jobs. Modern projects usually fold these steps into <b>a single Pipeline</b> (<code class="inline">Jenkinsfile</code>) with sequential <code class="inline">stage</code>s — versioned with the code and showing the whole flow in one place.</div>
+  <div class="box why"><b>🤔 Why prefer webhooks over Poll SCM?</b>Poll SCM creates repeated load on both Jenkins and the Git server even when nothing changed, and always has latency equal to the cron interval. A webhook fires only on a real event, so it's faster and cheaper — use Poll SCM only when Jenkins can't receive inbound requests (internal network, behind a firewall).</div>
+  <div class="box warn"><b>⚠️ Remote trigger tokens leak into URLs</b>A token passed as a query string can end up in access logs and browser history. Always pair it with HTTPS and treat it as a secret to rotate periodically, just like a user's API token.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Configure a job with Poll SCM <code class="inline">H/5 * * * *</code>, then create a second job that uses "Build after other projects are built" pointing at the first, only when the build is stable.</div>
+
+  <h3>Summary: which trigger?</h3>
+<pre><span class="lbl">Decision tree</span>Want to build when new code lands?
+├─ Can Jenkins be reached from the Internet?  → Webhook   (fast, cheap)  ✅ preferred
+└─ Is Jenkins on a closed network?            → Poll SCM  (H/5 * * * *)
+
+Want to run on a fixed cadence regardless of code?  → Build periodically (H 2 * * *)
+Want an external system to kick it off?             → Trigger remotely (token + HTTPS)
+Want to chain job A → job B?                        → Build after other projects (or Pipeline)</pre>
+
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Build Triggers</span></div>
+  <ol class="examples">
+    <li><span class="task">Poll the repository every 5 minutes.</span>
+<pre><span class="lbl">Poll SCM</span>H/5 * * * *</pre></li>
+    <li><span class="task">Nightly build at 1am every day.</span>
+<pre><span class="lbl">Build periodically</span>H 1 * * *</pre></li>
+    <li><span class="task">Build only on weekdays at 10pm.</span>
+<pre><span class="lbl">Build periodically</span>H 22 * * 1-5</pre></li>
+    <li><span class="task">Trigger a build from an external CI system using a token.</span>
+<pre><span class="lbl">terminal</span>curl "https://jenkins.example.com/job/deploy/build?token=deploy-secret"</pre></li>
+    <li><span class="task">Run the "notify" job after "build-app" succeeds.</span>
+<pre><span class="lbl">Build Triggers</span>☑ Build after other projects are built
+Projects to watch: build-app
+Trigger only if build is stable</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Build Triggers</span></div>
+  <ol class="drills">
+    <li><span class="task">Write a Poll SCM cron expression that runs every 15 minutes.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>H/15 * * * *</pre></div></details></li>
+    <li><span class="task">Write a Build periodically expression for every Sunday at 3am.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>H 3 * * 0</pre></div></details></li>
+    <li><span class="task">Write the GitHub webhook endpoint that must be configured for Jenkins.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>https://jenkins.example.com/github-webhook/</pre></div></details></li>
+    <li><span class="task">Write a curl command to remotely trigger the <code class="inline">release</code> job with token <code class="inline">abc123</code>.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>curl "https://jenkins.example.com/job/release/build?token=abc123"</pre></div></details></li>
+    <li><span class="task">Configure a job to run after <code class="inline">unit-tests</code> builds successfully.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>☑ Build after other projects are built
+Projects to watch: unit-tests
+Trigger only if build is stable</pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 2.3 Views & Dashboard ============ -->
+<section class="lesson" id="views-dashboard">
+<div class="lang vi">
+  <span class="phase-tag">Bài 2.3</span>
+  <h2>Views &amp; Dashboard</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Tổ chức dashboard Jenkins dễ nhìn hơn bằng Views: nhóm job liên quan, thêm cột thông tin hữu ích, và hiểu widget trạng thái executor.</div>
+
+  <h3>List View vs My View</h3>
+  <p><b>List View</b> hiển thị một danh sách job do bạn tự chọn bằng regex hoặc chọn tay — dùng để nhóm job theo team, theo dự án. <b>My View</b> tự động hiển thị <b>tất cả</b> job mà user hiện tại có quyền xem — không cần cấu hình job thủ công.</p>
+  <table>
+    <tr><th>Loại view</th><th>Nội dung hiển thị</th><th>Khi nào dùng</th></tr>
+    <tr><td>List View</td><td>Job được chọn thủ công/regex</td><td>Nhóm job theo team/dự án cụ thể</td></tr>
+    <tr><td>My View</td><td>Mọi job user có quyền xem</td><td>Trang cá nhân, không cần bảo trì</td></tr>
+    <tr><td>Nested View</td><td>Chứa các view con bên trong</td><td>Tổ chức nhiều view thành cây phân cấp</td></tr>
+  </table>
+  <p>Tạo view mới: nhấn dấu <code class="inline">+</code> cạnh tab view trên dashboard → đặt tên → chọn loại view → OK, rồi lọc job bằng "Job Filters" hoặc gõ regex trong "Use a regular expression to include jobs into the view".</p>
+<pre><span class="lbl">List View → Job Filters</span><span class="cmt"># Regex chỉ lấy các job bắt đầu bằng "frontend-"</span>
+frontend-.*</pre>
+
+  <h3>Thêm cột thông tin (Job Columns)</h3>
+  <p>Khi tạo/sửa view, phần <b>Columns</b> cho phép thêm/bớt/sắp xếp cột hiển thị: trạng thái, tên job, chủ sở hữu, thời gian build cuối, kết quả test, badge...</p>
+<pre><span class="lbl">View → Configure → Columns</span>Status
+Weather (xu hướng ổn định gần đây)
+Name
+Last Success
+Last Failure
+Last Duration
+Build Button</pre>
+  <div class="box tip"><b>💡 Cột "Weather"</b>Biểu tượng mặt trời/mây/mưa thể hiện tỷ lệ thành công của các build gần nhất — giúp nhận ra job "hay flaky" chỉ bằng một cái liếc mắt, không cần mở từng job.</div>
+
+  <h3>Build Executor Status &amp; tùy biến dashboard</h3>
+  <p>Widget <b>Build Executor Status</b> (thường ở góc trái dashboard) liệt kê các executor trên từng node/agent và job nào đang chạy trên đó — giúp phát hiện agent bị nghẽn hoặc idle.</p>
+<pre><span class="lbl">Build Executor Status</span>Master
+ #1  (idle)
+ #2  build-app #128
+agent-linux-01
+ #1  deploy-prod #45</pre>
+  <div class="box why"><b>🤔 Vì sao nên tách view theo team thay vì dùng một dashboard chung?</b>Khi có hàng trăm job, một danh sách phẳng làm loãng thông tin quan trọng. Nhiều List View theo team/dự án giúp mỗi người chỉ thấy đúng phần liên quan, giảm thời gian tìm job và giảm rủi ro bấm nhầm "Build Now" trên job của người khác.</div>
+  <div class="box warn"><b>⚠️ Nested View không phải lúc nào cũng cần</b>Với dự án nhỏ, phân cấp view quá sâu (view chứa view chứa view) gây khó điều hướng hơn là giúp ích. Chỉ dùng Nested View khi số lượng team/dự án đủ lớn để cần một cây phân cấp thật sự.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Tạo một List View tên "My Team", lọc job bằng regex tên team của bạn, thêm cột Weather và Last Duration, rồi so sánh với My View mặc định.</div>
+
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Views &amp; Dashboard</span></div>
+  <ol class="examples">
+    <li><span class="task">Tạo List View chỉ hiển thị job backend.</span>
+<pre><span class="lbl">Job Filters (regex)</span>backend-.*</pre></li>
+    <li><span class="task">Thêm cột hiển thị thời gian build cuối cùng.</span>
+<pre><span class="lbl">Columns</span>Last Success
+Last Duration</pre></li>
+    <li><span class="task">Tạo Nested View gộp view của 2 team.</span>
+<pre><span class="lbl">New View</span>Type: Nested View
+Sub-views: team-frontend, team-backend</pre></li>
+    <li><span class="task">Xem executor nào đang rảnh trên agent Linux.</span>
+<pre><span class="lbl">Build Executor Status</span>agent-linux-01
+ #1 (idle)
+ #2 (idle)</pre></li>
+    <li><span class="task">Dùng My View để xem nhanh mọi job mình có quyền.</span>
+<pre><span class="lbl">Dashboard</span>Tab "My Views" → tự động liệt kê tất cả job có quyền xem</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Views &amp; Dashboard</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết regex lọc job chỉ gồm những job bắt đầu bằng "release-".</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>release-.*</pre></div></details></li>
+    <li><span class="task">Liệt kê 2 loại view cơ bản trong Jenkins.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>List View, My View (và Nested View để gộp các view khác)</pre></div></details></li>
+    <li><span class="task">Nêu tên cột thể hiện xu hướng thành công/thất bại gần đây.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>Weather</pre></div></details></li>
+    <li><span class="task">Widget nào hiển thị executor đang chạy job gì trên mỗi agent?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>Build Executor Status</pre></div></details></li>
+    <li><span class="task">Khi nào nên dùng Nested View thay vì nhiều List View rời rạc?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>Khi có nhiều team/dự án, cần tổ chức view thành cây phân cấp để điều hướng dễ hơn</pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 2.3</span>
+  <h2>Views &amp; Dashboard</h2>
+  <div class="box goal"><b>🎯 Goal</b>Organize the Jenkins dashboard for readability using Views: group related jobs, add useful info columns, and understand the executor status widget.</div>
+
+  <h3>List View vs My View</h3>
+  <p>A <b>List View</b> shows a hand-picked (or regex-matched) list of jobs — useful for grouping jobs by team or project. A <b>My View</b> automatically shows <b>every</b> job the current user has permission to see — no manual job configuration needed.</p>
+  <table>
+    <tr><th>View type</th><th>Shows</th><th>When to use</th></tr>
+    <tr><td>List View</td><td>Manually/regex-selected jobs</td><td>Group jobs by a specific team/project</td></tr>
+    <tr><td>My View</td><td>Every job the user can see</td><td>Personal page, zero maintenance</td></tr>
+    <tr><td>Nested View</td><td>Contains child views inside it</td><td>Organize many views into a hierarchy</td></tr>
+  </table>
+  <p>Create a new view: click the <code class="inline">+</code> next to the view tabs on the dashboard → name it → pick a view type → OK, then filter jobs via "Job Filters" or a regex in "Use a regular expression to include jobs into the view".</p>
+<pre><span class="lbl">List View → Job Filters</span><span class="cmt"># Regex matching only jobs starting with "frontend-"</span>
+frontend-.*</pre>
+
+  <h3>Adding info columns (Job Columns)</h3>
+  <p>When creating/editing a view, the <b>Columns</b> section lets you add/remove/reorder displayed columns: status, job name, owner, last build time, test result, badges...</p>
+<pre><span class="lbl">View → Configure → Columns</span>Status
+Weather (recent stability trend)
+Name
+Last Success
+Last Failure
+Last Duration
+Build Button</pre>
+  <div class="box tip"><b>💡 The "Weather" column</b>The sun/cloud/rain icon reflects the success rate of recent builds — spot a flaky job at a glance without opening it individually.</div>
+
+  <h3>Build Executor Status &amp; customizing the dashboard</h3>
+  <p>The <b>Build Executor Status</b> widget (usually top-left of the dashboard) lists executors on each node/agent and which job is running there — useful for spotting a stuck or idle agent.</p>
+<pre><span class="lbl">Build Executor Status</span>Master
+ #1  (idle)
+ #2  build-app #128
+agent-linux-01
+ #1  deploy-prod #45</pre>
+  <div class="box why"><b>🤔 Why split views per team instead of one shared dashboard?</b>With hundreds of jobs, a flat list buries the information that matters. Team/project-scoped List Views let each person see only what's relevant, cutting the time spent hunting for a job and the risk of clicking "Build Now" on someone else's job by mistake.</div>
+  <div class="box warn"><b>⚠️ Nested Views aren't always needed</b>For small projects, a deep view hierarchy (views inside views inside views) hurts navigation more than it helps. Reserve Nested Views for when the number of teams/projects genuinely justifies a hierarchy.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Create a List View named "My Team", filter jobs with your team's name regex, add the Weather and Last Duration columns, then compare it to the default My View.</div>
+
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Views &amp; Dashboard</span></div>
+  <ol class="examples">
+    <li><span class="task">Create a List View showing only backend jobs.</span>
+<pre><span class="lbl">Job Filters (regex)</span>backend-.*</pre></li>
+    <li><span class="task">Add a column showing the last build time.</span>
+<pre><span class="lbl">Columns</span>Last Success
+Last Duration</pre></li>
+    <li><span class="task">Create a Nested View combining two teams' views.</span>
+<pre><span class="lbl">New View</span>Type: Nested View
+Sub-views: team-frontend, team-backend</pre></li>
+    <li><span class="task">Check which executors are idle on a Linux agent.</span>
+<pre><span class="lbl">Build Executor Status</span>agent-linux-01
+ #1 (idle)
+ #2 (idle)</pre></li>
+    <li><span class="task">Use My View to quickly see every job you have access to.</span>
+<pre><span class="lbl">Dashboard</span>"My Views" tab → automatically lists all viewable jobs</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Views &amp; Dashboard</span></div>
+  <ol class="drills">
+    <li><span class="task">Write a regex that matches only jobs starting with "release-".</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>release-.*</pre></div></details></li>
+    <li><span class="task">Name the two basic view types in Jenkins.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>List View, My View (plus Nested View to group other views)</pre></div></details></li>
+    <li><span class="task">Name the column that shows recent success/failure trend.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>Weather</pre></div></details></li>
+    <li><span class="task">Which widget shows which job is running on each agent's executor?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>Build Executor Status</pre></div></details></li>
+    <li><span class="task">When should you use a Nested View instead of several separate List Views?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>When there are many teams/projects and views need a real hierarchy for easier navigation</pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 2.4 Credentials ============ -->
+<section class="lesson" id="credentials">
+<div class="lang vi">
+  <span class="phase-tag">Bài 2.4</span>
+  <h2>Credentials</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Hiểu các loại credential trong Jenkins, phạm vi (scope) lưu trữ, và hai cách dùng credential trong job: chọn trực tiếp trên UI hay tham chiếu bằng ID trong script/Pipeline.</div>
+
+  <h3>Credential dùng để làm gì?</h3>
+  <p>Credential là nơi <b>lưu trữ tập trung và bảo mật</b> các thông tin nhạy cảm mà Jenkins cần để kết nối tới hệ thống bên ngoài. Thay vì hard-code mật khẩu/token vào pipeline hay job config, bạn lưu vào Credentials Store rồi tham chiếu qua một ID.</p>
+  <table>
+    <tr><th>Mục đích</th><th>Ví dụ thực tế</th></tr>
+    <tr><td>Kết nối Git repository</td><td>Clone code từ private repo GitHub/GitLab/Bitbucket</td></tr>
+    <tr><td>Truy cập server deploy</td><td>SSH key để deploy code lên server production/staging</td></tr>
+    <tr><td>Đăng nhập Docker Registry</td><td>Push/pull image từ Docker Hub, Harbor, ECR…</td></tr>
+    <tr><td>Gọi API bên ngoài</td><td>Token tích hợp Slack, SonarQube, AWS, Kubernetes…</td></tr>
+    <tr><td>Kết nối Database</td><td>Username/password khi chạy migration hoặc test</td></tr>
+  </table>
+
+  <h3>Lợi ích bảo mật</h3>
+  <ul>
+    <li><b>Mã hóa khi lưu trữ</b> — Jenkins mã hóa credential, không lưu dạng plain text.</li>
+    <li><b>Ẩn trong log</b> — giá trị secret bị che thành <code class="inline">****</code> trong console output.</li>
+    <li><b>Phân quyền</b> — kiểm soát job/người dùng nào được dùng credential nào (scope Global vs Folder-level).</li>
+    <li><b>Dễ thay đổi</b> — đổi mật khẩu ở một chỗ, mọi job dùng chung đều được cập nhật.</li>
+  </ul>
+
+  <h3>Các loại Credential</h3>
+  <table>
+    <tr><th>Loại</th><th>Dùng cho</th></tr>
+    <tr><td>Username with password</td><td>Đăng nhập Git HTTP, Docker registry, API cần user/pass</td></tr>
+    <tr><td>SSH Username with private key</td><td>Git qua SSH, kết nối agent qua SSH</td></tr>
+    <tr><td>Secret text</td><td>Một chuỗi bí mật đơn (API key, token)</td></tr>
+    <tr><td>Secret file</td><td>Một file bí mật (kubeconfig, .p12, service account JSON)</td></tr>
+    <tr><td>Certificate</td><td>Chứng chỉ client (.pfx/.p12) kèm mật khẩu</td></tr>
+  </table>
+  <p>Truy cập: <b>Manage Jenkins → Credentials → System → Global credentials (unrestricted)</b> → <b>Add Credentials</b>.</p>
+<pre><span class="lbl">Add Credentials</span>Kind: Secret text
+Scope: Global (Jenkins, nodes, items, all child items, etc)
+Secret: ************
+ID: github-token
+Description: GitHub PAT dùng cho checkout</pre>
+
+  <h3>Scope: Global vs System vs Domain</h3>
+  <ul>
+    <li><b>Global</b> — dùng được bởi mọi job, mọi node, mọi Pipeline. Phổ biến nhất.</li>
+    <li><b>System</b> — chỉ Jenkins core dùng (ví dụ credential cho email server, LDAP), <b>không</b> lộ cho job.</li>
+    <li><b>Domain</b> — một credential store có thể chia thành nhiều "domain" theo điều kiện host/URL, giúp Jenkins tự chọn đúng credential khi có nhiều credential cùng loại.</li>
+  </ul>
+  <div class="box why"><b>🤔 Vì sao có scope System riêng?</b>Một số credential (ví dụ SMTP password để gửi mail cảnh báo) chỉ cần cho hạ tầng Jenkins vận hành, không nên để job nào cũng nhìn thấy hay chọn được — thu hẹp scope giúp giảm rủi ro rò rỉ.</div>
+
+  <h3>Dùng credential trong Freestyle job vs tham chiếu bằng ID</h3>
+  <p>Trong Freestyle, bạn <b>chọn credential từ dropdown</b> ở Source Code Management hoặc build step (ví dụ SSH Agent plugin) — Jenkins tự inject giá trị lúc chạy build.</p>
+<pre><span class="lbl">Freestyle → Source Code Management</span>Credentials: (dropdown) → github-token</pre>
+  <p>Trong Pipeline/script, bạn <b>tham chiếu bằng ID</b> đã đặt khi tạo credential, không bao giờ hard-code giá trị thật:</p>
+<pre><span class="lbl">Jenkinsfile (scripted binding)</span>withCredentials([<span class="fn">string</span>(credentialsId: <span class="str">'github-token'</span>, variable: <span class="str">'TOKEN'</span>)]) {
+  sh <span class="str">'curl -H "Authorization: token $TOKEN" https://api.github.com/user'</span>
+}</pre>
+  <div class="box tip"><b>💡 ID là hợp đồng ổn định</b>Đặt ID rõ ràng, dễ nhớ (<code class="inline">github-token</code>, <code class="inline">docker-hub-creds</code>) vì Pipeline sẽ tham chiếu đúng chuỗi này — đổi ID mà không sửa Jenkinsfile sẽ làm build gãy.</div>
+  <div class="box warn"><b>⚠️ Không bao giờ echo giá trị credential ra log</b>Jenkins tự động mask giá trị secret nếu bạn dùng đúng cơ chế <code class="inline">withCredentials</code>/credential binding. Nếu bạn tự gán biến môi trường theo cách khác hoặc <code class="inline">echo $TOKEN</code>, giá trị có thể lộ thẳng ra Console Output.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Tạo một credential loại Secret text với ID <code class="inline">demo-token</code>, dùng nó trong một Freestyle job qua build step "Use secret text(s) or file(s)" (Credentials Binding plugin), rồi in ra biến môi trường (không in giá trị thật) để xác nhận job có quyền truy cập.</div>
+
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Credentials</span></div>
+  <ol class="examples">
+    <li><span class="task">Tạo credential SSH key để checkout Git qua SSH.</span>
+<pre><span class="lbl">Add Credentials</span>Kind: SSH Username with private key
+Username: git
+Private Key: Enter directly → dán nội dung id_rsa</pre></li>
+    <li><span class="task">Lưu file kubeconfig làm Secret file để deploy Kubernetes.</span>
+<pre><span class="lbl">Add Credentials</span>Kind: Secret file
+File: kubeconfig.yaml
+ID: k8s-prod-kubeconfig</pre></li>
+    <li><span class="task">Dùng Username/password để đăng nhập Docker registry.</span>
+<pre><span class="lbl">Add Credentials</span>Kind: Username with password
+Username: ci-bot
+Password: ************
+ID: docker-hub-creds</pre></li>
+    <li><span class="task">Bind Secret text vào biến môi trường trong Pipeline.</span>
+<pre><span class="lbl">Jenkinsfile</span>withCredentials([<span class="fn">string</span>(credentialsId: <span class="str">'slack-webhook'</span>, variable: <span class="str">'HOOK'</span>)]) {
+  sh <span class="str">'curl -X POST -d "{}" $HOOK'</span>
+}</pre></li>
+    <li><span class="task">Dùng Certificate credential để ký gói ứng dụng.</span>
+<pre><span class="lbl">Add Credentials</span>Kind: Certificate
+Upload PKCS#12 certificate: signing-cert.p12
+Password: ************</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Credentials</span></div>
+  <ol class="drills">
+    <li><span class="task">Loại credential nào phù hợp cho một API key đơn?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>Secret text</pre></div></details></li>
+    <li><span class="task">Viết cú pháp withCredentials để bind credential ID <code class="inline">npm-token</code> vào biến <code class="inline">NPM_TOKEN</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>withCredentials([<span class="fn">string</span>(credentialsId: <span class="str">'npm-token'</span>, variable: <span class="str">'NPM_TOKEN'</span>)]) { <span class="cmt">/* ... */</span> }</pre></div></details></li>
+    <li><span class="task">Scope nào chỉ dành cho Jenkins core, job không thấy được?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>System</pre></div></details></li>
+    <li><span class="task">Loại credential nào dùng để lưu một file kubeconfig?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>Secret file</pre></div></details></li>
+    <li><span class="task">Vì sao không nên echo giá trị credential ra console log?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>Vì Jenkins chỉ tự động mask secret khi dùng đúng cơ chế credential binding; echo trực tiếp sẽ làm lộ giá trị thật ra log</pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 2.4</span>
+  <h2>Credentials</h2>
+  <div class="box goal"><b>🎯 Goal</b>Understand the credential types in Jenkins, their storage scope, and the two ways to use a credential in a job: picking it in the UI vs referencing it by ID in script/Pipeline.</div>
+
+  <h3>What are credentials for?</h3>
+  <p>Credentials are the <b>central, secure store</b> for the sensitive information Jenkins needs to connect to external systems. Instead of hard-coding passwords/tokens into a pipeline or job config, you save them in the Credentials Store and reference them by an ID.</p>
+  <table>
+    <tr><th>Purpose</th><th>Real-world example</th></tr>
+    <tr><td>Connect to a Git repository</td><td>Clone code from a private GitHub/GitLab/Bitbucket repo</td></tr>
+    <tr><td>Access a deploy server</td><td>SSH key to deploy code to production/staging servers</td></tr>
+    <tr><td>Log into a Docker Registry</td><td>Push/pull images from Docker Hub, Harbor, ECR…</td></tr>
+    <tr><td>Call external APIs</td><td>Tokens to integrate Slack, SonarQube, AWS, Kubernetes…</td></tr>
+    <tr><td>Connect to a Database</td><td>Username/password when running migrations or tests</td></tr>
+  </table>
+
+  <h3>Security benefits</h3>
+  <ul>
+    <li><b>Encrypted at rest</b> — Jenkins encrypts credentials; they are never stored as plain text.</li>
+    <li><b>Masked in logs</b> — secret values are hidden as <code class="inline">****</code> in the console output.</li>
+    <li><b>Access control</b> — control which jobs/users can use which credential (Global vs Folder-level scope).</li>
+    <li><b>Easy to rotate</b> — change a password in one place and every job that shares it is updated.</li>
+  </ul>
+
+  <h3>Credential types</h3>
+  <table>
+    <tr><th>Type</th><th>Used for</th></tr>
+    <tr><td>Username with password</td><td>Git over HTTP, Docker registry login, any user/pass API</td></tr>
+    <tr><td>SSH Username with private key</td><td>Git over SSH, connecting agents over SSH</td></tr>
+    <tr><td>Secret text</td><td>A single secret string (API key, token)</td></tr>
+    <tr><td>Secret file</td><td>A secret file (kubeconfig, .p12, service account JSON)</td></tr>
+    <tr><td>Certificate</td><td>A client certificate (.pfx/.p12) with its password</td></tr>
+  </table>
+  <p>Access via: <b>Manage Jenkins → Credentials → System → Global credentials (unrestricted)</b> → <b>Add Credentials</b>.</p>
+<pre><span class="lbl">Add Credentials</span>Kind: Secret text
+Scope: Global (Jenkins, nodes, items, all child items, etc)
+Secret: ************
+ID: github-token
+Description: GitHub PAT used for checkout</pre>
+
+  <h3>Scope: Global vs System vs Domain</h3>
+  <ul>
+    <li><b>Global</b> — usable by any job, node, or Pipeline. The most common.</li>
+    <li><b>System</b> — used only by Jenkins core itself (e.g. email server or LDAP credentials); <b>not</b> exposed to jobs.</li>
+    <li><b>Domain</b> — a credential store can be split into multiple "domains" scoped by host/URL conditions, so Jenkins auto-selects the right credential when several of the same type exist.</li>
+  </ul>
+  <div class="box why"><b>🤔 Why does System scope exist separately?</b>Some credentials (e.g. an SMTP password used to send alert emails) are only needed by Jenkins' own infrastructure and shouldn't be visible or selectable by every job — narrowing the scope reduces leak risk.</div>
+
+  <h3>Using credentials in a Freestyle job vs referencing by ID</h3>
+  <p>In Freestyle, you <b>pick a credential from a dropdown</b> in Source Code Management or a build step (e.g. the SSH Agent plugin) — Jenkins injects the value automatically at build time.</p>
+<pre><span class="lbl">Freestyle → Source Code Management</span>Credentials: (dropdown) → github-token</pre>
+  <p>In Pipeline/scripts, you <b>reference the ID</b> assigned when the credential was created, and never hard-code the real value:</p>
+<pre><span class="lbl">Jenkinsfile (scripted binding)</span>withCredentials([<span class="fn">string</span>(credentialsId: <span class="str">'github-token'</span>, variable: <span class="str">'TOKEN'</span>)]) {
+  sh <span class="str">'curl -H "Authorization: token $TOKEN" https://api.github.com/user'</span>
+}</pre>
+  <div class="box tip"><b>💡 The ID is a stable contract</b>Give it a clear, memorable ID (<code class="inline">github-token</code>, <code class="inline">docker-hub-creds</code>) because the Pipeline references that exact string — changing the ID without updating the Jenkinsfile breaks the build.</div>
+  <div class="box warn"><b>⚠️ Never echo a credential value into the log</b>Jenkins auto-masks secret values only when you use the proper <code class="inline">withCredentials</code>/credential binding mechanism. If you assign an env var another way or run <code class="inline">echo $TOKEN</code>, the value can leak straight into the Console Output.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Create a Secret text credential with ID <code class="inline">demo-token</code>, use it in a Freestyle job via the "Use secret text(s) or file(s)" build step (Credentials Binding plugin), then print the env var name (not the real value) to confirm the job can access it.</div>
+
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Credentials</span></div>
+  <ol class="examples">
+    <li><span class="task">Create an SSH key credential for checking out Git over SSH.</span>
+<pre><span class="lbl">Add Credentials</span>Kind: SSH Username with private key
+Username: git
+Private Key: Enter directly → paste id_rsa content</pre></li>
+    <li><span class="task">Store a kubeconfig file as a Secret file for Kubernetes deploys.</span>
+<pre><span class="lbl">Add Credentials</span>Kind: Secret file
+File: kubeconfig.yaml
+ID: k8s-prod-kubeconfig</pre></li>
+    <li><span class="task">Use Username/password to log into a Docker registry.</span>
+<pre><span class="lbl">Add Credentials</span>Kind: Username with password
+Username: ci-bot
+Password: ************
+ID: docker-hub-creds</pre></li>
+    <li><span class="task">Bind a Secret text into an env var inside a Pipeline.</span>
+<pre><span class="lbl">Jenkinsfile</span>withCredentials([<span class="fn">string</span>(credentialsId: <span class="str">'slack-webhook'</span>, variable: <span class="str">'HOOK'</span>)]) {
+  sh <span class="str">'curl -X POST -d "{}" $HOOK'</span>
+}</pre></li>
+    <li><span class="task">Use a Certificate credential to sign an application package.</span>
+<pre><span class="lbl">Add Credentials</span>Kind: Certificate
+Upload PKCS#12 certificate: signing-cert.p12
+Password: ************</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Credentials</span></div>
+  <ol class="drills">
+    <li><span class="task">Which credential type fits a single API key?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>Secret text</pre></div></details></li>
+    <li><span class="task">Write the withCredentials syntax that binds credential ID <code class="inline">npm-token</code> to variable <code class="inline">NPM_TOKEN</code>.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>withCredentials([<span class="fn">string</span>(credentialsId: <span class="str">'npm-token'</span>, variable: <span class="str">'NPM_TOKEN'</span>)]) { <span class="cmt">/* ... */</span> }</pre></div></details></li>
+    <li><span class="task">Which scope is used only by Jenkins core, invisible to jobs?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>System</pre></div></details></li>
+    <li><span class="task">Which credential type stores a kubeconfig file?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>Secret file</pre></div></details></li>
+    <li><span class="task">Why shouldn't you echo a credential value into the console log?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>Jenkins only auto-masks secrets when using proper credential binding; a direct echo exposes the real value in the log</pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 2.5 Users & Permissions ============ -->
+<section class="lesson" id="users-permissions">
+<div class="lang vi">
+  <span class="phase-tag">Bài 2.5</span>
+  <h2>Quản lý người dùng &amp; Phân quyền</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Tạo được user trong Jenkins' own user database, hiểu sơ bộ khái niệm phân quyền trước khi học sâu ở giai đoạn Security, và biết dùng My Views/My Account/API token cho từng user.</div>
+
+  <h3>Jenkins' own user database</h3>
+  <p>Mặc định (nếu chưa cấu hình LDAP/SSO), Jenkins lưu user trong cơ sở dữ liệu nội bộ của chính nó. Tạo user tại <b>Manage Jenkins → Users → Create User</b>.</p>
+<pre><span class="lbl">Manage Jenkins → Users → Create User</span>Username: nguyen.duy
+Password: ************
+Confirm password: ************
+Full name: Nguyễn Duy
+E-mail address: duy@example.com</pre>
+  <div class="box note"><b>📁 User được lưu ở đâu?</b>Mỗi user có một thư mục riêng trong <code class="inline">$JENKINS_HOME/users/&lt;username&gt;_&lt;id&gt;/</code>, chứa <code class="inline">config.xml</code> (thông tin, API token đã hash) — không lưu mật khẩu dạng plaintext.</div>
+
+  <h3>Khái niệm phân quyền cơ bản</h3>
+  <p>Mặc định Jenkins dùng <b>Security Realm</b> (nguồn xác thực — ví dụ "Jenkins' own user database") kết hợp với một <b>Authorization Strategy</b> (ai được làm gì). Ba chiến lược phổ biến:</p>
+  <table>
+    <tr><th>Authorization Strategy</th><th>Mô tả</th></tr>
+    <tr><td>Anyone can do anything</td><td>Không kiểm soát — chỉ hợp cho máy local/thử nghiệm</td></tr>
+    <tr><td>Logged-in users can do anything</td><td>Ai đăng nhập cũng có toàn quyền, người ẩn danh không được gì</td></tr>
+    <tr><td>Matrix-based security / Role-Based Strategy (plugin)</td><td>Gán quyền chi tiết theo user/nhóm và theo hành động (Read, Build, Configure...)</td></tr>
+  </table>
+  <div class="box tip"><b>💡 Đây chỉ là bước khởi động</b>Matrix-based security và Role Strategy Plugin sẽ được đào sâu ở giai đoạn Security riêng — ở đây chỉ cần hiểu rằng "ai đăng nhập được" (Security Realm) và "đăng nhập rồi được làm gì" (Authorization) là hai lớp tách biệt.</div>
+
+  <h3>My Views, My Account &amp; API Token</h3>
+  <p>Sau khi đăng nhập, mỗi user có trang cá nhân riêng: <b>My Views</b> (dashboard việc riêng, không ảnh hưởng view chung), và <b>My Account</b> (hồ sơ, đổi mật khẩu, cấu hình thông báo).</p>
+  <p><b>API Token</b> cho phép gọi Jenkins REST API hoặc CLI mà không cần dùng mật khẩu thật — tạo tại <b>My Account → Configure → API Token → Add new Token</b>.</p>
+<pre><span class="lbl">My Account → Configure → API Token</span>Token Name: ci-script
+<span class="cmt"># Jenkins chỉ hiển thị giá trị token MỘT LẦN DUY NHẤT lúc tạo</span>
+Token: 11a2...f9c8</pre>
+<pre><span class="lbl">terminal — dùng API token</span>curl -u nguyen.duy:11a2...f9c8 https://jenkins.example.com/api/json</pre>
+  <div class="box why"><b>🤔 Vì sao dùng API token thay vì mật khẩu?</b>Token có thể <b>thu hồi độc lập</b> mà không đổi mật khẩu đăng nhập, giới hạn phạm vi rủi ro nếu bị lộ (chỉ ảnh hưởng script dùng token đó), và không bao giờ hiển thị lại sau khi tạo nên khó bị người khác đọc trộm từ màn hình cấu hình.</div>
+  <div class="box warn"><b>⚠️ Đừng để "Anyone can do anything" trên môi trường thật</b>Đây là setting mặc định thời kỳ đầu thiết lập, chỉ chấp nhận được khi Jenkins chạy local để học. Trước khi expose ra mạng, phải chuyển sang ít nhất "Logged-in users can do anything" và tạo user thật.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Tạo một user mới trong Jenkins' own user database, đăng nhập bằng user đó, vào My Account tạo một API Token, rồi dùng <code class="inline">curl -u &lt;user&gt;:&lt;token&gt;</code> gọi thử <code class="inline">/api/json</code> để xác nhận token hoạt động.</div>
+
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Users &amp; Permissions</span></div>
+  <ol class="examples">
+    <li><span class="task">Tạo user mới cho một thành viên team QA.</span>
+<pre><span class="lbl">Create User</span>Username: qa.linh
+Full name: Linh QA
+E-mail address: linh@example.com</pre></li>
+    <li><span class="task">Chuyển authorization sang "Logged-in users can do anything" khi mới setup.</span>
+<pre><span class="lbl">Manage Jenkins → Security</span>Authorization: Logged-in users can do anything</pre></li>
+    <li><span class="task">Tạo API token cho script CI gọi Jenkins API.</span>
+<pre><span class="lbl">My Account → API Token</span>Token Name: deploy-script
+Token: (hiện một lần) 7cd1...</pre></li>
+    <li><span class="task">Gọi Jenkins REST API bằng API token thay vì mật khẩu.</span>
+<pre><span class="lbl">terminal</span>curl -u ci-bot:7cd1... https://jenkins.example.com/job/my-job/api/json</pre></li>
+    <li><span class="task">Thu hồi (revoke) một API token cũ đã lộ.</span>
+<pre><span class="lbl">My Account → API Token</span>Nhấn "Revoke" cạnh token cần hủy</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Users &amp; Permissions</span></div>
+  <ol class="drills">
+    <li><span class="task">Đường dẫn menu để tạo user mới trong Jenkins' own user database là gì?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>Manage Jenkins → Users → Create User</pre></div></details></li>
+    <li><span class="task">Nêu tên hai lớp khái niệm tách biệt trong hệ thống bảo mật Jenkins.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>Security Realm (xác thực - ai đăng nhập được) và Authorization Strategy (ai được làm gì)</pre></div></details></li>
+    <li><span class="task">Viết lệnh curl gọi API Jenkins bằng username <code class="inline">bot</code> và token <code class="inline">xyz</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>curl -u bot:xyz https://jenkins.example.com/api/json</pre></div></details></li>
+    <li><span class="task">Trang nào cho phép user tự tạo API Token của mình?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>My Account → Configure → API Token → Add new Token</pre></div></details></li>
+    <li><span class="task">Vì sao "Anyone can do anything" không nên dùng cho môi trường production?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>Vì bất kỳ ai truy cập được URL Jenkins, kể cả người ẩn danh, đều có toàn quyền cấu hình/build/xóa job</pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 2.5</span>
+  <h2>Managing Users &amp; Permissions</h2>
+  <div class="box goal"><b>🎯 Goal</b>Create a user in Jenkins' own user database, get a basic grasp of permission concepts before the dedicated Security stage, and know how to use My Views/My Account/API tokens per user.</div>
+
+  <h3>Jenkins' own user database</h3>
+  <p>By default (unless LDAP/SSO is configured), Jenkins stores users in its own internal database. Create a user at <b>Manage Jenkins → Users → Create User</b>.</p>
+<pre><span class="lbl">Manage Jenkins → Users → Create User</span>Username: nguyen.duy
+Password: ************
+Confirm password: ************
+Full name: Nguyen Duy
+E-mail address: duy@example.com</pre>
+  <div class="box note"><b>📁 Where is a user stored?</b>Each user gets a folder under <code class="inline">$JENKINS_HOME/users/&lt;username&gt;_&lt;id&gt;/</code>, holding a <code class="inline">config.xml</code> (profile info, hashed API tokens) — passwords are never stored as plaintext.</div>
+
+  <h3>Basic permission concepts</h3>
+  <p>By default Jenkins uses a <b>Security Realm</b> (the auth source — e.g. "Jenkins' own user database") combined with an <b>Authorization Strategy</b> (who can do what). Three common strategies:</p>
+  <table>
+    <tr><th>Authorization Strategy</th><th>Description</th></tr>
+    <tr><td>Anyone can do anything</td><td>No control at all — fine only for a local/test instance</td></tr>
+    <tr><td>Logged-in users can do anything</td><td>Any authenticated user has full rights, anonymous users get nothing</td></tr>
+    <tr><td>Matrix-based security / Role-Based Strategy (plugin)</td><td>Fine-grained permissions per user/group and per action (Read, Build, Configure...)</td></tr>
+  </table>
+  <div class="box tip"><b>💡 This is just the on-ramp</b>Matrix-based security and the Role Strategy Plugin get a deep dive in the dedicated Security stage — here it's enough to understand that "who can log in" (Security Realm) and "what a logged-in user can do" (Authorization) are two separate layers.</div>
+
+  <h3>My Views, My Account &amp; API Token</h3>
+  <p>After logging in, every user gets a personal page: <b>My Views</b> (a personal dashboard that doesn't touch the shared views), and <b>My Account</b> (profile, password change, notification settings).</p>
+  <p>An <b>API Token</b> lets you call the Jenkins REST API or CLI without using your real password — create one at <b>My Account → Configure → API Token → Add new Token</b>.</p>
+<pre><span class="lbl">My Account → Configure → API Token</span>Token Name: ci-script
+<span class="cmt"># Jenkins shows the token value ONLY ONCE, at creation time</span>
+Token: 11a2...f9c8</pre>
+<pre><span class="lbl">terminal — using an API token</span>curl -u nguyen.duy:11a2...f9c8 https://jenkins.example.com/api/json</pre>
+  <div class="box why"><b>🤔 Why use an API token instead of a password?</b>A token can be <b>revoked independently</b> without changing the login password, limits the blast radius if leaked (only affects the scripts using that token), and is never shown again after creation, making it harder for someone to read it off a config screen later.</div>
+  <div class="box warn"><b>⚠️ Don't leave "Anyone can do anything" on a real environment</b>This is the default during initial setup, acceptable only for a local learning instance. Before exposing Jenkins to a network, switch to at least "Logged-in users can do anything" and create real users.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Create a new user in Jenkins' own user database, log in as that user, go to My Account and create an API Token, then use <code class="inline">curl -u &lt;user&gt;:&lt;token&gt;</code> against <code class="inline">/api/json</code> to confirm the token works.</div>
+
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Users &amp; Permissions</span></div>
+  <ol class="examples">
+    <li><span class="task">Create a new user for a QA team member.</span>
+<pre><span class="lbl">Create User</span>Username: qa.linh
+Full name: Linh QA
+E-mail address: linh@example.com</pre></li>
+    <li><span class="task">Switch authorization to "Logged-in users can do anything" during initial setup.</span>
+<pre><span class="lbl">Manage Jenkins → Security</span>Authorization: Logged-in users can do anything</pre></li>
+    <li><span class="task">Create an API token for a CI script calling the Jenkins API.</span>
+<pre><span class="lbl">My Account → API Token</span>Token Name: deploy-script
+Token: (shown once) 7cd1...</pre></li>
+    <li><span class="task">Call the Jenkins REST API using an API token instead of a password.</span>
+<pre><span class="lbl">terminal</span>curl -u ci-bot:7cd1... https://jenkins.example.com/job/my-job/api/json</pre></li>
+    <li><span class="task">Revoke an old, leaked API token.</span>
+<pre><span class="lbl">My Account → API Token</span>Click "Revoke" next to the token to remove</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Users &amp; Permissions</span></div>
+  <ol class="drills">
+    <li><span class="task">What is the menu path to create a new user in Jenkins' own user database?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>Manage Jenkins → Users → Create User</pre></div></details></li>
+    <li><span class="task">Name the two separate concepts in Jenkins' security system.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>Security Realm (authentication - who can log in) and Authorization Strategy (what a logged-in user can do)</pre></div></details></li>
+    <li><span class="task">Write a curl command calling the Jenkins API with username <code class="inline">bot</code> and token <code class="inline">xyz</code>.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>curl -u bot:xyz https://jenkins.example.com/api/json</pre></div></details></li>
+    <li><span class="task">Which page lets a user create their own API Token?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>My Account → Configure → API Token → Add new Token</pre></div></details></li>
+    <li><span class="task">Why shouldn't "Anyone can do anything" be used in production?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>Because anyone who can reach the Jenkins URL, including anonymous users, gets full rights to configure/build/delete jobs</pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 2.6 Case study: Upgrading Jenkins ============ -->
+<section class="lesson" id="upgrade-jenkins">
+<div class="lang vi">
+  <span class="phase-tag">Bài 2.6 · Case study</span>
+  <h2>Nâng cấp Jenkins an toàn — rút kinh nghiệm thực tế</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Đọc hiểu các cảnh báo trên trang Manage Jenkins, phân biệt cảnh báo <b>nghiêm trọng</b> với cảnh báo chỉ mang tính thông tin, và thực hiện được quy trình nâng cấp bản WAR an toàn (backup → tải → dừng → thay → kiểm tra) có đường lùi khi lỗi. Ghi lại từ một lần nâng cấp thật: <b>2.568.1 → 2.568.2</b> ngày 06/08/2026.</div>
+
+  <h3>Bối cảnh: màn hình Manage Jenkins báo gì?</h3>
+  <p>Mở <b>Manage Jenkins</b>, phía trên hiện một loạt banner cảnh báo. Đây là ảnh chụp thực tế của tình huống:</p>
+  <div class="jk-shot" role="img" aria-label="Ảnh chụp màn hình Manage Jenkins với các banner cảnh báo">
+    <div class="jk-head"><span class="jk-logo">🤵</span> Jenkins <span class="jk-crumb">/ Manage Jenkins</span></div>
+    <div class="jk-alert err"><span class="ico">⛔</span><span class="msg">It appears that your reverse proxy set up is broken.</span><span class="btn">More Info</span></div>
+    <div class="jk-alert info"><span class="ico">ℹ️</span><span class="msg">New version of Jenkins (2.568.2) is available for <a>download</a> (<a>changelog</a>).</span><span class="btn">Or Upgrade Automatically</span></div>
+    <div class="jk-alert warn2"><span class="ico">⚠️</span><span class="msg">Building on the built-in node can be a security issue. You should set up distributed builds.</span><span class="btn">Set up agent</span></div>
+    <div class="jk-alert err"><span class="ico">⛔</span><span class="msg">Warnings have been published for the following currently installed components:<br>Jenkins 2.568.1 core and libraries: <span class="vuln">Multiple security vulnerabilities in Jenkins 2.575 and earlier, LTS 2.568.1 and earlier.</span> A fix for this issue is available. <b>Update Jenkins now.</b></span><span class="btn">View</span></div>
+    <div class="jk-alert info"><span class="ico">ℹ️</span><span class="msg">Jenkins can enforce Content Security Policy (CSP)… CSP is disabled by default but recommended, if possible.</span><span class="btn">Learn more</span></div>
+  </div>
+  <p class="jk-cap">Hình 2.6 — Ảnh chụp trang Manage Jenkins (trước khi nâng cấp) tái hiện bằng HTML/CSS.</p>
+
+  <p>Không phải cảnh báo nào cũng nguy hiểm. Phân loại theo mức độ:</p>
+  <table>
+    <tr><th>Cảnh báo</th><th>Mức độ</th><th>Xử lý</th></tr>
+    <tr><td>🔴 Security vulnerabilities — "A fix is available"</td><td><b>Nghiêm trọng</b></td><td>Nâng cấp Jenkins ngay (đây là lý do chính phải hành động)</td></tr>
+    <tr><td>🔴 Reverse proxy set up is broken</td><td>Trung bình</td><td>Thường do <b>Jenkins URL</b> cấu hình sai cổng — sửa cho khớp URL thật</td></tr>
+    <tr><td>🟡 Building on the built-in node</td><td>Nên xử lý</td><td>Thiết lập agent riêng để tách build khỏi controller (không gấp)</td></tr>
+    <tr><td>🔵 New version available</td><td>Thông tin</td><td>Chính là bản vá bảo mật ở trên</td></tr>
+    <tr><td>🔵 Content Security Policy (CSP)</td><td>Gợi ý</td><td>Tùy chọn, tăng cường chống XSS</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Vì sao "reverse proxy broken" xuất hiện dù không có proxy?</b>Máy này chạy trực tiếp <code class="inline">java -jar jenkins.war --httpPort=9090</code>, không có nginx/Apache. Cảnh báo bật lên vì <b>Jenkins URL</b> đang là <code class="inline">http://localhost:8080/</code> nhưng thực tế truy cập qua <code class="inline">:9090</code> — Jenkins so sánh URL cấu hình với request thật thấy lệch nên báo. Sửa URL cho khớp là hết.</div>
+
+  <h3>Quy trình nâng cấp WAR an toàn (đã thực hiện)</h3>
+  <p>Hồ sơ hệ thống: chạy <code class="inline">java -jar jenkins.war --httpPort=9090</code>, war tại <code class="inline">C:\Users\MAI KHANH\jenkins.war</code>, <code class="inline">JENKINS_HOME = C:\Users\MAI KHANH\.jenkins</code>, Java Temurin 21.</p>
+  <ol class="steps">
+    <li><b>Backup</b> JENKINS_HOME và war cũ trước tiên — để có đường lùi.
+<pre><span class="lbl">PowerShell — backup</span><span class="cmt"># Backup toàn bộ JENKINS_HOME + war cũ</span>
+Copy-Item <span class="str">"C:\Users\MAI KHANH\.jenkins"</span> <span class="str">"C:\Users\MAI KHANH\.jenkins_backup_2026-08-06"</span> -Recurse
+Copy-Item <span class="str">"C:\Users\MAI KHANH\jenkins.war"</span> <span class="str">"C:\Users\MAI KHANH\jenkins-2.568.1.war.bak"</span></pre></li>
+    <li><b>Tải</b> bản mới 2.568.2 (LTS) — làm khi Jenkins vẫn đang chạy để giảm downtime.
+<pre><span class="lbl">PowerShell — download</span>Invoke-WebRequest -Uri <span class="str">"https://get.jenkins.io/war-stable/2.568.2/jenkins.war"</span> `
+  -OutFile <span class="str">"C:\Users\MAI KHANH\jenkins-new.war"</span></pre></li>
+    <li><b>Kiểm tra phiên bản trong war MỚI</b> trước khi thay (tránh thay nhầm bản/file hỏng).
+<pre><span class="lbl">kết quả đọc META-INF/MANIFEST.MF</span>Manifest-Version: 1.0
+Implementation-Version: 2.568.2
+Jenkins-Version: 2.568.2   <span class="cmt"># ✅ đúng bản cần</span></pre></li>
+    <li><b>Dừng</b> Jenkins đang chạy (kill PID tiến trình java, hoặc Ctrl+C trong cửa sổ đang chạy).
+<pre><span class="lbl">PowerShell — stop</span>Stop-Process -Id <span class="num">25764</span> -Force   <span class="cmt"># PID của java -jar jenkins.war</span>
+<span class="cmt"># Xác nhận cổng 9090 đã đóng trước khi làm tiếp</span></pre></li>
+    <li><b>Thay war</b> mới rồi <b>khởi động lại</b>.
+<pre><span class="lbl">PowerShell — replace &amp; start</span>Move-Item <span class="str">"C:\Users\MAI KHANH\jenkins-new.war"</span> <span class="str">"C:\Users\MAI KHANH\jenkins.war"</span> -Force
+cd <span class="str">"C:\Users\MAI KHANH"</span>
+java -jar jenkins.war --httpPort=<span class="num">9090</span></pre></li>
+    <li><b>Kiểm tra</b> phiên bản qua header <code class="inline">X-Jenkins</code> (hoặc góc dưới-phải trang web).
+<pre><span class="lbl">PowerShell — verify</span>(Invoke-WebRequest http://localhost:9090/ -UseBasicParsing).Headers[<span class="str">"X-Jenkins"</span>]
+<span class="cmt"># -> 2.568.2   ✅  và log: "Jenkins is fully up and running"</span></pre></li>
+  </ol>
+  <div class="box tip"><b>↩️ Nếu lỗi → rollback trong 30 giây</b>Dừng Jenkins → đổi tên <code class="inline">jenkins-2.568.1.war.bak</code> về <code class="inline">jenkins.war</code> → khởi động lại. Vì <code class="inline">JENKINS_HOME</code> không đổi, mọi job/plugin/cấu hình vẫn nguyên.</div>
+
+  <h3>Sửa cảnh báo reverse proxy</h3>
+  <p>Độc lập với việc nâng cấp. Chỉ cần sửa Jenkins URL cho khớp cổng thật:</p>
+<pre><span class="lbl">Manage Jenkins → System → Jenkins Location</span>Jenkins URL: http://localhost:8080/   <span class="cmt"># ❌ sai cổng</span>
+Jenkins URL: http://localhost:9090/   <span class="cmt"># ✅ sửa cho khớp rồi Save</span></pre>
+
+  <div class="box practice"><b>✍️ Rút kinh nghiệm lần sau (checklist)</b>
+  <ul>
+    <li>✅ <b>Luôn backup</b> <code class="inline">JENKINS_HOME</code> + war cũ TRƯỚC khi nâng cấp — đó là đường lùi duy nhất.</li>
+    <li>✅ <b>Tải bản mới trước, dừng Jenkins sau</b> → downtime chỉ còn vài chục giây.</li>
+    <li>✅ <b>Backup JENKINS_HOME sau khi đã dừng Jenkins</b> → tránh copy trúng file đang bị khóa.</li>
+    <li>✅ <b>Đọc <code class="inline">Jenkins-Version</code> trong war mới</b> trước khi thay — chắc chắn đúng bản, file không hỏng.</li>
+    <li>✅ Không cần backup thư mục <code class="inline">war/</code> (~108 MB) — Jenkins tự giải nén lại từ war khi khởi động.</li>
+    <li>✅ Sau khi lên bản mới, vào <b>Plugins → Updates</b> cập nhật plugin rồi restart.</li>
+    <li>✅ Xác minh bằng header <code class="inline">X-Jenkins</code> hoặc log <code class="inline">"Jenkins is fully up and running"</code>, đừng chỉ nhìn UI.</li>
+  </ul></div>
+  <div class="box warn"><b>⚠️ Bẫy thường gặp</b>Đừng bấm <b>"Or Upgrade Automatically"</b> khi chạy bằng <code class="inline">java -jar</code> trực tiếp — cách đó chỉ hoạt động tốt với Jenkins cài dạng service (tự restart được). Chạy war thủ công thì nên nâng cấp thủ công như trên để kiểm soát được rollback.</div>
+
+  <div class="drill-head"><span class="phase-tag">📦 Bài thực hành · Nâng cấp</span></div>
+  <ol class="drills">
+    <li><span class="task">Trong 5 banner cảnh báo, banner nào là lý do BẮT BUỘC phải nâng cấp?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>Banner "Security vulnerabilities … A fix for this issue is available" — lỗ hổng bảo mật đã có bản vá</pre></div></details></li>
+    <li><span class="task">Vì sao nên tải war mới TRƯỚC khi dừng Jenkins?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>Để giảm downtime — Jenkins vẫn phục vụ trong lúc tải file ~100 MB, chỉ tắt trong vài chục giây lúc thay war</pre></div></details></li>
+    <li><span class="task">Lệnh nào kiểm tra nhanh phiên bản Jenkins đang chạy mà không cần mở trình duyệt?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>(Invoke-WebRequest http://localhost:9090/ -UseBasicParsing).Headers["X-Jenkins"]</pre></div></details></li>
+    <li><span class="task">Nếu bản mới lỗi, các bước rollback là gì?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>Dừng Jenkins → đổi tên jenkins-2.568.1.war.bak thành jenkins.war → khởi động lại (JENKINS_HOME giữ nguyên nên không mất dữ liệu)</pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 2.6 · Case study</span>
+  <h2>Upgrading Jenkins safely — a real lessons-learned</h2>
+  <div class="box goal"><b>🎯 Goal</b>Read the Manage Jenkins banners, tell a <b>critical</b> warning apart from an informational one, and run a safe WAR upgrade (backup → download → stop → replace → verify) with a clean rollback path. Recorded from a real upgrade: <b>2.568.1 → 2.568.2</b> on 2026-08-06.</div>
+
+  <h3>Context: what is Manage Jenkins reporting?</h3>
+  <p>Opening <b>Manage Jenkins</b> shows a stack of warning banners. Here is the actual situation:</p>
+  <div class="jk-shot" role="img" aria-label="Screenshot of Manage Jenkins with warning banners">
+    <div class="jk-head"><span class="jk-logo">🤵</span> Jenkins <span class="jk-crumb">/ Manage Jenkins</span></div>
+    <div class="jk-alert err"><span class="ico">⛔</span><span class="msg">It appears that your reverse proxy set up is broken.</span><span class="btn">More Info</span></div>
+    <div class="jk-alert info"><span class="ico">ℹ️</span><span class="msg">New version of Jenkins (2.568.2) is available for <a>download</a> (<a>changelog</a>).</span><span class="btn">Or Upgrade Automatically</span></div>
+    <div class="jk-alert warn2"><span class="ico">⚠️</span><span class="msg">Building on the built-in node can be a security issue. You should set up distributed builds.</span><span class="btn">Set up agent</span></div>
+    <div class="jk-alert err"><span class="ico">⛔</span><span class="msg">Warnings have been published for the following currently installed components:<br>Jenkins 2.568.1 core and libraries: <span class="vuln">Multiple security vulnerabilities in Jenkins 2.575 and earlier, LTS 2.568.1 and earlier.</span> A fix for this issue is available. <b>Update Jenkins now.</b></span><span class="btn">View</span></div>
+    <div class="jk-alert info"><span class="ico">ℹ️</span><span class="msg">Jenkins can enforce Content Security Policy (CSP)… CSP is disabled by default but recommended, if possible.</span><span class="btn">Learn more</span></div>
+  </div>
+  <p class="jk-cap">Figure 2.6 — Manage Jenkins page (before upgrade), reproduced in HTML/CSS.</p>
+
+  <p>Not every banner is dangerous. By severity:</p>
+  <table>
+    <tr><th>Banner</th><th>Severity</th><th>Action</th></tr>
+    <tr><td>🔴 Security vulnerabilities — "A fix is available"</td><td><b>Critical</b></td><td>Upgrade Jenkins now (the main reason to act)</td></tr>
+    <tr><td>🔴 Reverse proxy set up is broken</td><td>Medium</td><td>Usually a wrong <b>Jenkins URL</b> port — make it match the real URL</td></tr>
+    <tr><td>🟡 Building on the built-in node</td><td>Should fix</td><td>Set up a dedicated agent to isolate builds from the controller (not urgent)</td></tr>
+    <tr><td>🔵 New version available</td><td>Info</td><td>Same thing as the security fix above</td></tr>
+    <tr><td>🔵 Content Security Policy (CSP)</td><td>Suggestion</td><td>Optional, hardens against XSS</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Why does "reverse proxy broken" appear with no proxy?</b>This host runs <code class="inline">java -jar jenkins.war --httpPort=9090</code> directly, no nginx/Apache. The banner fires because the configured <b>Jenkins URL</b> is <code class="inline">http://localhost:8080/</code> while access is actually via <code class="inline">:9090</code> — Jenkins compares the configured URL to the real request, sees a mismatch, and complains. Making the URL match clears it.</div>
+
+  <h3>The safe WAR upgrade procedure (as performed)</h3>
+  <p>System profile: runs <code class="inline">java -jar jenkins.war --httpPort=9090</code>, war at <code class="inline">C:\Users\MAI KHANH\jenkins.war</code>, <code class="inline">JENKINS_HOME = C:\Users\MAI KHANH\.jenkins</code>, Temurin Java 21.</p>
+  <ol class="steps">
+    <li><b>Back up</b> JENKINS_HOME and the old war first — this is your rollback path.
+<pre><span class="lbl">PowerShell — backup</span><span class="cmt"># Back up the whole JENKINS_HOME + old war</span>
+Copy-Item <span class="str">"C:\Users\MAI KHANH\.jenkins"</span> <span class="str">"C:\Users\MAI KHANH\.jenkins_backup_2026-08-06"</span> -Recurse
+Copy-Item <span class="str">"C:\Users\MAI KHANH\jenkins.war"</span> <span class="str">"C:\Users\MAI KHANH\jenkins-2.568.1.war.bak"</span></pre></li>
+    <li><b>Download</b> the new 2.568.2 (LTS) — while Jenkins is still up, to minimize downtime.
+<pre><span class="lbl">PowerShell — download</span>Invoke-WebRequest -Uri <span class="str">"https://get.jenkins.io/war-stable/2.568.2/jenkins.war"</span> `
+  -OutFile <span class="str">"C:\Users\MAI KHANH\jenkins-new.war"</span></pre></li>
+    <li><b>Verify the version inside the NEW war</b> before swapping (avoid a wrong/corrupt file).
+<pre><span class="lbl">reading META-INF/MANIFEST.MF</span>Manifest-Version: 1.0
+Implementation-Version: 2.568.2
+Jenkins-Version: 2.568.2   <span class="cmt"># ✅ the version we want</span></pre></li>
+    <li><b>Stop</b> the running Jenkins (kill the java PID, or Ctrl+C in its window).
+<pre><span class="lbl">PowerShell — stop</span>Stop-Process -Id <span class="num">25764</span> -Force   <span class="cmt"># PID of java -jar jenkins.war</span>
+<span class="cmt"># Confirm port 9090 is closed before continuing</span></pre></li>
+    <li><b>Replace</b> the war and <b>restart</b>.
+<pre><span class="lbl">PowerShell — replace &amp; start</span>Move-Item <span class="str">"C:\Users\MAI KHANH\jenkins-new.war"</span> <span class="str">"C:\Users\MAI KHANH\jenkins.war"</span> -Force
+cd <span class="str">"C:\Users\MAI KHANH"</span>
+java -jar jenkins.war --httpPort=<span class="num">9090</span></pre></li>
+    <li><b>Verify</b> the version via the <code class="inline">X-Jenkins</code> header (or the bottom-right of the page).
+<pre><span class="lbl">PowerShell — verify</span>(Invoke-WebRequest http://localhost:9090/ -UseBasicParsing).Headers[<span class="str">"X-Jenkins"</span>]
+<span class="cmt"># -> 2.568.2   ✅  and log: "Jenkins is fully up and running"</span></pre></li>
+  </ol>
+  <div class="box tip"><b>↩️ If it breaks → 30-second rollback</b>Stop Jenkins → rename <code class="inline">jenkins-2.568.1.war.bak</code> back to <code class="inline">jenkins.war</code> → restart. Since <code class="inline">JENKINS_HOME</code> is untouched, all jobs/plugins/config stay intact.</div>
+
+  <h3>Fixing the reverse-proxy warning</h3>
+  <p>Independent of the upgrade. Just make the Jenkins URL match the real port:</p>
+<pre><span class="lbl">Manage Jenkins → System → Jenkins Location</span>Jenkins URL: http://localhost:8080/   <span class="cmt"># ❌ wrong port</span>
+Jenkins URL: http://localhost:9090/   <span class="cmt"># ✅ fix to match, then Save</span></pre>
+
+  <div class="box practice"><b>✍️ Lessons learned (checklist)</b>
+  <ul>
+    <li>✅ <b>Always back up</b> <code class="inline">JENKINS_HOME</code> + the old war BEFORE upgrading — it's the only way back.</li>
+    <li>✅ <b>Download first, stop Jenkins second</b> → downtime is only tens of seconds.</li>
+    <li>✅ <b>Back up JENKINS_HOME after stopping Jenkins</b> → avoid copying locked files.</li>
+    <li>✅ <b>Read <code class="inline">Jenkins-Version</code> in the new war</b> before swapping — confirm the right, uncorrupted build.</li>
+    <li>✅ No need to back up the <code class="inline">war/</code> folder (~108 MB) — Jenkins re-explodes it from the war on start.</li>
+    <li>✅ After upgrading, go to <b>Plugins → Updates</b>, update plugins, then restart.</li>
+    <li>✅ Verify via the <code class="inline">X-Jenkins</code> header or the <code class="inline">"Jenkins is fully up and running"</code> log — don't trust the UI alone.</li>
+  </ul></div>
+  <div class="box warn"><b>⚠️ Common trap</b>Don't click <b>"Or Upgrade Automatically"</b> when running via a bare <code class="inline">java -jar</code> — that path works well only for a service install (which can restart itself). For a manual war, upgrade manually as above so you keep control of rollback.</div>
+
+  <div class="drill-head"><span class="phase-tag">📦 Drills · Upgrading</span></div>
+  <ol class="drills">
+    <li><span class="task">Of the 5 banners, which one is the mandatory reason to upgrade?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>The "Security vulnerabilities … A fix for this issue is available" banner — a patched security hole</pre></div></details></li>
+    <li><span class="task">Why download the new war BEFORE stopping Jenkins?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>To minimize downtime — Jenkins keeps serving while the ~100 MB file downloads; it's only offline for the few seconds of the war swap</pre></div></details></li>
+    <li><span class="task">Which command quickly checks the running Jenkins version without a browser?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>(Invoke-WebRequest http://localhost:9090/ -UseBasicParsing).Headers["X-Jenkins"]</pre></div></details></li>
+    <li><span class="task">If the new build fails, what are the rollback steps?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>Stop Jenkins → rename jenkins-2.568.1.war.bak to jenkins.war → restart (JENKINS_HOME is untouched, so no data loss)</pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<div class="pager">
+  <a class="prev" href="phase1-getting-started.html">
+    <div class="dir"><span class="vi">← Trước</span><span class="en">← Previous</span></div>
+    <div class="ttl"><span class="vi">Giai đoạn 1 · Getting Started</span><span class="en">Stage 1 · Getting Started</span></div>
+  </a>
+  <a class="next" href="phase3-pipeline-fundamentals.html">
+    <div class="dir"><span class="vi">Tiếp theo →</span><span class="en">Next →</span></div>
+    <div class="ttl"><span class="vi">Giai đoạn 3 · Pipeline Fundamentals</span><span class="en">Stage 3 · Pipeline Fundamentals</span></div>
+  </a>
+</div>
+
+</main>
+</div>
+<script src="assets/i18n.js"></script>
+<script src="assets/scrollspy.js"></script>
+</body>
+</html>

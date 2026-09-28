@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Giai đoạn 9 — Reference &amp; Best Practices | Khóa học Jenkins</title>
+<link rel="stylesheet" href="assets/course.css">
+</head>
+<body class="lang-vi">
+<div class="layout">
+<nav class="side">
+  <div class="brand">🤵 Jenkins<small><span class="vi">Giai đoạn 9 · Tra cứu &amp; Best Practices</span><span class="en">Stage 9 · Reference &amp; Best Practices</span></small></div>
+  <div class="lang-toggle">
+    <button data-lang="vi" class="on">VI</button>
+    <button data-lang="en">EN</button>
+  </div>
+  <a class="nav-home" href="index.html"><span class="vi">← Mục lục khóa học</span><span class="en">← Course index</span></a>
+  <div class="grp"><span class="vi">Bài học</span><span class="en">Lessons</span></div>
+  <a class="lnk" href="#cli">9.1 · <span class="vi">Jenkins CLI</span><span class="en">Jenkins CLI</span></a>
+  <a class="lnk" href="#rest-api">9.2 · <span class="vi">REST API</span><span class="en">REST API</span></a>
+  <a class="lnk" href="#pipeline-syntax-ref">9.3 · <span class="vi">Tra cứu cú pháp Pipeline</span><span class="en">Pipeline Syntax Reference</span></a>
+  <a class="lnk" href="#troubleshooting">9.4 · <span class="vi">Xử lý sự cố thường gặp</span><span class="en">Common Troubleshooting</span></a>
+  <a class="lnk" href="#best-practices">9.5 · <span class="vi">Best Practices</span><span class="en">Best Practices</span></a>
+</nav>
+
+<main>
+<header class="top">
+  <div class="crumb"><span class="vi">Khóa học Jenkins › <b>Giai đoạn 9 — Tra cứu &amp; Best Practices</b></span><span class="en">Jenkins Course › <b>Stage 9 — Reference &amp; Best Practices</b></span></div>
+  <h1><span class="vi">Reference &amp; Best Practices</span><span class="en">Reference &amp; Best Practices</span></h1>
+  <p class="lead"><span class="vi">Mục tiêu giai đoạn: thành thạo các công cụ tra cứu/điều khiển Jenkins từ xa (CLI, REST API), biết cách tự tra cứu cú pháp Pipeline, chẩn đoán sự cố thường gặp, và áp dụng các thực hành tốt nhất được Jenkins khuyến nghị chính thức.</span><span class="en">Stage goal: master Jenkins' remote tooling (CLI, REST API), know how to self-serve Pipeline syntax lookups, diagnose common issues, and apply the official Jenkins-recommended best practices.</span></p>
+</header>
+
+<!-- ============ 9.1 CLI ============ -->
+<section class="lesson" id="cli">
+<div class="lang vi">
+  <span class="phase-tag">Bài 9.1</span>
+  <h2>Jenkins CLI</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Tải và dùng được <code class="inline">jenkins-cli.jar</code> để điều khiển Jenkins từ terminal: liệt kê job, build, xem console log, tạo/cập nhật job bằng XML, và chạy script Groovy từ xa.</div>
+  <h3>Tải &amp; xác thực</h3>
+  <p>CLI client là một file <code class="inline">.jar</code> được chính server Jenkins của bạn cung cấp — luôn tải đúng bản khớp version server để tránh lỗi không tương thích.</p>
+<pre><span class="lbl">terminal</span><span class="cmt"># Tải jenkins-cli.jar từ chính server đang chạy</span>
+curl -O http://localhost:8080/jnlpJars/jenkins-cli.jar
+
+<span class="cmt"># Xác thực bằng API token (khuyến nghị) — lấy token tại</span>
+<span class="cmt"># /user/&lt;username&gt;/security -> "Add new Token"</span>
+java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:11aa22bb33cc44dd who-am-i</pre>
+  <table>
+    <tr><th>Cách xác thực</th><th>Cú pháp</th><th>Ghi chú</th></tr>
+    <tr><td>API token</td><td><code>-auth user:token</code></td><td>Cách được khuyến nghị, không lộ mật khẩu thật.</td></tr>
+    <tr><td>File auth</td><td><code>-auth @/path/to/file</code></td><td>Nội dung file là <code>user:token</code>, tránh lộ trong history shell.</td></tr>
+    <tr><td>SSH key</td><td><code>-i ~/.ssh/id_rsa</code></td><td>Cần bật cổng SSH CLI trong "Configure Global Security" và gắn public key vào user.</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Vì sao ưu tiên API token thay vì mật khẩu?</b>Token có thể thu hồi độc lập, không lộ mật khẩu đăng nhập chính, và có thể giới hạn phạm vi. Đây cũng là cách REST API và nhiều tích hợp CI khác dùng để xác thực.</div>
+  <h3>Các lệnh thường dùng</h3>
+<pre><span class="lbl">terminal</span><span class="cmt"># Liệt kê toàn bộ job</span>
+java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN list-jobs
+
+<span class="cmt"># Trigger build và chờ tới khi xong (-f = follow/wait, thoát code = kết quả build)</span>
+java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN build my-job -f
+
+<span class="cmt"># Trigger build kèm tham số</span>
+java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN build my-job -f -p BRANCH=main
+
+<span class="cmt"># Xem console output (log) của job đang chạy, theo real-time</span>
+java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN console my-job -f
+
+<span class="cmt"># Tạo job mới từ file config.xml</span>
+java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN create-job new-job &lt; config.xml
+
+<span class="cmt"># Cập nhật job đã có từ file XML</span>
+java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN update-job my-job &lt; config.xml
+
+<span class="cmt"># Xuất config.xml của job hiện có (hữu ích để nhân bản/backup)</span>
+java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN get-job my-job &gt; config.xml
+
+<span class="cmt"># Chạy script Groovy trực tiếp trên server (rất mạnh — cẩn trọng quyền hạn)</span>
+java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN groovy = &lt; script.groovy</pre>
+  <div class="box tip"><b>💡 Xem toàn bộ lệnh khả dụng</b>Chạy <code class="inline">java -jar jenkins-cli.jar -s URL -auth user:token help</code> để liệt kê mọi lệnh — danh sách phụ thuộc plugin đang cài, có thể khác nhau giữa các Jenkins.</div>
+  <div class="box warn"><b>⚠️ Rủi ro của lệnh <code class="inline">groovy</code></b>Groovy script chạy trực tiếp trong JVM của Jenkins controller với quyền đầy đủ — có thể đọc/ghi bất cứ thứ gì, kể cả credentials đã lưu. Chỉ cấp quyền chạy CLI groovy cho người dùng thật sự tin cậy (thường tương đương quyền Admin).</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Tải <code class="inline">jenkins-cli.jar</code> từ Jenkins của bạn, tạo API token, rồi dùng <code class="inline">list-jobs</code> để liệt kê job, sau đó <code class="inline">build &lt;job&gt; -f</code> để trigger một build và xem kết quả ngay trên terminal.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Jenkins CLI</span></div>
+  <ol class="examples">
+    <li><span class="task">Kiểm tra CLI đã xác thực đúng user chưa.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN who-am-i</pre></li>
+    <li><span class="task">Trigger build một job kèm tham số STRING và chờ kết quả.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN \
+  build deploy-service -f -p ENV=staging</pre></li>
+    <li><span class="task">Theo dõi console log real-time của một job đang chạy.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN console deploy-service -f</pre></li>
+    <li><span class="task">Sao lưu config.xml của tất cả job trong một view.</span>
+<pre><span class="lbl">terminal</span>for job in $(java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN list-jobs); do
+  java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN get-job "$job" &gt; "backup/$job.xml"
+done</pre></li>
+    <li><span class="task">Chạy script Groovy để in danh sách plugin đã cài.</span>
+<pre><span class="lbl">script.groovy</span>Jenkins.<span class="fn">instance</span>.<span class="fn">pluginManager</span>.<span class="fn">plugins</span>.<span class="fn">each</span> { println <span class="str">"${it.shortName}: ${it.version}"</span> }</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Jenkins CLI</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết lệnh tải <code class="inline">jenkins-cli.jar</code> từ server <code class="inline">http://ci.local:8080</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>curl -O http://ci.local:8080/jnlpJars/jenkins-cli.jar</pre></div></details></li>
+    <li><span class="task">Viết lệnh liệt kê tất cả job trên server, xác thực bằng token.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>java -jar jenkins-cli.jar -s http://ci.local:8080/ -auth admin:TOKEN list-jobs</pre></div></details></li>
+    <li><span class="task">Viết lệnh tạo job mới tên <code class="inline">smoke-test</code> từ file <code class="inline">config.xml</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>java -jar jenkins-cli.jar -s http://ci.local:8080/ -auth admin:TOKEN create-job smoke-test &lt; config.xml</pre></div></details></li>
+    <li><span class="task">Viết lệnh trigger job <code class="inline">nightly-build</code> và chờ tới khi hoàn tất.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>java -jar jenkins-cli.jar -s http://ci.local:8080/ -auth admin:TOKEN build nightly-build -f</pre></div></details></li>
+    <li><span class="task">Viết lệnh chạy file <code class="inline">cleanup.groovy</code> trên controller qua CLI.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>java -jar jenkins-cli.jar -s http://ci.local:8080/ -auth admin:TOKEN groovy = &lt; cleanup.groovy</pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 9.1</span>
+  <h2>Jenkins CLI</h2>
+  <div class="box goal"><b>🎯 Goal</b>Download and use <code class="inline">jenkins-cli.jar</code> to control Jenkins from a terminal: listing jobs, building, viewing console logs, creating/updating jobs via XML, and running remote Groovy scripts.</div>
+  <h3>Download &amp; authenticate</h3>
+  <p>The CLI client is a <code class="inline">.jar</code> served by your own Jenkins instance — always download the copy matching your server version to avoid incompatibility.</p>
+<pre><span class="lbl">terminal</span><span class="cmt"># Download jenkins-cli.jar from the running server</span>
+curl -O http://localhost:8080/jnlpJars/jenkins-cli.jar
+
+<span class="cmt"># Authenticate with an API token (recommended) — generate one at</span>
+<span class="cmt"># /user/&lt;username&gt;/security -> "Add new Token"</span>
+java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:11aa22bb33cc44dd who-am-i</pre>
+  <table>
+    <tr><th>Auth method</th><th>Syntax</th><th>Notes</th></tr>
+    <tr><td>API token</td><td><code>-auth user:token</code></td><td>Recommended, doesn't expose the real password.</td></tr>
+    <tr><td>Auth file</td><td><code>-auth @/path/to/file</code></td><td>File content is <code>user:token</code>, avoids leaking it in shell history.</td></tr>
+    <tr><td>SSH key</td><td><code>-i ~/.ssh/id_rsa</code></td><td>Requires enabling the SSH CLI port in "Configure Global Security" and attaching a public key to the user.</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Why prefer API tokens over passwords?</b>Tokens can be revoked independently, don't expose the login password, and can be scoped. It's also how the REST API and many CI integrations authenticate.</div>
+  <h3>Common commands</h3>
+<pre><span class="lbl">terminal</span><span class="cmt"># List every job</span>
+java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN list-jobs
+
+<span class="cmt"># Trigger a build and wait for it to finish (-f = follow/wait, exit code = build result)</span>
+java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN build my-job -f
+
+<span class="cmt"># Trigger a parameterized build</span>
+java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN build my-job -f -p BRANCH=main
+
+<span class="cmt"># Stream the console output (log) of a running job</span>
+java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN console my-job -f
+
+<span class="cmt"># Create a new job from a config.xml file</span>
+java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN create-job new-job &lt; config.xml
+
+<span class="cmt"># Update an existing job from an XML file</span>
+java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN update-job my-job &lt; config.xml
+
+<span class="cmt"># Export a job's config.xml (useful for cloning/backup)</span>
+java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN get-job my-job &gt; config.xml
+
+<span class="cmt"># Run a Groovy script directly on the server (very powerful — be careful with permissions)</span>
+java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN groovy = &lt; script.groovy</pre>
+  <div class="box tip"><b>💡 See every available command</b>Run <code class="inline">java -jar jenkins-cli.jar -s URL -auth user:token help</code> to list all commands — the list depends on installed plugins and can vary between instances.</div>
+  <div class="box warn"><b>⚠️ Risk of the <code class="inline">groovy</code> command</b>A Groovy script runs directly inside the Jenkins controller's JVM with full privileges — it can read/write anything, including stored credentials. Only grant CLI groovy execution to fully trusted users (effectively equivalent to Admin).</div>
+  <div class="box practice"><b>✍️ Exercise</b>Download <code class="inline">jenkins-cli.jar</code> from your Jenkins, create an API token, then use <code class="inline">list-jobs</code> to list jobs, and <code class="inline">build &lt;job&gt; -f</code> to trigger a build and see the result right in your terminal.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Jenkins CLI</span></div>
+  <ol class="examples">
+    <li><span class="task">Check that the CLI authenticated as the right user.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN who-am-i</pre></li>
+    <li><span class="task">Trigger a build with a STRING parameter and wait for the result.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN \
+  build deploy-service -f -p ENV=staging</pre></li>
+    <li><span class="task">Follow the console log of a running job in real time.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN console deploy-service -f</pre></li>
+    <li><span class="task">Back up config.xml for every job in a view.</span>
+<pre><span class="lbl">terminal</span>for job in $(java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN list-jobs); do
+  java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:TOKEN get-job "$job" &gt; "backup/$job.xml"
+done</pre></li>
+    <li><span class="task">Run a Groovy script that prints installed plugins.</span>
+<pre><span class="lbl">script.groovy</span>Jenkins.<span class="fn">instance</span>.<span class="fn">pluginManager</span>.<span class="fn">plugins</span>.<span class="fn">each</span> { println <span class="str">"${it.shortName}: ${it.version}"</span> }</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Jenkins CLI</span></div>
+  <ol class="drills">
+    <li><span class="task">Write the command to download <code class="inline">jenkins-cli.jar</code> from <code class="inline">http://ci.local:8080</code>.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>curl -O http://ci.local:8080/jnlpJars/jenkins-cli.jar</pre></div></details></li>
+    <li><span class="task">Write the command to list every job, authenticating with a token.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>java -jar jenkins-cli.jar -s http://ci.local:8080/ -auth admin:TOKEN list-jobs</pre></div></details></li>
+    <li><span class="task">Write the command to create a job named <code class="inline">smoke-test</code> from <code class="inline">config.xml</code>.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>java -jar jenkins-cli.jar -s http://ci.local:8080/ -auth admin:TOKEN create-job smoke-test &lt; config.xml</pre></div></details></li>
+    <li><span class="task">Write the command to trigger job <code class="inline">nightly-build</code> and wait for completion.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>java -jar jenkins-cli.jar -s http://ci.local:8080/ -auth admin:TOKEN build nightly-build -f</pre></div></details></li>
+    <li><span class="task">Write the command to run <code class="inline">cleanup.groovy</code> on the controller via CLI.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>java -jar jenkins-cli.jar -s http://ci.local:8080/ -auth admin:TOKEN groovy = &lt; cleanup.groovy</pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 9.2 REST API ============ -->
+<section class="lesson" id="rest-api">
+<div class="lang vi">
+  <span class="phase-tag">Bài 9.2</span>
+  <h2>REST API</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Đọc dữ liệu Jenkins (job, build, queue...) qua endpoint JSON/XML/Python, trigger build từ xa bằng <code class="inline">POST</code> có token và CSRF crumb, và đọc trạng thái/console log bằng <code class="inline">curl</code>.</div>
+  <h3>Endpoint dữ liệu — chỉ cần thêm hậu tố</h3>
+  <p>Hầu hết trang trong Jenkins đều có phiên bản dữ liệu thô — chỉ cần thêm <code class="inline">/api/json</code>, <code class="inline">/api/xml</code> hoặc <code class="inline">/api/python</code> vào cuối URL.</p>
+<pre><span class="lbl">terminal</span><span class="cmt"># Thông tin job dạng JSON (danh sách build, health, param...)</span>
+curl -u admin:TOKEN http://localhost:8080/job/my-job/api/json?pretty=true
+
+<span class="cmt"># Thông tin một build cụ thể</span>
+curl -u admin:TOKEN http://localhost:8080/job/my-job/42/api/json?pretty=true
+
+<span class="cmt"># Chỉ lấy đúng field cần, dùng tree= để giảm payload</span>
+curl -u admin:TOKEN "http://localhost:8080/job/my-job/api/json?tree=builds[number,result,timestamp]"
+
+<span class="cmt"># Dạng XML hoặc Python literal</span>
+curl -u admin:TOKEN http://localhost:8080/job/my-job/api/xml
+curl -u admin:TOKEN http://localhost:8080/job/my-job/api/python</pre>
+  <div class="box why"><b>🤔 Vì sao dùng <code class="inline">tree=</code>?</b>Response mặc định có thể rất lớn (toàn bộ lịch sử build, artifact...). Tham số <code class="inline">tree</code> lọc field ngay tại server, giảm băng thông và giúp script parse nhanh hơn.</div>
+  <h3>Trigger build từ xa — cần crumb (CSRF)</h3>
+  <p>Theo mặc định, Jenkins bật <b>CSRF protection</b>, nên các request <code class="inline">POST</code> (kể cả trigger build) cần một "crumb" hợp lệ kèm theo, trừ khi bạn dùng API token qua Basic Auth kết hợp cấu hình cho phép bỏ crumb cho request có auth.</p>
+<pre><span class="lbl">terminal</span><span class="cmt"># 1) Lấy crumb</span>
+CRUMB=$(curl -u admin:TOKEN "http://localhost:8080/crumbIssuer/api/json" \
+  | <span class="fn">jq</span> -r <span class="str">'.crumbRequestField + "=" + .crumb'</span>)
+
+<span class="cmt"># 2) Trigger build kèm crumb</span>
+curl -u admin:TOKEN -X POST -H "$CRUMB" \
+  http://localhost:8080/job/my-job/build
+
+<span class="cmt"># Trigger build có tham số (dùng buildWithParameters)</span>
+curl -u admin:TOKEN -X POST -H "$CRUMB" \
+  "http://localhost:8080/job/my-job/buildWithParameters?ENV=staging&VERSION=1.2.3"
+
+<span class="cmt"># Trigger qua "remote build token" thay vì user/password (bật trong cấu hình job)</span>
+curl -X POST "http://localhost:8080/job/my-job/build?token=MY_REMOTE_TOKEN"</pre>
+  <table>
+    <tr><th>Endpoint</th><th>Method</th><th>Dùng để</th></tr>
+    <tr><td><code>/job/&lt;name&gt;/api/json</code></td><td>GET</td><td>Thông tin job, danh sách build</td></tr>
+    <tr><td><code>/job/&lt;name&gt;/build</code></td><td>POST</td><td>Trigger build không tham số</td></tr>
+    <tr><td><code>/job/&lt;name&gt;/buildWithParameters</code></td><td>POST</td><td>Trigger build có tham số</td></tr>
+    <tr><td><code>/job/&lt;name&gt;/&lt;n&gt;/api/json</code></td><td>GET</td><td>Chi tiết build số n</td></tr>
+    <tr><td><code>/job/&lt;name&gt;/&lt;n&gt;/consoleText</code></td><td>GET</td><td>Console log dạng text thuần</td></tr>
+    <tr><td><code>/queue/api/json</code></td><td>GET</td><td>Xem hàng đợi build</td></tr>
+    <tr><td><code>/crumbIssuer/api/json</code></td><td>GET</td><td>Lấy crumb để dùng cho POST</td></tr>
+  </table>
+  <div class="box tip"><b>💡 Đọc console log qua API</b><code class="inline">GET /job/&lt;name&gt;/&lt;n&gt;/consoleText</code> trả về log dạng text thuần — rất tiện để script CI ngoài polling trạng thái build.</div>
+  <div class="box warn"><b>⚠️ Đừng tắt CSRF protection để "cho tiện"</b>Một số hướng dẫn cũ khuyên tắt hẳn CSRF crumb để đơn giản hóa script — đây là rủi ro bảo mật nghiêm trọng (mở đường cho cross-site request forgery). Luôn lấy crumb đúng cách hoặc dùng remote build token có giới hạn phạm vi.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Viết một script bash: lấy crumb, trigger build có tham số cho một job thật, sau đó poll <code class="inline">/lastBuild/api/json</code> mỗi 5 giây cho tới khi <code class="inline">result</code> khác <code class="inline">null</code>, in ra kết quả cuối cùng.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · REST API</span></div>
+  <ol class="examples">
+    <li><span class="task">Lấy trạng thái build gần nhất của một job.</span>
+<pre><span class="lbl">terminal</span>curl -u admin:TOKEN http://localhost:8080/job/my-job/lastBuild/api/json?tree=result,number</pre></li>
+    <li><span class="task">Trigger build kèm crumb bằng curl.</span>
+<pre><span class="lbl">terminal</span>CRUMB=$(curl -u admin:TOKEN http://localhost:8080/crumbIssuer/api/json | jq -r '.crumbRequestField + "=" + .crumb')
+curl -u admin:TOKEN -X POST -H "$CRUMB" http://localhost:8080/job/my-job/build</pre></li>
+    <li><span class="task">Tải console log của build số 87 ra file.</span>
+<pre><span class="lbl">terminal</span>curl -u admin:TOKEN http://localhost:8080/job/my-job/87/consoleText -o build-87.log</pre></li>
+    <li><span class="task">Kiểm tra số build đang chờ trong hàng đợi.</span>
+<pre><span class="lbl">terminal</span>curl -u admin:TOKEN http://localhost:8080/queue/api/json?tree=items[task[name]]</pre></li>
+    <li><span class="task">Poll trạng thái build cho tới khi hoàn tất (bash).</span>
+<pre><span class="lbl">poll.sh</span><span class="kw">while</span> true; <span class="kw">do</span>
+  RESULT=$(curl -s -u admin:TOKEN http://localhost:8080/job/my-job/lastBuild/api/json | jq -r .result)
+  [ "$RESULT" != "null" ] &amp;&amp; <span class="kw">break</span>
+  sleep <span class="num">5</span>
+<span class="kw">done</span>
+echo "Build result: $RESULT"</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · REST API</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết lệnh curl lấy thông tin job <code class="inline">my-app</code> dạng JSON, định dạng đẹp.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>curl -u admin:TOKEN http://localhost:8080/job/my-app/api/json?pretty=true</pre></div></details></li>
+    <li><span class="task">Viết lệnh lấy crumb CSRF từ Jenkins.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>curl -u admin:TOKEN http://localhost:8080/crumbIssuer/api/json</pre></div></details></li>
+    <li><span class="task">Viết lệnh trigger job <code class="inline">my-app</code> kèm tham số <code class="inline">ENV=prod</code> (đã có biến $CRUMB).</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>curl -u admin:TOKEN -X POST -H "$CRUMB" "http://localhost:8080/job/my-app/buildWithParameters?ENV=prod"</pre></div></details></li>
+    <li><span class="task">Viết endpoint lấy console log dạng text thuần của build mới nhất.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>curl -u admin:TOKEN http://localhost:8080/job/my-app/lastBuild/consoleText</pre></div></details></li>
+    <li><span class="task">Viết lệnh chỉ lấy field <code class="inline">result</code> và <code class="inline">number</code> của build gần nhất bằng tree.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>curl -u admin:TOKEN "http://localhost:8080/job/my-app/lastBuild/api/json?tree=result,number"</pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 9.2</span>
+  <h2>REST API</h2>
+  <div class="box goal"><b>🎯 Goal</b>Read Jenkins data (jobs, builds, queue...) via JSON/XML/Python endpoints, trigger builds remotely with a <code class="inline">POST</code> carrying a token and CSRF crumb, and read status/console logs with <code class="inline">curl</code>.</div>
+  <h3>Data endpoints — just append a suffix</h3>
+  <p>Most Jenkins pages have a raw-data version — just append <code class="inline">/api/json</code>, <code class="inline">/api/xml</code> or <code class="inline">/api/python</code> to the URL.</p>
+<pre><span class="lbl">terminal</span><span class="cmt"># Job info as JSON (build list, health, params...)</span>
+curl -u admin:TOKEN http://localhost:8080/job/my-job/api/json?pretty=true
+
+<span class="cmt"># Info for one specific build</span>
+curl -u admin:TOKEN http://localhost:8080/job/my-job/42/api/json?pretty=true
+
+<span class="cmt"># Fetch only the fields you need with tree= to shrink the payload</span>
+curl -u admin:TOKEN "http://localhost:8080/job/my-job/api/json?tree=builds[number,result,timestamp]"
+
+<span class="cmt"># XML or Python literal form</span>
+curl -u admin:TOKEN http://localhost:8080/job/my-job/api/xml
+curl -u admin:TOKEN http://localhost:8080/job/my-job/api/python</pre>
+  <div class="box why"><b>🤔 Why use <code class="inline">tree=</code>?</b>The default response can be huge (full build history, artifacts...). The <code class="inline">tree</code> parameter filters fields server-side, cutting bandwidth and making scripts parse faster.</div>
+  <h3>Triggering builds remotely — crumb (CSRF) required</h3>
+  <p>By default Jenkins enables <b>CSRF protection</b>, so <code class="inline">POST</code> requests (including triggering builds) need a valid "crumb" attached, unless you use an API token via Basic Auth combined with a config that exempts authenticated requests from the crumb check.</p>
+<pre><span class="lbl">terminal</span><span class="cmt"># 1) Fetch a crumb</span>
+CRUMB=$(curl -u admin:TOKEN "http://localhost:8080/crumbIssuer/api/json" \
+  | <span class="fn">jq</span> -r <span class="str">'.crumbRequestField + "=" + .crumb'</span>)
+
+<span class="cmt"># 2) Trigger a build with the crumb</span>
+curl -u admin:TOKEN -X POST -H "$CRUMB" \
+  http://localhost:8080/job/my-job/build
+
+<span class="cmt"># Trigger a parameterized build (use buildWithParameters)</span>
+curl -u admin:TOKEN -X POST -H "$CRUMB" \
+  "http://localhost:8080/job/my-job/buildWithParameters?ENV=staging&VERSION=1.2.3"
+
+<span class="cmt"># Trigger via a "remote build token" instead of user/password (enabled in job config)</span>
+curl -X POST "http://localhost:8080/job/my-job/build?token=MY_REMOTE_TOKEN"</pre>
+  <table>
+    <tr><th>Endpoint</th><th>Method</th><th>Purpose</th></tr>
+    <tr><td><code>/job/&lt;name&gt;/api/json</code></td><td>GET</td><td>Job info, build list</td></tr>
+    <tr><td><code>/job/&lt;name&gt;/build</code></td><td>POST</td><td>Trigger a build without params</td></tr>
+    <tr><td><code>/job/&lt;name&gt;/buildWithParameters</code></td><td>POST</td><td>Trigger a build with params</td></tr>
+    <tr><td><code>/job/&lt;name&gt;/&lt;n&gt;/api/json</code></td><td>GET</td><td>Details of build number n</td></tr>
+    <tr><td><code>/job/&lt;name&gt;/&lt;n&gt;/consoleText</code></td><td>GET</td><td>Plain-text console log</td></tr>
+    <tr><td><code>/queue/api/json</code></td><td>GET</td><td>View the build queue</td></tr>
+    <tr><td><code>/crumbIssuer/api/json</code></td><td>GET</td><td>Fetch a crumb for POST requests</td></tr>
+  </table>
+  <div class="box tip"><b>💡 Reading console logs via the API</b><code class="inline">GET /job/&lt;name&gt;/&lt;n&gt;/consoleText</code> returns a plain-text log — very handy for an external CI script polling build status.</div>
+  <div class="box warn"><b>⚠️ Don't disable CSRF protection for "convenience"</b>Some older guides suggest disabling the CSRF crumb entirely to simplify scripts — this is a serious security risk (opens the door to cross-site request forgery). Always fetch the crumb properly or use a scoped remote build token.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Write a bash script: fetch a crumb, trigger a parameterized build for a real job, then poll <code class="inline">/lastBuild/api/json</code> every 5 seconds until <code class="inline">result</code> is no longer <code class="inline">null</code>, and print the final result.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · REST API</span></div>
+  <ol class="examples">
+    <li><span class="task">Get the latest build status of a job.</span>
+<pre><span class="lbl">terminal</span>curl -u admin:TOKEN http://localhost:8080/job/my-job/lastBuild/api/json?tree=result,number</pre></li>
+    <li><span class="task">Trigger a build with a crumb via curl.</span>
+<pre><span class="lbl">terminal</span>CRUMB=$(curl -u admin:TOKEN http://localhost:8080/crumbIssuer/api/json | jq -r '.crumbRequestField + "=" + .crumb')
+curl -u admin:TOKEN -X POST -H "$CRUMB" http://localhost:8080/job/my-job/build</pre></li>
+    <li><span class="task">Download the console log of build 87 to a file.</span>
+<pre><span class="lbl">terminal</span>curl -u admin:TOKEN http://localhost:8080/job/my-job/87/consoleText -o build-87.log</pre></li>
+    <li><span class="task">Check how many builds are waiting in the queue.</span>
+<pre><span class="lbl">terminal</span>curl -u admin:TOKEN http://localhost:8080/queue/api/json?tree=items[task[name]]</pre></li>
+    <li><span class="task">Poll build status until completion (bash).</span>
+<pre><span class="lbl">poll.sh</span><span class="kw">while</span> true; <span class="kw">do</span>
+  RESULT=$(curl -s -u admin:TOKEN http://localhost:8080/job/my-job/lastBuild/api/json | jq -r .result)
+  [ "$RESULT" != "null" ] &amp;&amp; <span class="kw">break</span>
+  sleep <span class="num">5</span>
+<span class="kw">done</span>
+echo "Build result: $RESULT"</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · REST API</span></div>
+  <ol class="drills">
+    <li><span class="task">Write a curl command to get job <code class="inline">my-app</code> info as pretty-printed JSON.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>curl -u admin:TOKEN http://localhost:8080/job/my-app/api/json?pretty=true</pre></div></details></li>
+    <li><span class="task">Write the command to fetch a CSRF crumb from Jenkins.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>curl -u admin:TOKEN http://localhost:8080/crumbIssuer/api/json</pre></div></details></li>
+    <li><span class="task">Write the command to trigger <code class="inline">my-app</code> with param <code class="inline">ENV=prod</code> (assume $CRUMB is set).</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>curl -u admin:TOKEN -X POST -H "$CRUMB" "http://localhost:8080/job/my-app/buildWithParameters?ENV=prod"</pre></div></details></li>
+    <li><span class="task">Write the endpoint to fetch the plain-text console log of the latest build.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>curl -u admin:TOKEN http://localhost:8080/job/my-app/lastBuild/consoleText</pre></div></details></li>
+    <li><span class="task">Write a command that fetches only <code class="inline">result</code> and <code class="inline">number</code> of the latest build using tree.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>curl -u admin:TOKEN "http://localhost:8080/job/my-app/lastBuild/api/json?tree=result,number"</pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 9.3 Pipeline Syntax Reference ============ -->
+<section class="lesson" id="pipeline-syntax-ref">
+<div class="lang vi">
+  <span class="phase-tag">Bài 9.3</span>
+  <h2>Tra cứu cú pháp Pipeline</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Biết dùng công cụ "Pipeline Syntax" (Snippet Generator) trong UI để tự sinh cú pháp step chính xác, nắm các biến toàn cục <code class="inline">env</code>/<code class="inline">currentBuild</code>/<code class="inline">params</code>, và có sẵn bảng cheat-sheet các step hay dùng nhất.</div>
+  <h3>Snippet Generator — đừng nhớ, hãy sinh</h3>
+  <p>Mọi job Pipeline đều có link <b>"Pipeline Syntax"</b> ở sidebar. Trong đó, mục <b>Snippet Generator</b> cho bạn chọn step từ dropdown, điền form (giống một UI job cũ), rồi bấm "Generate Pipeline Script" để lấy đúng cú pháp Groovy — cực hữu ích cho các step phức tạp như <code class="inline">withCredentials</code> hay step của plugin bên thứ ba.</p>
+<pre><span class="lbl">truy cập</span>http://localhost:8080/job/&lt;job-name&gt;/pipeline-syntax/
+<span class="cmt"># hoặc: mở job Pipeline -> sidebar "Pipeline Syntax"</span></pre>
+  <div class="box tip"><b>💡 Declarative Directive Generator</b>Cùng trang còn có mục sinh cú pháp cho các <i>directive</i> Declarative (như <code class="inline">agent</code>, <code class="inline">triggers</code>, <code class="inline">options</code>, <code class="inline">post</code>) — không chỉ step.</div>
+  <h3>Global Variable Reference</h3>
+  <p>Link <b>"Global Variable Reference"</b> (cùng khu vực) liệt kê mọi biến sẵn có trong Pipeline của bạn, gồm cả biến do plugin thêm vào. Ba biến hay dùng nhất:</p>
+  <table>
+    <tr><th>Biến</th><th>Ví dụ dùng</th><th>Ghi chú</th></tr>
+    <tr><td><code>env</code></td><td><code>env.BUILD_NUMBER</code>, <code>env.WORKSPACE</code></td><td>Biến môi trường; cũng dùng để set biến tùy chỉnh trong block <code>environment</code>.</td></tr>
+    <tr><td><code>currentBuild</code></td><td><code>currentBuild.result</code>, <code>currentBuild.number</code></td><td>Thông tin build hiện tại — đọc/ghi được kết quả, hiển thị, description.</td></tr>
+    <tr><td><code>params</code></td><td><code>params.ENV</code></td><td>Giá trị tham số build (khai báo trong <code>parameters {}</code>).</td></tr>
+  </table>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent any
+  stages {
+    stage(<span class="str">'Info'</span>) {
+      steps {
+        echo <span class="str">"Build #${env.BUILD_NUMBER} on ${env.NODE_NAME}"</span>
+        echo <span class="str">"Param ENV = ${params.ENV}"</span>
+        script { currentBuild.<span class="fn">description</span> = <span class="str">"Deployed ${params.ENV}"</span> }
+      }
+    }
+  }
+}</pre>
+  <h3>Cheat-sheet các step thường dùng</h3>
+  <table>
+    <tr><th>Step</th><th>Cú pháp mẫu</th><th>Dùng khi</th></tr>
+    <tr><td><code>sh</code></td><td><code>sh 'npm test'</code></td><td>Chạy lệnh shell (Linux/Mac; dùng <code>bat</code> trên Windows).</td></tr>
+    <tr><td><code>checkout</code></td><td><code>checkout scm</code></td><td>Lấy source code (thường dùng lại cấu hình SCM của job).</td></tr>
+    <tr><td><code>archiveArtifacts</code></td><td><code>archiveArtifacts artifacts: 'dist/**'</code></td><td>Lưu file output để tải về sau build.</td></tr>
+    <tr><td><code>junit</code></td><td><code>junit 'reports/*.xml'</code></td><td>Publish kết quả test JUnit, hiển thị biểu đồ xu hướng.</td></tr>
+    <tr><td><code>stash</code>/<code>unstash</code></td><td><code>stash name: 'src'</code> / <code>unstash 'src'</code></td><td>Chuyển file giữa các stage/agent khác nhau trong cùng build.</td></tr>
+    <tr><td><code>input</code></td><td><code>input message: 'Deploy?'</code></td><td>Chờ phê duyệt thủ công trước khi tiếp tục.</td></tr>
+    <tr><td><code>parallel</code></td><td><code>parallel(a: {...}, b: {...})</code></td><td>Chạy nhiều nhánh công việc song song.</td></tr>
+    <tr><td><code>withCredentials</code></td><td><code>withCredentials([usernamePassword(...)])</code></td><td>Đưa credential vào biến môi trường tạm thời, an toàn.</td></tr>
+    <tr><td><code>timeout</code></td><td><code>timeout(time: 10, unit: 'MINUTES') {...}</code></td><td>Giới hạn thời gian chạy của một block, tránh treo vô hạn.</td></tr>
+    <tr><td><code>retry</code></td><td><code>retry(3) {...}</code></td><td>Tự thử lại một block khi gặp lỗi tạm thời (mạng, flaky).</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Vì sao không nên "đoán" cú pháp step?</b>Nhiều step có tham số bắt buộc/tùy chọn khác nhau tùy plugin và version. Snippet Generator luôn phản ánh đúng version plugin đang cài trên server của bạn — chính xác hơn nhớ nhầm từ project khác.</div>
+  <div class="box warn"><b>⚠️ Global Variable Reference thay đổi theo plugin</b>Danh sách biến/step khả dụng phụ thuộc plugin đã cài — Jenkinsfile copy từ một Jenkins khác có thể dùng step không tồn tại trên server của bạn. Luôn kiểm tra lại bằng chính trang Reference của server đích.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Mở "Pipeline Syntax" trên một job thật, dùng Snippet Generator sinh cú pháp cho <code class="inline">withCredentials</code> lấy một secret text, rồi dán vào Jenkinsfile và chạy thử.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Tra cứu cú pháp</span></div>
+  <ol class="examples">
+    <li><span class="task">In thông tin build hiện tại bằng env và currentBuild.</span>
+<pre><span class="lbl">Jenkinsfile</span>echo <span class="str">"Build ${env.BUILD_NUMBER} - result so far: ${currentBuild.currentResult}"</span></pre></li>
+    <li><span class="task">Archive artifact sau khi build xong.</span>
+<pre><span class="lbl">Jenkinsfile</span>archiveArtifacts artifacts: <span class="str">'build/libs/*.jar'</span>, fingerprint: <span class="kw">true</span></pre></li>
+    <li><span class="task">Publish kết quả JUnit và cho phép build tiếp dù có test fail.</span>
+<pre><span class="lbl">Jenkinsfile</span>junit testResults: <span class="str">'**/target/surefire-reports/*.xml'</span>, allowEmptyResults: <span class="kw">true</span></pre></li>
+    <li><span class="task">Chạy 2 stage song song rồi gộp kết quả.</span>
+<pre><span class="lbl">Jenkinsfile</span>parallel(
+  <span class="str">'unit'</span>:  { sh <span class="str">'npm run test:unit'</span> },
+  <span class="str">'lint'</span>:  { sh <span class="str">'npm run lint'</span> }
+)</pre></li>
+    <li><span class="task">Dùng withCredentials để lấy username/password an toàn.</span>
+<pre><span class="lbl">Jenkinsfile</span>withCredentials([usernamePassword(credentialsId: <span class="str">'docker-hub'</span>, usernameVariable: <span class="str">'USER'</span>, passwordVariable: <span class="str">'PASS'</span>)]) {
+  sh <span class="str">'echo $PASS | docker login -u $USER --password-stdin'</span>
+}</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Tra cứu cú pháp</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết step giới hạn một block chạy tối đa 15 phút.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>timeout(time: <span class="num">15</span>, unit: <span class="str">'MINUTES'</span>) {
+  sh <span class="str">'./slow-script.sh'</span>
+}</pre></div></details></li>
+    <li><span class="task">Viết step tự thử lại tối đa 3 lần khi lệnh sh thất bại.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>retry(<span class="num">3</span>) {
+  sh <span class="str">'curl -f https://flaky-service/health'</span>
+}</pre></div></details></li>
+    <li><span class="task">Viết step chờ phê duyệt thủ công với message "Approve deploy?".</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>input message: <span class="str">'Approve deploy?'</span></pre></div></details></li>
+    <li><span class="task">Stash thư mục <code class="inline">dist</code> với tên "build-output".</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>stash name: <span class="str">'build-output'</span>, includes: <span class="str">'dist/**'</span></pre></div></details></li>
+    <li><span class="task">Truy cập số build hiện tại và đọc tham số ENV trong echo.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>echo <span class="str">"Build #${env.BUILD_NUMBER}, ENV=${params.ENV}"</span></pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 9.3</span>
+  <h2>Pipeline Syntax Reference</h2>
+  <div class="box goal"><b>🎯 Goal</b>Learn to use the built-in "Pipeline Syntax" (Snippet Generator) UI to generate correct step syntax, know the global variables <code class="inline">env</code>/<code class="inline">currentBuild</code>/<code class="inline">params</code>, and keep a cheat-sheet of the most common steps handy.</div>
+  <h3>Snippet Generator — don't memorize, generate</h3>
+  <p>Every Pipeline job has a <b>"Pipeline Syntax"</b> link in its sidebar. Inside, the <b>Snippet Generator</b> lets you pick a step from a dropdown, fill in a form (like an old-style job UI), then click "Generate Pipeline Script" to get exact Groovy syntax — extremely useful for complex steps like <code class="inline">withCredentials</code> or third-party plugin steps.</p>
+<pre><span class="lbl">access at</span>http://localhost:8080/job/&lt;job-name&gt;/pipeline-syntax/
+<span class="cmt"># or: open a Pipeline job -> sidebar "Pipeline Syntax"</span></pre>
+  <div class="box tip"><b>💡 Declarative Directive Generator</b>The same page also has a generator for Declarative <i>directives</i> (like <code class="inline">agent</code>, <code class="inline">triggers</code>, <code class="inline">options</code>, <code class="inline">post</code>) — not just steps.</div>
+  <h3>Global Variable Reference</h3>
+  <p>The <b>"Global Variable Reference"</b> link (same area) lists every variable available to your Pipeline, including ones added by plugins. The three most commonly used:</p>
+  <table>
+    <tr><th>Variable</th><th>Example use</th><th>Notes</th></tr>
+    <tr><td><code>env</code></td><td><code>env.BUILD_NUMBER</code>, <code>env.WORKSPACE</code></td><td>Environment variables; also used to set custom vars in an <code>environment</code> block.</td></tr>
+    <tr><td><code>currentBuild</code></td><td><code>currentBuild.result</code>, <code>currentBuild.number</code></td><td>Info about the current build — readable/writable result, display name, description.</td></tr>
+    <tr><td><code>params</code></td><td><code>params.ENV</code></td><td>Build parameter values (declared in <code>parameters {}</code>).</td></tr>
+  </table>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent any
+  stages {
+    stage(<span class="str">'Info'</span>) {
+      steps {
+        echo <span class="str">"Build #${env.BUILD_NUMBER} on ${env.NODE_NAME}"</span>
+        echo <span class="str">"Param ENV = ${params.ENV}"</span>
+        script { currentBuild.<span class="fn">description</span> = <span class="str">"Deployed ${params.ENV}"</span> }
+      }
+    }
+  }
+}</pre>
+  <h3>Common steps cheat-sheet</h3>
+  <table>
+    <tr><th>Step</th><th>Sample syntax</th><th>Use when</th></tr>
+    <tr><td><code>sh</code></td><td><code>sh 'npm test'</code></td><td>Run a shell command (Linux/Mac; use <code>bat</code> on Windows).</td></tr>
+    <tr><td><code>checkout</code></td><td><code>checkout scm</code></td><td>Fetch source code (typically reuses the job's SCM config).</td></tr>
+    <tr><td><code>archiveArtifacts</code></td><td><code>archiveArtifacts artifacts: 'dist/**'</code></td><td>Save build output for download afterward.</td></tr>
+    <tr><td><code>junit</code></td><td><code>junit 'reports/*.xml'</code></td><td>Publish JUnit test results, show trend charts.</td></tr>
+    <tr><td><code>stash</code>/<code>unstash</code></td><td><code>stash name: 'src'</code> / <code>unstash 'src'</code></td><td>Move files between stages/agents within the same build.</td></tr>
+    <tr><td><code>input</code></td><td><code>input message: 'Deploy?'</code></td><td>Wait for manual approval before continuing.</td></tr>
+    <tr><td><code>parallel</code></td><td><code>parallel(a: {...}, b: {...})</code></td><td>Run multiple branches of work concurrently.</td></tr>
+    <tr><td><code>withCredentials</code></td><td><code>withCredentials([usernamePassword(...)])</code></td><td>Inject credentials into temporary env vars, safely.</td></tr>
+    <tr><td><code>timeout</code></td><td><code>timeout(time: 10, unit: 'MINUTES') {...}</code></td><td>Cap how long a block can run, avoid infinite hangs.</td></tr>
+    <tr><td><code>retry</code></td><td><code>retry(3) {...}</code></td><td>Automatically retry a block on transient failures (network, flaky).</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Why not "guess" step syntax?</b>Many steps have required/optional parameters that vary by plugin and version. The Snippet Generator always reflects the exact plugin version installed on your server — more reliable than misremembering from another project.</div>
+  <div class="box warn"><b>⚠️ The Global Variable Reference changes with plugins</b>Which variables/steps are available depends on installed plugins — a Jenkinsfile copied from another Jenkins may use a step that doesn't exist on your server. Always double-check with the Reference page of the target server.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Open "Pipeline Syntax" on a real job, use the Snippet Generator to generate syntax for <code class="inline">withCredentials</code> fetching a secret text, then paste it into a Jenkinsfile and run it.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Syntax reference</span></div>
+  <ol class="examples">
+    <li><span class="task">Print current build info using env and currentBuild.</span>
+<pre><span class="lbl">Jenkinsfile</span>echo <span class="str">"Build ${env.BUILD_NUMBER} - result so far: ${currentBuild.currentResult}"</span></pre></li>
+    <li><span class="task">Archive an artifact after the build.</span>
+<pre><span class="lbl">Jenkinsfile</span>archiveArtifacts artifacts: <span class="str">'build/libs/*.jar'</span>, fingerprint: <span class="kw">true</span></pre></li>
+    <li><span class="task">Publish JUnit results while allowing the build to continue with failures.</span>
+<pre><span class="lbl">Jenkinsfile</span>junit testResults: <span class="str">'**/target/surefire-reports/*.xml'</span>, allowEmptyResults: <span class="kw">true</span></pre></li>
+    <li><span class="task">Run 2 stages in parallel then merge results.</span>
+<pre><span class="lbl">Jenkinsfile</span>parallel(
+  <span class="str">'unit'</span>:  { sh <span class="str">'npm run test:unit'</span> },
+  <span class="str">'lint'</span>:  { sh <span class="str">'npm run lint'</span> }
+)</pre></li>
+    <li><span class="task">Use withCredentials to safely fetch a username/password.</span>
+<pre><span class="lbl">Jenkinsfile</span>withCredentials([usernamePassword(credentialsId: <span class="str">'docker-hub'</span>, usernameVariable: <span class="str">'USER'</span>, passwordVariable: <span class="str">'PASS'</span>)]) {
+  sh <span class="str">'echo $PASS | docker login -u $USER --password-stdin'</span>
+}</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Syntax reference</span></div>
+  <ol class="drills">
+    <li><span class="task">Write a step that caps a block to run for at most 15 minutes.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>timeout(time: <span class="num">15</span>, unit: <span class="str">'MINUTES'</span>) {
+  sh <span class="str">'./slow-script.sh'</span>
+}</pre></div></details></li>
+    <li><span class="task">Write a step that retries an sh command up to 3 times on failure.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>retry(<span class="num">3</span>) {
+  sh <span class="str">'curl -f https://flaky-service/health'</span>
+}</pre></div></details></li>
+    <li><span class="task">Write a step that waits for manual approval with message "Approve deploy?".</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>input message: <span class="str">'Approve deploy?'</span></pre></div></details></li>
+    <li><span class="task">Stash the <code class="inline">dist</code> folder under the name "build-output".</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>stash name: <span class="str">'build-output'</span>, includes: <span class="str">'dist/**'</span></pre></div></details></li>
+    <li><span class="task">Access the current build number and read the ENV parameter in an echo.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>echo <span class="str">"Build #${env.BUILD_NUMBER}, ENV=${params.ENV}"</span></pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 9.4 Troubleshooting ============ -->
+<section class="lesson" id="troubleshooting">
+<div class="lang vi">
+  <span class="phase-tag">Bài 9.4</span>
+  <h2>Xử lý sự cố thường gặp</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Đọc được stack trace trong console output, phân biệt <code class="inline">FAILURE</code>/<code class="inline">UNSTABLE</code>, nhận diện vấn đề dung lượng đĩa, agent offline, xung đột plugin sau nâng cấp, và biết dùng <code class="inline">/log</code> + support bundle để chẩn đoán.</div>
+  <h3>Đọc console output &amp; stack trace</h3>
+  <p>Luôn đọc <b>từ dưới lên</b> — dòng lỗi gốc (root cause) thường nằm gần cuối, các dòng phía trên chỉ là hệ quả. Với Pipeline, tìm dòng bắt đầu bằng <code class="inline">ERROR:</code> hoặc <code class="inline">Also:</code> (khi có nhiều lỗi lồng nhau), và stage nào đang chạy khi lỗi xảy ra (in đậm trong khối "Stage View" hoặc <code class="inline">[Pipeline] { (Stage Name)</code>).</p>
+<pre><span class="lbl">console output</span>[Pipeline] sh
++ npm test
+...
+Error: Cannot find module 'jest'
+    at Function.Module._resolveFilename (node:internal/modules/cjs/loader:1075:15)
+    ...
+[Pipeline] }
+[Pipeline] // stage
+ERROR: script returned exit code 1
+Finished: FAILURE</pre>
+  <table>
+    <tr><th>Trạng thái</th><th>Ý nghĩa</th><th>Nguyên nhân điển hình</th></tr>
+    <tr><td><code>SUCCESS</code></td><td>Mọi step/stage đều pass</td><td>—</td></tr>
+    <tr><td><code>UNSTABLE</code></td><td>Build chạy xong nhưng có tín hiệu xấu (thường do test fail nhưng bước publish vẫn tiếp tục)</td><td><code>junit</code> publish thấy test failed, hoặc step gọi <code>currentBuild.result = 'UNSTABLE'</code></td></tr>
+    <tr><td><code>FAILURE</code></td><td>Có step ném lỗi khiến Pipeline dừng hẳn</td><td>Lệnh <code>sh</code> exit code khác 0, exception Groovy, timeout</td></tr>
+    <tr><td><code>ABORTED</code></td><td>Bị hủy thủ công hoặc do timeout/kill</td><td>Người dùng bấm Abort, hoặc <code>timeout(){}</code> hết giờ</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Vì sao build có thể UNSTABLE thay vì FAILURE?</b>Nhiều publisher (như <code class="inline">junit</code>) được thiết kế để không làm dừng cả pipeline chỉ vì vài test fail — chúng đánh dấu build <code class="inline">UNSTABLE</code> để bạn vẫn thấy artifact/report, thay vì mất hết vì FAILURE cứng.</div>
+  <h3>Hết dung lượng đĩa &amp; workspace phình to</h3>
+  <p>Nguyên nhân phổ biến nhất khiến controller/agent "đứng hình": build history và workspace không được dọn, artifact tích lũy qua hàng ngàn build.</p>
+<pre><span class="lbl">Jenkinsfile — giới hạn lịch sử</span>options {
+  buildDiscarder(logRotator(numToKeepStr: <span class="str">'30'</span>, artifactNumToKeepStr: <span class="str">'10'</span>))
+}</pre>
+  <ul>
+    <li>Dùng plugin <b>Disk Usage</b> hoặc <b>Workspace Cleanup</b> (<code class="inline">cleanWs()</code>) để dọn workspace sau mỗi build.</li>
+    <li>Kiểm tra <code class="inline">JENKINS_HOME</code> (đặc biệt <code class="inline">jobs/*/builds</code>) khi controller báo cảnh báo "Disk space" trên trang chủ.</li>
+  </ul>
+  <h3>Agent offline &amp; xung đột plugin</h3>
+  <table>
+    <tr><th>Triệu chứng</th><th>Nguyên nhân thường gặp</th><th>Kiểm tra</th></tr>
+    <tr><td>Agent hiện offline</td><td>Mất kết nối mạng, agent.jar/Java version không khớp, hết dung lượng đĩa trên agent, JNLP port bị chặn</td><td>Log agent trong "Manage Nodes" → tên node → "Log"</td></tr>
+    <tr><td>Job lỗi lạ sau khi nâng cấp plugin</td><td>Hai plugin phụ thuộc phiên bản thư viện khác nhau (classloading), hoặc plugin mới đổi API</td><td><code>/pluginManager/installed</code>, xem changelog plugin, thử rollback từng plugin một</td></tr>
+  </table>
+  <h3>Công cụ chẩn đoán sâu hơn</h3>
+<pre><span class="lbl">terminal / trình duyệt</span><span class="cmt"># Xem log hệ thống Jenkins (System Log) trực tiếp trên UI</span>
+http://localhost:8080/log/all
+
+<span class="cmt"># Tạo Support Bundle (cần cài plugin "Support Core", thường có sẵn)</span>
+http://localhost:8080/support-core/generateAllBundlesAsync
+
+<span class="cmt"># Xem thread dump khi Jenkins bị treo (deadlock nghi ngờ)</span>
+http://localhost:8080/threadDump</pre>
+  <div class="box tip"><b>💡 Support Bundle là gì?</b>Đây là file .zip chứa log hệ thống, danh sách plugin, cấu hình node, thread dump... — thứ đầu tiên nên đính kèm khi báo lỗi lên cộng đồng Jenkins hoặc issue tracker.</div>
+  <div class="box warn"><b>⚠️ Đừng xóa <code class="inline">JENKINS_HOME/jobs/*/builds</code> thủ công khi Jenkins đang chạy</b>Xóa file build trực tiếp trong khi controller đang ghi/đọc có thể làm hỏng index nội bộ. Luôn dùng buildDiscarder hoặc dừng Jenkins trước khi thao tác file thủ công.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Cố tình cho một stage <code class="inline">sh 'exit 1'</code>, quan sát console output đọc từ dưới lên, xác nhận trạng thái <code class="inline">FAILURE</code>, sau đó thêm <code class="inline">buildDiscarder</code> để giới hạn 20 build gần nhất.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Troubleshooting</span></div>
+  <ol class="examples">
+    <li><span class="task">Giới hạn lịch sử build để tránh đầy đĩa.</span>
+<pre><span class="lbl">Jenkinsfile</span>options { buildDiscarder(logRotator(numToKeepStr: <span class="str">'20'</span>)) }</pre></li>
+    <li><span class="task">Dọn workspace sau mỗi build kể cả khi fail.</span>
+<pre><span class="lbl">Jenkinsfile</span>post {
+  always { cleanWs() }
+}</pre></li>
+    <li><span class="task">Đánh dấu build UNSTABLE thủ công khi kiểm tra thất bại nhẹ.</span>
+<pre><span class="lbl">Jenkinsfile</span>script {
+  <span class="kw">if</span> (someWarning) { currentBuild.result = <span class="str">'UNSTABLE'</span> }
+}</pre></li>
+    <li><span class="task">Xem log hệ thống Jenkins cấp độ ALL trực tiếp qua URL.</span>
+<pre><span class="lbl">trình duyệt</span>http://localhost:8080/log/all</pre></li>
+    <li><span class="task">Bọc bước dễ treo bằng timeout để không chờ vô hạn.</span>
+<pre><span class="lbl">Jenkinsfile</span>timeout(time: <span class="num">20</span>, unit: <span class="str">'MINUTES'</span>) {
+  sh <span class="str">'./integration-tests.sh'</span>
+}</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Troubleshooting</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết options giữ tối đa 15 build và 5 artifact gần nhất.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>options { buildDiscarder(logRotator(numToKeepStr: <span class="str">'15'</span>, artifactNumToKeepStr: <span class="str">'5'</span>)) }</pre></div></details></li>
+    <li><span class="task">Viết post block dọn workspace chỉ khi build failure.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>post {
+  failure { cleanWs() }
+}</pre></div></details></li>
+    <li><span class="task">Nêu URL xem thread dump khi nghi Jenkins bị deadlock.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>http://localhost:8080/threadDump</pre></div></details></li>
+    <li><span class="task">Phân biệt ngắn gọn FAILURE và UNSTABLE.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// FAILURE: một step ném lỗi, pipeline dừng hẳn.
+// UNSTABLE: pipeline chạy hết nhưng có tín hiệu xấu (vd: test fail được junit publish).</span></pre></div></details></li>
+    <li><span class="task">Nêu nơi tạo Support Bundle để đính kèm khi báo lỗi.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>http://localhost:8080/support-core/generateAllBundlesAsync</pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 9.4</span>
+  <h2>Common Troubleshooting</h2>
+  <div class="box goal"><b>🎯 Goal</b>Read stack traces in console output, tell <code class="inline">FAILURE</code> apart from <code class="inline">UNSTABLE</code>, recognize disk-space issues, agent-offline causes, plugin conflicts after upgrades, and know how to use <code class="inline">/log</code> plus support bundles to diagnose problems.</div>
+  <h3>Reading console output &amp; stack traces</h3>
+  <p>Always read <b>bottom-up</b> — the root cause line is usually near the end; lines above are often just consequences. In Pipeline, look for lines starting with <code class="inline">ERROR:</code> or <code class="inline">Also:</code> (when errors are nested), and which stage was running when the failure occurred (highlighted in "Stage View" or <code class="inline">[Pipeline] { (Stage Name)</code>).</p>
+<pre><span class="lbl">console output</span>[Pipeline] sh
++ npm test
+...
+Error: Cannot find module 'jest'
+    at Function.Module._resolveFilename (node:internal/modules/cjs/loader:1075:15)
+    ...
+[Pipeline] }
+[Pipeline] // stage
+ERROR: script returned exit code 1
+Finished: FAILURE</pre>
+  <table>
+    <tr><th>Status</th><th>Meaning</th><th>Typical cause</th></tr>
+    <tr><td><code>SUCCESS</code></td><td>Every step/stage passed</td><td>—</td></tr>
+    <tr><td><code>UNSTABLE</code></td><td>Build finished but reported a bad signal (usually failed tests but the publish step still ran)</td><td><code>junit</code> publisher saw failed tests, or a step called <code>currentBuild.result = 'UNSTABLE'</code></td></tr>
+    <tr><td><code>FAILURE</code></td><td>A step threw an error, stopping the Pipeline outright</td><td>Non-zero <code>sh</code> exit code, a Groovy exception, a timeout</td></tr>
+    <tr><td><code>ABORTED</code></td><td>Manually cancelled or killed by timeout</td><td>User clicked Abort, or a <code>timeout(){}</code> expired</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Why can a build be UNSTABLE instead of FAILURE?</b>Many publishers (like <code class="inline">junit</code>) are designed to not stop the whole pipeline just because a few tests failed — they mark the build <code class="inline">UNSTABLE</code> so you still get artifacts/reports, instead of losing everything to a hard FAILURE.</div>
+  <h3>Disk space exhaustion &amp; bloated workspaces</h3>
+  <p>The most common reason a controller/agent grinds to a halt: unpruned build history and workspaces, with artifacts piling up across thousands of builds.</p>
+<pre><span class="lbl">Jenkinsfile — cap history</span>options {
+  buildDiscarder(logRotator(numToKeepStr: <span class="str">'30'</span>, artifactNumToKeepStr: <span class="str">'10'</span>))
+}</pre>
+  <ul>
+    <li>Use the <b>Disk Usage</b> plugin or <b>Workspace Cleanup</b> (<code class="inline">cleanWs()</code>) to clear workspaces after each build.</li>
+    <li>Check <code class="inline">JENKINS_HOME</code> (especially <code class="inline">jobs/*/builds</code>) when the controller shows a "Disk space" warning on the dashboard.</li>
+  </ul>
+  <h3>Agent offline &amp; plugin conflicts</h3>
+  <table>
+    <tr><th>Symptom</th><th>Common cause</th><th>Check</th></tr>
+    <tr><td>Agent shows offline</td><td>Network drop, agent.jar/Java version mismatch, agent disk full, JNLP port blocked</td><td>Agent log in "Manage Nodes" → node name → "Log"</td></tr>
+    <tr><td>Odd job errors after a plugin upgrade</td><td>Two plugins depending on different library versions (classloading), or a plugin changed its API</td><td><code>/pluginManager/installed</code>, check plugin changelog, roll back plugins one at a time</td></tr>
+  </table>
+  <h3>Deeper diagnostic tools</h3>
+<pre><span class="lbl">terminal / browser</span><span class="cmt"># View Jenkins' own system log directly in the UI</span>
+http://localhost:8080/log/all
+
+<span class="cmt"># Generate a Support Bundle (needs the "Support Core" plugin, usually preinstalled)</span>
+http://localhost:8080/support-core/generateAllBundlesAsync
+
+<span class="cmt"># View a thread dump when Jenkins appears hung (suspected deadlock)</span>
+http://localhost:8080/threadDump</pre>
+  <div class="box tip"><b>💡 What is a Support Bundle?</b>A .zip containing system logs, plugin list, node config, thread dumps... — the first thing to attach when reporting an issue to the Jenkins community or an issue tracker.</div>
+  <div class="box warn"><b>⚠️ Don't manually delete <code class="inline">JENKINS_HOME/jobs/*/builds</code> while Jenkins is running</b>Deleting build files directly while the controller is reading/writing can corrupt internal indexes. Always use buildDiscarder, or stop Jenkins before manual file operations.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Deliberately add a stage with <code class="inline">sh 'exit 1'</code>, read the console output bottom-up, confirm the <code class="inline">FAILURE</code> status, then add <code class="inline">buildDiscarder</code> to cap history at the last 20 builds.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Troubleshooting</span></div>
+  <ol class="examples">
+    <li><span class="task">Cap build history to avoid disk exhaustion.</span>
+<pre><span class="lbl">Jenkinsfile</span>options { buildDiscarder(logRotator(numToKeepStr: <span class="str">'20'</span>)) }</pre></li>
+    <li><span class="task">Clean the workspace after every build even on failure.</span>
+<pre><span class="lbl">Jenkinsfile</span>post {
+  always { cleanWs() }
+}</pre></li>
+    <li><span class="task">Manually mark a build UNSTABLE on a minor check failure.</span>
+<pre><span class="lbl">Jenkinsfile</span>script {
+  <span class="kw">if</span> (someWarning) { currentBuild.result = <span class="str">'UNSTABLE'</span> }
+}</pre></li>
+    <li><span class="task">View the Jenkins ALL-level system log directly via URL.</span>
+<pre><span class="lbl">browser</span>http://localhost:8080/log/all</pre></li>
+    <li><span class="task">Wrap a flaky-hanging step in a timeout so it never waits forever.</span>
+<pre><span class="lbl">Jenkinsfile</span>timeout(time: <span class="num">20</span>, unit: <span class="str">'MINUTES'</span>) {
+  sh <span class="str">'./integration-tests.sh'</span>
+}</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Troubleshooting</span></div>
+  <ol class="drills">
+    <li><span class="task">Write options keeping at most the last 15 builds and 5 artifacts.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>options { buildDiscarder(logRotator(numToKeepStr: <span class="str">'15'</span>, artifactNumToKeepStr: <span class="str">'5'</span>)) }</pre></div></details></li>
+    <li><span class="task">Write a post block that cleans the workspace only on failure.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>post {
+  failure { cleanWs() }
+}</pre></div></details></li>
+    <li><span class="task">State the URL to view a thread dump when Jenkins is suspected to be deadlocked.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>http://localhost:8080/threadDump</pre></div></details></li>
+    <li><span class="task">Briefly distinguish FAILURE from UNSTABLE.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// FAILURE: a step threw an error, the pipeline stopped outright.
+// UNSTABLE: the pipeline ran to completion but reported a bad signal (e.g. failed tests published by junit).</span></pre></div></details></li>
+    <li><span class="task">State where to generate a Support Bundle to attach to a bug report.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>http://localhost:8080/support-core/generateAllBundlesAsync</pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 9.5 Best Practices ============ -->
+<section class="lesson" id="best-practices">
+<div class="lang vi">
+  <span class="phase-tag">Bài 9.5</span>
+  <h2>Best Practices</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Ghi nhớ các thực hành tốt nhất được Jenkins khuyến nghị chính thức: Jenkinsfile trong SCM, Declarative vs Scripted, Shared Library, không build nặng trên controller, pin version, fail fast, pipeline idempotent.</div>
+  <h3>Luôn để Jenkinsfile trong SCM</h3>
+  <p>Đừng viết pipeline trực tiếp trong ô "Pipeline script" của UI job — hãy commit <code class="inline">Jenkinsfile</code> cùng repo với code, dùng "Pipeline script from SCM". Nhờ vậy pipeline được review, versioned, và rollback được cùng nhịp với code.</p>
+<pre><span class="lbl">Job config</span>Pipeline: Definition = <span class="str">"Pipeline script from SCM"</span>
+  SCM: Git
+  Script Path: Jenkinsfile</pre>
+  <h3>Declarative vs Scripted</h3>
+  <table>
+    <tr><th></th><th>Declarative</th><th>Scripted</th></tr>
+    <tr><td>Cú pháp</td><td>Cấu trúc chặt <code>pipeline {}</code></td><td>Groovy tự do trong <code>node {}</code></td></tr>
+    <tr><td>Dễ đọc / validate</td><td>Cao — linter kiểm được cấu trúc</td><td>Thấp hơn — linh hoạt hơn nhưng dễ sai</td></tr>
+    <tr><td>Khi nào chọn</td><td>Mặc định cho hầu hết pipeline</td><td>Khi cần logic điều khiển phức tạp mà Declarative không hỗ trợ (vẫn dùng được qua block <code>script {}</code>)</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Vì sao Jenkins khuyến nghị Declarative trước?</b>Declarative có cấu trúc cố định giúp công cụ (linter, Blue Ocean, Snippet Generator) hiểu và validate pipeline tốt hơn, giảm lỗi cú pháp và dễ onboard người mới hơn Scripted thuần.</div>
+  <h3>Shared Libraries — đừng lặp lại chính mình</h3>
+<pre><span class="lbl">Jenkinsfile</span>@Library(<span class="str">'my-shared-lib@main'</span>) _
+
+pipeline {
+  agent any
+  stages {
+    stage(<span class="str">'Build &amp; Deploy'</span>) {
+      steps {
+        standardBuildAndDeploy(service: <span class="str">'checkout-api'</span>, env: <span class="str">'staging'</span>)
+      }
+    }
+  }
+}</pre>
+  <p>Khi nhiều Jenkinsfile lặp lại cùng logic (build Docker, deploy, thông báo Slack...), hãy trích xuất thành <b>Shared Library</b> (vars/*.groovy) dùng chung, versioned và test được độc lập.</p>
+  <h3>Các nguyên tắc khác</h3>
+  <ul>
+    <li><b>Không build nặng trên controller</b>: controller chỉ nên điều phối; luôn set <code class="inline">agent</code> chạy trên agent/label riêng, tránh <code class="inline">agent none</code> + step nặng chạy nhầm trên controller.</li>
+    <li><b>Pin version</b>: pin cả version plugin và version tool (<code class="inline">tools { jdk 'jdk17' }</code>, Docker image tag cụ thể thay vì <code class="inline">latest</code>) để build không bất ngờ đổi hành vi.</li>
+    <li><b>Fail fast</b>: đặt bước kiểm tra rẻ/nhanh (lint, unit test) trước bước tốn kém (deploy, integration test) để phát hiện lỗi sớm.</li>
+    <li><b>Idempotent &amp; stateless mỗi build</b>: mỗi lần chạy nên dùng workspace sạch, không phụ thuộc trạng thái để lại từ build trước; dùng <code class="inline">cleanWs()</code> hoặc container tạm.</li>
+  </ul>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent { label <span class="str">'linux-docker'</span> }   <span class="cmt">// không chạy trên controller</span>
+  tools { jdk <span class="str">'jdk17'</span> }               <span class="cmt">// pin version tool</span>
+  options { buildDiscarder(logRotator(numToKeepStr: <span class="str">'30'</span>)) }
+  stages {
+    stage(<span class="str">'Lint'</span>)  { steps { sh <span class="str">'npm run lint'</span> } }      <span class="cmt">// rẻ, chạy trước</span>
+    stage(<span class="str">'Unit'</span>)  { steps { sh <span class="str">'npm test'</span> } }
+    stage(<span class="str">'Deploy'</span>) { steps { sh <span class="str">'./deploy.sh'</span> } }   <span class="cmt">// tốn kém, chạy sau</span>
+  }
+  post { always { cleanWs() } }               <span class="cmt">// mỗi build sạch sẽ</span>
+}</pre>
+  <div class="box warn"><b>⚠️ "Latest" là kẻ thù của build ổn định</b>Dùng <code class="inline">image: 'node:latest'</code> hay không pin plugin nghĩa là build hôm nay có thể khác build hôm qua dù code không đổi — rất khó debug. Luôn pin tag/version cụ thể.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Lấy một Jenkinsfile bạn đã viết ở giai đoạn trước, kiểm tra: (1) đã ở trong SCM chưa, (2) agent có chạy đúng label không phải controller, (3) có pin version tool/image chưa, (4) có <code class="inline">cleanWs()</code> trong post chưa — sửa nếu thiếu.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Best Practices</span></div>
+  <ol class="examples">
+    <li><span class="task">Cấu hình job đọc Jenkinsfile từ SCM thay vì nhập tay.</span>
+<pre><span class="lbl">Job config</span>Definition: Pipeline script from SCM
+Repository URL: https://github.com/org/app.git
+Script Path: Jenkinsfile</pre></li>
+    <li><span class="task">Import và gọi một hàm dùng chung từ Shared Library.</span>
+<pre><span class="lbl">Jenkinsfile</span>@Library(<span class="str">'infra-lib@v2.1.0'</span>) _
+notifySlack(status: <span class="str">'started'</span>)</pre></li>
+    <li><span class="task">Ép agent chạy trên label riêng, không chạm controller.</span>
+<pre><span class="lbl">Jenkinsfile</span>pipeline { agent { label <span class="str">'build-agent'</span> } }</pre></li>
+    <li><span class="task">Pin version image Docker thay vì dùng latest.</span>
+<pre><span class="lbl">Jenkinsfile</span>agent { docker { image <span class="str">'node:20.11.1-alpine'</span> } }</pre></li>
+    <li><span class="task">Sắp xếp lại stage để fail fast (lint trước deploy).</span>
+<pre><span class="lbl">Jenkinsfile</span>stages {
+  stage(<span class="str">'Lint'</span>)   { steps { sh <span class="str">'npm run lint'</span> } }
+  stage(<span class="str">'Deploy'</span>) { steps { sh <span class="str">'./deploy.sh'</span> } }
+}</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Best Practices</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết directive khai báo agent chạy trên label "docker-linux".</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>agent { label <span class="str">'docker-linux'</span> }</pre></div></details></li>
+    <li><span class="task">Viết dòng import Shared Library tên "utils" phiên bản "main".</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>@Library(<span class="str">'utils@main'</span>) _</pre></div></details></li>
+    <li><span class="task">Pin JDK tool tên "jdk17" trong block tools.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>tools { jdk <span class="str">'jdk17'</span> }</pre></div></details></li>
+    <li><span class="task">Viết post block dọn workspace sau mỗi build để đảm bảo idempotent.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>post { always { cleanWs() } }</pre></div></details></li>
+    <li><span class="task">Giải thích ngắn gọn vì sao nên đặt Jenkinsfile trong SCM thay vì UI.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Pipeline được review, versioned cùng code, và rollback được
+// đồng bộ với lịch sử Git — thay vì thay đổi "âm thầm" trong UI.</span></pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 9.5</span>
+  <h2>Best Practices</h2>
+  <div class="box goal"><b>🎯 Goal</b>Internalize the officially recommended Jenkins best practices: Jenkinsfile in SCM, Declarative vs Scripted, Shared Libraries, avoiding heavy builds on the controller, pinning versions, failing fast, and idempotent pipelines.</div>
+  <h3>Always keep the Jenkinsfile in SCM</h3>
+  <p>Don't write pipelines directly into the job UI's "Pipeline script" box — commit a <code class="inline">Jenkinsfile</code> alongside the code and use "Pipeline script from SCM". This way the pipeline gets reviewed, versioned, and can be rolled back in lockstep with the code.</p>
+<pre><span class="lbl">Job config</span>Pipeline: Definition = <span class="str">"Pipeline script from SCM"</span>
+  SCM: Git
+  Script Path: Jenkinsfile</pre>
+  <h3>Declarative vs Scripted</h3>
+  <table>
+    <tr><th></th><th>Declarative</th><th>Scripted</th></tr>
+    <tr><td>Syntax</td><td>Rigid <code>pipeline {}</code> structure</td><td>Free-form Groovy inside <code>node {}</code></td></tr>
+    <tr><td>Readability / validation</td><td>High — linters can check structure</td><td>Lower — more flexible but easier to get wrong</td></tr>
+    <tr><td>When to pick</td><td>Default for most pipelines</td><td>When you need complex control-flow logic Declarative doesn't support (still reachable via a <code>script {}</code> block)</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Why does Jenkins recommend Declarative first?</b>Declarative's fixed structure lets tooling (linters, Blue Ocean, the Snippet Generator) understand and validate pipelines better, reducing syntax errors and easing onboarding compared to plain Scripted.</div>
+  <h3>Shared Libraries — don't repeat yourself</h3>
+<pre><span class="lbl">Jenkinsfile</span>@Library(<span class="str">'my-shared-lib@main'</span>) _
+
+pipeline {
+  agent any
+  stages {
+    stage(<span class="str">'Build &amp; Deploy'</span>) {
+      steps {
+        standardBuildAndDeploy(service: <span class="str">'checkout-api'</span>, env: <span class="str">'staging'</span>)
+      }
+    }
+  }
+}</pre>
+  <p>When multiple Jenkinsfiles repeat the same logic (Docker builds, deploys, Slack notifications...), extract it into a <b>Shared Library</b> (vars/*.groovy) that's shared, versioned, and independently testable.</p>
+  <h3>Other principles</h3>
+  <ul>
+    <li><b>Don't run heavy builds on the controller</b>: the controller should only orchestrate; always set <code class="inline">agent</code> to run on a dedicated agent/label, avoiding <code class="inline">agent none</code> plus heavy steps accidentally running on the controller.</li>
+    <li><b>Pin versions</b>: pin both plugin versions and tool versions (<code class="inline">tools { jdk 'jdk17' }</code>, specific Docker image tags instead of <code class="inline">latest</code>) so builds don't silently change behavior.</li>
+    <li><b>Fail fast</b>: put cheap/fast checks (lint, unit tests) before expensive ones (deploy, integration tests) to catch failures early.</li>
+    <li><b>Idempotent &amp; stateless per build</b>: every run should start from a clean workspace, not depend on state left by a previous build; use <code class="inline">cleanWs()</code> or ephemeral containers.</li>
+  </ul>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent { label <span class="str">'linux-docker'</span> }   <span class="cmt">// not on the controller</span>
+  tools { jdk <span class="str">'jdk17'</span> }               <span class="cmt">// pin the tool version</span>
+  options { buildDiscarder(logRotator(numToKeepStr: <span class="str">'30'</span>)) }
+  stages {
+    stage(<span class="str">'Lint'</span>)  { steps { sh <span class="str">'npm run lint'</span> } }      <span class="cmt">// cheap, runs first</span>
+    stage(<span class="str">'Unit'</span>)  { steps { sh <span class="str">'npm test'</span> } }
+    stage(<span class="str">'Deploy'</span>) { steps { sh <span class="str">'./deploy.sh'</span> } }   <span class="cmt">// expensive, runs later</span>
+  }
+  post { always { cleanWs() } }               <span class="cmt">// clean slate every build</span>
+}</pre>
+  <div class="box warn"><b>⚠️ "Latest" is the enemy of stable builds</b>Using <code class="inline">image: 'node:latest'</code> or leaving plugins unpinned means today's build can differ from yesterday's even with unchanged code — very hard to debug. Always pin specific tags/versions.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Take a Jenkinsfile you wrote in an earlier stage and check: (1) is it already in SCM, (2) does the agent run on a real label rather than the controller, (3) are tool/image versions pinned, (4) is there a <code class="inline">cleanWs()</code> in post — fix anything missing.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Best Practices</span></div>
+  <ol class="examples">
+    <li><span class="task">Configure a job to read its Jenkinsfile from SCM instead of typing it in.</span>
+<pre><span class="lbl">Job config</span>Definition: Pipeline script from SCM
+Repository URL: https://github.com/org/app.git
+Script Path: Jenkinsfile</pre></li>
+    <li><span class="task">Import and call a shared function from a Shared Library.</span>
+<pre><span class="lbl">Jenkinsfile</span>@Library(<span class="str">'infra-lib@v2.1.0'</span>) _
+notifySlack(status: <span class="str">'started'</span>)</pre></li>
+    <li><span class="task">Force the agent onto a dedicated label, never the controller.</span>
+<pre><span class="lbl">Jenkinsfile</span>pipeline { agent { label <span class="str">'build-agent'</span> } }</pre></li>
+    <li><span class="task">Pin a Docker image version instead of using latest.</span>
+<pre><span class="lbl">Jenkinsfile</span>agent { docker { image <span class="str">'node:20.11.1-alpine'</span> } }</pre></li>
+    <li><span class="task">Reorder stages to fail fast (lint before deploy).</span>
+<pre><span class="lbl">Jenkinsfile</span>stages {
+  stage(<span class="str">'Lint'</span>)   { steps { sh <span class="str">'npm run lint'</span> } }
+  stage(<span class="str">'Deploy'</span>) { steps { sh <span class="str">'./deploy.sh'</span> } }
+}</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Best Practices</span></div>
+  <ol class="drills">
+    <li><span class="task">Write a directive that runs the agent on label "docker-linux".</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>agent { label <span class="str">'docker-linux'</span> }</pre></div></details></li>
+    <li><span class="task">Write the import line for a Shared Library named "utils" at version "main".</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>@Library(<span class="str">'utils@main'</span>) _</pre></div></details></li>
+    <li><span class="task">Pin a JDK tool named "jdk17" in a tools block.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>tools { jdk <span class="str">'jdk17'</span> }</pre></div></details></li>
+    <li><span class="task">Write a post block that cleans the workspace after every build to keep it idempotent.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>post { always { cleanWs() } }</pre></div></details></li>
+    <li><span class="task">Briefly explain why the Jenkinsfile should live in SCM rather than the UI.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// The pipeline gets reviewed, versioned with the code, and can
+// be rolled back in sync with Git history — instead of "silent"
+// changes made in the UI.</span></pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<div class="pager">
+  <a class="prev" href="phase8-integrations.html">
+    <div class="dir"><span class="vi">← Trước</span><span class="en">← Previous</span></div>
+    <div class="ttl"><span class="vi">Giai đoạn 8 — Integrations</span><span class="en">Stage 8 — Integrations</span></div>
+  </a>
+  <a class="next disabled">
+    <div class="dir"><span class="vi">Tiếp theo →</span><span class="en">Next →</span></div>
+    <div class="ttl"><span class="vi">Hoàn thành khóa học!</span><span class="en">Course complete!</span></div>
+  </a>
+</div>
+
+</main>
+</div>
+<script src="assets/i18n.js"></script>
+<script src="assets/scrollspy.js"></script>
+</body>
+</html>

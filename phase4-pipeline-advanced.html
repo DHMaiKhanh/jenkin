@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Giai đoạn 4 — Pipeline nâng cao | Khóa học Jenkins</title>
+<link rel="stylesheet" href="assets/course.css">
+</head>
+<body class="lang-vi">
+<div class="layout">
+<nav class="side">
+  <div class="brand">🤵 Jenkins<small><span class="vi">Giai đoạn 4 · Pipeline nâng cao</span><span class="en">Stage 4 · Advanced Pipeline</span></small></div>
+  <div class="lang-toggle">
+    <button data-lang="vi" class="on">VI</button>
+    <button data-lang="en">EN</button>
+  </div>
+  <a class="nav-home" href="index.html"><span class="vi">← Mục lục khóa học</span><span class="en">← Course index</span></a>
+  <div class="grp"><span class="vi">Bài học</span><span class="en">Lessons</span></div>
+  <a class="lnk" href="#multibranch">4.1 · <span class="vi">Multibranch Pipeline</span><span class="en">Multibranch Pipeline</span></a>
+  <a class="lnk" href="#shared-libraries">4.2 · <span class="vi">Shared Libraries</span><span class="en">Shared Libraries</span></a>
+  <a class="lnk" href="#parallel-matrix">4.3 · <span class="vi">Parallel &amp; Matrix</span><span class="en">Parallel &amp; Matrix</span></a>
+  <a class="lnk" href="#when-conditions">4.4 · <span class="vi">Điều kiện when</span><span class="en">When conditions</span></a>
+  <a class="lnk" href="#input-parameters">4.5 · <span class="vi">Input &amp; Parameters</span><span class="en">Input &amp; Parameters</span></a>
+</nav>
+
+<main>
+<header class="top">
+  <div class="crumb"><span class="vi">Khóa học Jenkins › <b>Giai đoạn 4 — Pipeline nâng cao</b></span><span class="en">Jenkins Course › <b>Stage 4 — Advanced Pipeline</b></span></div>
+  <h1><span class="vi">Pipeline nâng cao</span><span class="en">Advanced Pipeline</span></h1>
+  <p class="lead"><span class="vi">Mục tiêu giai đoạn: tự động phát hiện nhánh với Multibranch, tái sử dụng logic pipeline qua Shared Libraries, chạy song song/matrix để tăng tốc build, kiểm soát luồng bằng điều kiện <code class="inline">when</code>, và thêm cổng phê duyệt thủ công với <code class="inline">input</code>/<code class="inline">parameters</code>.</span><span class="en">Stage goal: auto-discover branches with Multibranch, reuse pipeline logic across repos with Shared Libraries, speed up builds with parallel/matrix, control flow with <code class="inline">when</code> conditions, and add manual approval gates with <code class="inline">input</code>/<code class="inline">parameters</code>.</span></p>
+</header>
+
+<!-- ============ 4.1 ============ -->
+<section class="lesson" id="multibranch">
+<div class="lang vi">
+  <span class="phase-tag">Bài 4.1</span>
+  <h2>Multibranch Pipeline</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Hiểu cách Jenkins tự động phát hiện các nhánh/PR có chứa <code class="inline">Jenkinsfile</code> và tạo job riêng cho từng nhánh, cấu hình branch source (GitHub), và quản lý vòng đời build cũ.</div>
+  <h3>Multibranch Pipeline là gì?</h3>
+  <p>Một <b>Multibranch Pipeline</b> job quét một repository và <b>tự động tạo một sub-job cho mỗi nhánh</b> (và mỗi Pull Request, nếu bật discovery) có chứa file <code class="inline">Jenkinsfile</code> ở gốc. Không cần tạo job thủ công cho từng nhánh mới.</p>
+  <table>
+    <tr><th>Khái niệm</th><th>Ý nghĩa</th></tr>
+    <tr><td>Branch Source</td><td>Nơi Jenkins quét nhánh: Git, GitHub, Bitbucket, GitLab...</td></tr>
+    <tr><td>Jenkinsfile</td><td>File pipeline nằm trong repo — Jenkins tự tìm và chạy.</td></tr>
+    <tr><td>Scan</td><td>Quá trình định kỳ quét repo tìm nhánh/PR mới hoặc đã xóa.</td></tr>
+    <tr><td>Orphaned item</td><td>Job của một nhánh đã bị xóa khỏi repo — có thể tự dọn.</td></tr>
+  </table>
+  <h3>Cấu hình Branch Source (GitHub)</h3>
+  <p>Khi tạo job kiểu "Multibranch Pipeline", chọn <b>Branch Sources → GitHub</b>, nhập credentials và repository. Jenkins sẽ:</p>
+  <ul>
+    <li>Quét mọi nhánh chứa <code class="inline">Jenkinsfile</code> ở đường dẫn cấu hình (mặc định gốc repo).</li>
+    <li>Tùy chọn phát hiện Pull Request (từ origin hoặc từ fork).</li>
+    <li>Chạy lại quét theo lịch (ví dụ mỗi phút, hoặc qua webhook).</li>
+  </ul>
+<pre><span class="lbl">Jenkinsfile (đặt ở gốc mỗi nhánh)</span>pipeline {
+  agent any
+  stages {
+    stage(<span class="str">'Build'</span>) {
+      steps { <span class="fn">echo</span> <span class="str">"Building branch ${env.BRANCH_NAME}"</span> }
+    }
+  }
+}</pre>
+  <p>Biến môi trường <code class="inline">env.BRANCH_NAME</code> luôn có sẵn trong Multibranch Pipeline, giúp phân biệt logic theo nhánh (ví dụ chỉ deploy khi <code class="inline">main</code>).</p>
+  <h3>Discard old branch builds</h3>
+  <p>Mục <b>"Discard old items"</b> trong cấu hình Multibranch (hoặc Orphaned Item Strategy) cho phép:</p>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent any
+  options {
+    <span class="fn">buildDiscarder</span>(<span class="fn">logRotator</span>(numToKeepStr: <span class="str">'10'</span>))
+  }
+  stages {
+    stage(<span class="str">'Test'</span>) { steps { <span class="fn">echo</span> <span class="str">'testing'</span> } }
+  }
+}</pre>
+  <table>
+    <tr><th>Tùy chọn</th><th>Tác dụng</th></tr>
+    <tr><td>Days to keep old items</td><td>Xóa job của nhánh đã biến mất sau N ngày.</td></tr>
+    <tr><td>Max # of old items to keep</td><td>Giới hạn số sub-job/nhánh cũ được giữ lại.</td></tr>
+  </table>
+  <h3>Organization Folders</h3>
+  <p><b>Organization Folder</b> đi xa hơn một bậc: quét toàn bộ <b>tổ chức/user</b> trên GitHub/Bitbucket và tự động tạo một Multibranch Pipeline job cho <i>mỗi repository</i> có <code class="inline">Jenkinsfile</code>. Phù hợp khi một team có hàng chục repo cùng cấu trúc CI.</p>
+  <div class="box why"><b>🤔 Vì sao dùng Multibranch thay vì Freestyle job?</b>Không cần cấu hình build riêng cho từng nhánh/feature branch — pipeline "đi theo code" nhờ nằm trong repo (Pipeline as Code). Tạo nhánh mới, Jenkins tự thấy và build.</div>
+  <div class="box warn"><b>⚠️ Lưu ý</b>Nếu một nhánh không có <code class="inline">Jenkinsfile</code>, Jenkins sẽ không tạo job cho nhánh đó. Webhook cần được cấu hình đúng để tránh chờ quét theo lịch (có thể chậm).</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Tạo một Multibranch Pipeline job trỏ tới repo GitHub của bạn, thêm <code class="inline">Jenkinsfile</code> vào 2 nhánh khác nhau với thông điệp <code class="inline">echo</code> khác nhau, quan sát Jenkins tự tạo 2 sub-job.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Multibranch Pipeline</span></div>
+  <ol class="examples">
+    <li><span class="task">Jenkinsfile in theo tên nhánh hiện tại.</span>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent any
+  stages {
+    stage(<span class="str">'Info'</span>) { steps { <span class="fn">echo</span> <span class="str">"Branch: ${env.BRANCH_NAME}"</span> } }
+  }
+}</pre></li>
+    <li><span class="task">Chỉ deploy khi đang ở nhánh main.</span>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'Deploy'</span>) {
+  when { branch <span class="str">'main'</span> }
+  steps { <span class="fn">echo</span> <span class="str">'Deploying production...'</span> }
+}</pre></li>
+    <li><span class="task">Giới hạn số build cũ được giữ lại cho mỗi nhánh.</span>
+<pre><span class="lbl">Jenkinsfile</span>options {
+  <span class="fn">buildDiscarder</span>(<span class="fn">logRotator</span>(numToKeepStr: <span class="str">'5'</span>))
+}</pre></li>
+    <li><span class="task">Cấu hình đường dẫn Jenkinsfile không nằm ở gốc repo.</span>
+<pre><span class="lbl">cấu hình job</span><span class="cmt"># Trong "Build Configuration" của Branch Source:</span>
+<span class="cmt"># Script Path: ci/Jenkinsfile</span></pre></li>
+    <li><span class="task">Phân biệt logic build cho Pull Request.</span>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'PR Checks'</span>) {
+  when { changeRequest() }
+  steps { <span class="fn">echo</span> <span class="str">'Running PR validation...'</span> }
+}</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Multibranch Pipeline</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết stage in ra tên nhánh bằng <code class="inline">env.BRANCH_NAME</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>stage(<span class="str">'Show branch'</span>) { steps { <span class="fn">echo</span> <span class="str">"${env.BRANCH_NAME}"</span> } }</pre></div></details></li>
+    <li><span class="task">Thêm <code class="inline">buildDiscarder</code> giữ tối đa 15 build.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>options { <span class="fn">buildDiscarder</span>(<span class="fn">logRotator</span>(numToKeepStr: <span class="str">'15'</span>)) }</pre></div></details></li>
+    <li><span class="task">Viết điều kiện chỉ chạy stage khi nhánh là <code class="inline">develop</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>when { branch <span class="str">'develop'</span> }</pre></div></details></li>
+    <li><span class="task">Viết điều kiện chỉ chạy stage khi đây là một Pull Request.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>when { changeRequest() }</pre></div></details></li>
+    <li><span class="task">Chỉ đường dẫn Script Path tới <code class="inline">build/Jenkinsfile</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt"># Branch Source → Build Configuration → Script Path</span>
+build/Jenkinsfile</pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 4.1</span>
+  <h2>Multibranch Pipeline</h2>
+  <div class="box goal"><b>🎯 Goal</b>Understand how Jenkins auto-discovers branches/PRs containing a <code class="inline">Jenkinsfile</code> and creates a job per branch, configure a branch source (GitHub), and manage the lifecycle of old builds.</div>
+  <h3>What is a Multibranch Pipeline?</h3>
+  <p>A <b>Multibranch Pipeline</b> job scans a repository and <b>automatically creates a sub-job for every branch</b> (and every Pull Request, if discovery is enabled) that contains a <code class="inline">Jenkinsfile</code> at its root. No need to manually create a job for each new branch.</p>
+  <table>
+    <tr><th>Concept</th><th>Meaning</th></tr>
+    <tr><td>Branch Source</td><td>Where Jenkins scans branches from: Git, GitHub, Bitbucket, GitLab...</td></tr>
+    <tr><td>Jenkinsfile</td><td>Pipeline file living in the repo — Jenkins finds and runs it.</td></tr>
+    <tr><td>Scan</td><td>Periodic process that discovers new or deleted branches/PRs.</td></tr>
+    <tr><td>Orphaned item</td><td>A branch's job whose branch was removed from the repo — can be auto-cleaned.</td></tr>
+  </table>
+  <h3>Configuring a Branch Source (GitHub)</h3>
+  <p>When creating a "Multibranch Pipeline" job, choose <b>Branch Sources → GitHub</b>, enter credentials and the repository. Jenkins will:</p>
+  <ul>
+    <li>Scan every branch containing a <code class="inline">Jenkinsfile</code> at the configured path (repo root by default).</li>
+    <li>Optionally discover Pull Requests (from origin or from forks).</li>
+    <li>Re-scan on a schedule (e.g. every minute, or via webhook).</li>
+  </ul>
+<pre><span class="lbl">Jenkinsfile (at the root of each branch)</span>pipeline {
+  agent any
+  stages {
+    stage(<span class="str">'Build'</span>) {
+      steps { <span class="fn">echo</span> <span class="str">"Building branch ${env.BRANCH_NAME}"</span> }
+    }
+  }
+}</pre>
+  <p>The <code class="inline">env.BRANCH_NAME</code> variable is always available in a Multibranch Pipeline, letting you branch logic (e.g. only deploy on <code class="inline">main</code>).</p>
+  <h3>Discarding old branch builds</h3>
+  <p>The <b>"Discard old items"</b> setting (Orphaned Item Strategy) in the Multibranch config lets you:</p>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent any
+  options {
+    <span class="fn">buildDiscarder</span>(<span class="fn">logRotator</span>(numToKeepStr: <span class="str">'10'</span>))
+  }
+  stages {
+    stage(<span class="str">'Test'</span>) { steps { <span class="fn">echo</span> <span class="str">'testing'</span> } }
+  }
+}</pre>
+  <table>
+    <tr><th>Option</th><th>Effect</th></tr>
+    <tr><td>Days to keep old items</td><td>Delete a vanished branch's job after N days.</td></tr>
+    <tr><td>Max # of old items to keep</td><td>Cap how many old branch sub-jobs are retained.</td></tr>
+  </table>
+  <h3>Organization Folders</h3>
+  <p>An <b>Organization Folder</b> goes one level further: it scans an entire GitHub/Bitbucket <b>organization/user</b> and automatically creates a Multibranch Pipeline job for <i>every repository</i> that has a <code class="inline">Jenkinsfile</code>. Great when a team owns dozens of repos sharing the same CI structure.</p>
+  <div class="box why"><b>🤔 Why Multibranch instead of a Freestyle job?</b>No need to configure a separate build per branch/feature branch — the pipeline "follows the code" because it lives in the repo (Pipeline as Code). Create a branch, Jenkins sees it and builds automatically.</div>
+  <div class="box warn"><b>⚠️ Note</b>If a branch has no <code class="inline">Jenkinsfile</code>, Jenkins won't create a job for it. Webhooks must be configured correctly to avoid relying on the (potentially slow) scheduled scan.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Create a Multibranch Pipeline job pointing at your GitHub repo, add a <code class="inline">Jenkinsfile</code> to two different branches with different <code class="inline">echo</code> messages, and watch Jenkins auto-create two sub-jobs.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Multibranch Pipeline</span></div>
+  <ol class="examples">
+    <li><span class="task">Jenkinsfile printing the current branch name.</span>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent any
+  stages {
+    stage(<span class="str">'Info'</span>) { steps { <span class="fn">echo</span> <span class="str">"Branch: ${env.BRANCH_NAME}"</span> } }
+  }
+}</pre></li>
+    <li><span class="task">Only deploy when on the main branch.</span>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'Deploy'</span>) {
+  when { branch <span class="str">'main'</span> }
+  steps { <span class="fn">echo</span> <span class="str">'Deploying production...'</span> }
+}</pre></li>
+    <li><span class="task">Limit how many old builds are kept per branch.</span>
+<pre><span class="lbl">Jenkinsfile</span>options {
+  <span class="fn">buildDiscarder</span>(<span class="fn">logRotator</span>(numToKeepStr: <span class="str">'5'</span>))
+}</pre></li>
+    <li><span class="task">Configure a Jenkinsfile path not at the repo root.</span>
+<pre><span class="lbl">job config</span><span class="cmt"># In the Branch Source's "Build Configuration":</span>
+<span class="cmt"># Script Path: ci/Jenkinsfile</span></pre></li>
+    <li><span class="task">Differentiate build logic for Pull Requests.</span>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'PR Checks'</span>) {
+  when { changeRequest() }
+  steps { <span class="fn">echo</span> <span class="str">'Running PR validation...'</span> }
+}</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Multibranch Pipeline</span></div>
+  <ol class="drills">
+    <li><span class="task">Write a stage that prints the branch name via <code class="inline">env.BRANCH_NAME</code>.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>stage(<span class="str">'Show branch'</span>) { steps { <span class="fn">echo</span> <span class="str">"${env.BRANCH_NAME}"</span> } }</pre></div></details></li>
+    <li><span class="task">Add <code class="inline">buildDiscarder</code> keeping at most 15 builds.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>options { <span class="fn">buildDiscarder</span>(<span class="fn">logRotator</span>(numToKeepStr: <span class="str">'15'</span>)) }</pre></div></details></li>
+    <li><span class="task">Write a condition that only runs a stage on branch <code class="inline">develop</code>.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>when { branch <span class="str">'develop'</span> }</pre></div></details></li>
+    <li><span class="task">Write a condition that only runs a stage for a Pull Request.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>when { changeRequest() }</pre></div></details></li>
+    <li><span class="task">Point the Script Path at <code class="inline">build/Jenkinsfile</code>.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt"># Branch Source → Build Configuration → Script Path</span>
+build/Jenkinsfile</pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 4.2 ============ -->
+<section class="lesson" id="shared-libraries">
+<div class="lang vi">
+  <span class="phase-tag">Bài 4.2</span>
+  <h2>Shared Libraries</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Hiểu cấu trúc thư mục <code class="inline">vars/</code> và <code class="inline">src/</code>, viết một custom step đơn giản, và cách import/dùng thư viện trong nhiều Jenkinsfile khác nhau.</div>
+  <h3>Cấu trúc repository của Shared Library</h3>
+  <p>Một Shared Library là một repo Git riêng với cấu trúc chuẩn:</p>
+<pre><span class="lbl">cây thư mục</span>my-shared-lib/
+├── <span class="fn">vars/</span>                 <span class="cmt"># mỗi file .groovy = một "global step" gọi trực tiếp</span>
+│   └── sayHello.groovy
+├── <span class="fn">src/</span>                  <span class="cmt"># class Groovy thông thường (namespace org.foo.Bar)</span>
+│   └── org/example/Utils.groovy
+└── resources/            <span class="cmt"># file tĩnh, đọc bằng libraryResource</span>
+    └── org/example/template.json</pre>
+  <table>
+    <tr><th>Thư mục</th><th>Dùng cho</th></tr>
+    <tr><td><code>vars/</code></td><td>Định nghĩa step gọi được thẳng trong Jenkinsfile, ví dụ <code class="inline">sayHello()</code>.</td></tr>
+    <tr><td><code>src/</code></td><td>Class Groovy chuẩn, logic phức tạp, tái sử dụng bởi nhiều step trong <code>vars/</code>.</td></tr>
+    <tr><td><code>resources/</code></td><td>File không phải code (JSON, template) — nạp bằng <code class="inline">libraryResource</code>.</td></tr>
+  </table>
+  <h3>Viết một custom step</h3>
+<pre><span class="lbl">vars/sayHello.groovy</span><span class="kw">def</span> <span class="fn">call</span>(String name = <span class="str">'World'</span>) {
+  <span class="fn">echo</span> <span class="str">"Hello, ${name}!"</span>
+}</pre>
+  <p>Hàm <code class="inline">call()</code> là bắt buộc — nó cho phép gọi file như một hàm. Gọi trong Jenkinsfile khác:</p>
+<pre><span class="lbl">Jenkinsfile</span><span class="cmt">@Library('my-shared-lib') _</span>
+
+pipeline {
+  agent any
+  stages {
+    stage(<span class="str">'Greet'</span>) {
+      steps {
+        <span class="fn">sayHello</span> <span class="str">'Jenkins'</span>
+      }
+    }
+  }
+}</pre>
+  <p>Dòng <code class="inline">@Library('my-shared-lib') _</code> import toàn bộ thư viện; dấu <code class="inline">_</code> là underscore bắt buộc khi không gán biến. Có thể chỉ định phiên bản: <code class="inline">@Library('my-shared-lib@v1.2')</code>.</p>
+  <h3>Cấu hình Global vs Folder-level Library</h3>
+  <table>
+    <tr><th>Phạm vi</th><th>Cấu hình tại</th><th>Áp dụng cho</th></tr>
+    <tr><td>Global</td><td>Manage Jenkins → System → Global Pipeline Libraries</td><td>Mọi pipeline trên toàn instance, không cần approval script.</td></tr>
+    <tr><td>Folder</td><td>Cấu hình Folder → Pipeline Libraries</td><td>Chỉ các job nằm trong folder đó — cô lập theo team/project.</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Vì sao cần Shared Library?</b>Nếu 50 repo đều có logic "build Docker image + push registry + gửi Slack" giống nhau, copy-paste vào từng Jenkinsfile là ác mộng bảo trì. Đưa logic đó vào một step dùng chung — sửa một chỗ, mọi pipeline được cập nhật.</div>
+  <div class="box warn"><b>⚠️ Sandbox &amp; Script Approval</b>Code trong <code class="inline">src/</code> chạy trong Groovy sandbox trừ khi được đánh dấu "trusted" (Global library không sandbox nếu admin cấu hình). Một số API nhạy cảm cần admin approve qua "In-process Script Approval".</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Tạo repo <code class="inline">my-shared-lib</code> với <code class="inline">vars/sayHello.groovy</code>, cấu hình nó làm Global Pipeline Library tên <code class="inline">my-shared-lib</code>, rồi gọi từ một Jenkinsfile thử nghiệm.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Shared Libraries</span></div>
+  <ol class="examples">
+    <li><span class="task">Custom step nhận Map tham số thay vì chuỗi đơn.</span>
+<pre><span class="lbl">vars/deployApp.groovy</span><span class="kw">def</span> <span class="fn">call</span>(Map config) {
+  <span class="fn">echo</span> <span class="str">"Deploying ${config.app} to ${config.env}"</span>
+}</pre></li>
+    <li><span class="task">Gọi step với named parameters trong Jenkinsfile.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">deployApp</span> app: <span class="str">'checkout-service'</span>, env: <span class="str">'staging'</span></pre></li>
+    <li><span class="task">Class dùng chung trong <code class="inline">src/</code>.</span>
+<pre><span class="lbl">src/org/example/Notifier.groovy</span><span class="kw">package</span> org.example
+<span class="kw">class</span> Notifier <span class="kw">implements</span> Serializable {
+  <span class="kw">static</span> <span class="kw">void</span> <span class="fn">slack</span>(script, String msg) {
+    script.<span class="fn">echo</span> <span class="str">"[Slack] ${msg}"</span>
+  }
+}</pre></li>
+    <li><span class="task">Dùng class từ <code class="inline">src/</code> bên trong một step ở <code class="inline">vars/</code>.</span>
+<pre><span class="lbl">vars/notify.groovy</span><span class="kw">import</span> org.example.Notifier
+<span class="kw">def</span> <span class="fn">call</span>(String msg) {
+  Notifier.<span class="fn">slack</span>(<span class="kw">this</span>, msg)
+}</pre></li>
+    <li><span class="task">Import thư viện với phiên bản cụ thể (tag/branch).</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="cmt">@Library('my-shared-lib@release-2.0') _</span>
+pipeline { agent any
+  stages { stage(<span class="str">'Use'</span>) { steps { <span class="fn">sayHello</span>() } } }
+}</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Shared Libraries</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết custom step <code class="inline">vars/printVersion.groovy</code> in ra một chuỗi cố định.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="kw">def</span> <span class="fn">call</span>() {
+  <span class="fn">echo</span> <span class="str">'Version 1.0.0'</span>
+}</pre></div></details></li>
+    <li><span class="task">Viết dòng import thư viện tên <code class="inline">common-lib</code> vào Jenkinsfile.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">@Library('common-lib') _</span></pre></div></details></li>
+    <li><span class="task">Gọi step <code class="inline">sayHello</code> với tham số <code class="inline">'Duy'</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="fn">sayHello</span> <span class="str">'Duy'</span></pre></div></details></li>
+    <li><span class="task">Viết đường dẫn class chuẩn cho package <code class="inline">org.acme</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>src/org/acme/MyClass.groovy</pre></div></details></li>
+    <li><span class="task">Import thư viện cố định theo tag <code class="inline">v3.1</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">@Library('my-shared-lib@v3.1') _</span></pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 4.2</span>
+  <h2>Shared Libraries</h2>
+  <div class="box goal"><b>🎯 Goal</b>Understand the <code class="inline">vars/</code> and <code class="inline">src/</code> folder layout, write a simple custom step, and how to import/use a library across multiple Jenkinsfiles.</div>
+  <h3>Shared Library repository layout</h3>
+  <p>A Shared Library is a dedicated Git repo with a standard structure:</p>
+<pre><span class="lbl">tree</span>my-shared-lib/
+├── <span class="fn">vars/</span>                 <span class="cmt"># each .groovy file = a "global step" callable directly</span>
+│   └── sayHello.groovy
+├── <span class="fn">src/</span>                  <span class="cmt"># regular Groovy classes (namespace org.foo.Bar)</span>
+│   └── org/example/Utils.groovy
+└── resources/            <span class="cmt"># static files, read via libraryResource</span>
+    └── org/example/template.json</pre>
+  <table>
+    <tr><th>Folder</th><th>Used for</th></tr>
+    <tr><td><code>vars/</code></td><td>Defines steps callable directly in a Jenkinsfile, e.g. <code class="inline">sayHello()</code>.</td></tr>
+    <tr><td><code>src/</code></td><td>Standard Groovy classes, complex logic, reused by multiple <code>vars/</code> steps.</td></tr>
+    <tr><td><code>resources/</code></td><td>Non-code files (JSON, templates) — loaded via <code class="inline">libraryResource</code>.</td></tr>
+  </table>
+  <h3>Writing a custom step</h3>
+<pre><span class="lbl">vars/sayHello.groovy</span><span class="kw">def</span> <span class="fn">call</span>(String name = <span class="str">'World'</span>) {
+  <span class="fn">echo</span> <span class="str">"Hello, ${name}!"</span>
+}</pre>
+  <p>The <code class="inline">call()</code> method is required — it lets the file be invoked like a function. Calling it from another Jenkinsfile:</p>
+<pre><span class="lbl">Jenkinsfile</span><span class="cmt">@Library('my-shared-lib') _</span>
+
+pipeline {
+  agent any
+  stages {
+    stage(<span class="str">'Greet'</span>) {
+      steps {
+        <span class="fn">sayHello</span> <span class="str">'Jenkins'</span>
+      }
+    }
+  }
+}</pre>
+  <p>The <code class="inline">@Library('my-shared-lib') _</code> line imports the whole library; the trailing <code class="inline">_</code> underscore is required when not assigning to a variable. A version can be pinned: <code class="inline">@Library('my-shared-lib@v1.2')</code>.</p>
+  <h3>Global vs folder-level library configuration</h3>
+  <table>
+    <tr><th>Scope</th><th>Configured at</th><th>Applies to</th></tr>
+    <tr><td>Global</td><td>Manage Jenkins → System → Global Pipeline Libraries</td><td>Every pipeline on the whole instance, no need for script approval.</td></tr>
+    <tr><td>Folder</td><td>Folder configuration → Pipeline Libraries</td><td>Only jobs inside that folder — isolated per team/project.</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Why use a Shared Library?</b>If 50 repos all share the same "build Docker image + push registry + notify Slack" logic, copy-pasting it into every Jenkinsfile is a maintenance nightmare. Move that logic into a shared step — fix it once, every pipeline gets the update.</div>
+  <div class="box warn"><b>⚠️ Sandbox &amp; Script Approval</b>Code in <code class="inline">src/</code> runs inside the Groovy sandbox unless marked "trusted" (a Global library can be unsandboxed if the admin configures it). Some sensitive APIs require an admin to approve via "In-process Script Approval".</div>
+  <div class="box practice"><b>✍️ Exercise</b>Create a <code class="inline">my-shared-lib</code> repo with <code class="inline">vars/sayHello.groovy</code>, configure it as a Global Pipeline Library named <code class="inline">my-shared-lib</code>, then call it from a test Jenkinsfile.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Shared Libraries</span></div>
+  <ol class="examples">
+    <li><span class="task">Custom step taking a Map of parameters instead of a single string.</span>
+<pre><span class="lbl">vars/deployApp.groovy</span><span class="kw">def</span> <span class="fn">call</span>(Map config) {
+  <span class="fn">echo</span> <span class="str">"Deploying ${config.app} to ${config.env}"</span>
+}</pre></li>
+    <li><span class="task">Call the step with named parameters in a Jenkinsfile.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">deployApp</span> app: <span class="str">'checkout-service'</span>, env: <span class="str">'staging'</span></pre></li>
+    <li><span class="task">A shared class inside <code class="inline">src/</code>.</span>
+<pre><span class="lbl">src/org/example/Notifier.groovy</span><span class="kw">package</span> org.example
+<span class="kw">class</span> Notifier <span class="kw">implements</span> Serializable {
+  <span class="kw">static</span> <span class="kw">void</span> <span class="fn">slack</span>(script, String msg) {
+    script.<span class="fn">echo</span> <span class="str">"[Slack] ${msg}"</span>
+  }
+}</pre></li>
+    <li><span class="task">Using the <code class="inline">src/</code> class from a step in <code class="inline">vars/</code>.</span>
+<pre><span class="lbl">vars/notify.groovy</span><span class="kw">import</span> org.example.Notifier
+<span class="kw">def</span> <span class="fn">call</span>(String msg) {
+  Notifier.<span class="fn">slack</span>(<span class="kw">this</span>, msg)
+}</pre></li>
+    <li><span class="task">Import the library pinned to a specific version (tag/branch).</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="cmt">@Library('my-shared-lib@release-2.0') _</span>
+pipeline { agent any
+  stages { stage(<span class="str">'Use'</span>) { steps { <span class="fn">sayHello</span>() } } }
+}</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Shared Libraries</span></div>
+  <ol class="drills">
+    <li><span class="task">Write a custom step <code class="inline">vars/printVersion.groovy</code> that prints a fixed string.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="kw">def</span> <span class="fn">call</span>() {
+  <span class="fn">echo</span> <span class="str">'Version 1.0.0'</span>
+}</pre></div></details></li>
+    <li><span class="task">Write the line that imports a library named <code class="inline">common-lib</code> into a Jenkinsfile.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">@Library('common-lib') _</span></pre></div></details></li>
+    <li><span class="task">Call the <code class="inline">sayHello</code> step with the argument <code class="inline">'Duy'</code>.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="fn">sayHello</span> <span class="str">'Duy'</span></pre></div></details></li>
+    <li><span class="task">Write the standard class path for package <code class="inline">org.acme</code>.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>src/org/acme/MyClass.groovy</pre></div></details></li>
+    <li><span class="task">Import the library pinned to tag <code class="inline">v3.1</code>.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">@Library('my-shared-lib@v3.1') _</span></pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 4.3 ============ -->
+<section class="lesson" id="parallel-matrix">
+<div class="lang vi">
+  <span class="phase-tag">Bài 4.3</span>
+  <h2>Parallel &amp; Matrix</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Chạy nhiều nhánh công việc song song với <code class="inline">parallel {}</code>, dừng sớm bằng <code class="inline">failFast</code>, và nhân bản một stage theo nhiều tổ hợp biến với <code class="inline">matrix {}</code>.</div>
+  <h3>Parallel trong một stage</h3>
+  <p>Khối <code class="inline">parallel</code> declarative cho phép chạy nhiều nhánh con <b>đồng thời</b>, mỗi nhánh có thể chạy trên agent khác nhau.</p>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent none
+  stages {
+    stage(<span class="str">'Test'</span>) {
+      failFast <span class="kw">true</span>
+      parallel {
+        stage(<span class="str">'Unit'</span>) {
+          agent any
+          steps { <span class="fn">sh</span> <span class="str">'npm run test:unit'</span> }
+        }
+        stage(<span class="str">'Lint'</span>) {
+          agent any
+          steps { <span class="fn">sh</span> <span class="str">'npm run lint'</span> }
+        }
+        stage(<span class="str">'E2E'</span>) {
+          agent any
+          steps { <span class="fn">sh</span> <span class="str">'npm run test:e2e'</span> }
+        }
+      }
+    }
+  }
+}</pre>
+  <table>
+    <tr><th>Tùy chọn</th><th>Ý nghĩa</th></tr>
+    <tr><td><code>failFast true</code></td><td>Hủy các nhánh song song còn lại ngay khi một nhánh fail.</td></tr>
+    <tr><td><code>agent any</code> trong mỗi nhánh</td><td>Cho phép mỗi nhánh chạy trên executor/agent riêng, thật sự song song.</td></tr>
+  </table>
+  <div class="box tip"><b>💡 parallelsAlwaysFailFast()</b>Có thể đặt trong khối <code class="inline">options {}</code> cấp pipeline để áp dụng failFast cho <b>mọi</b> khối parallel mà không cần khai báo lại từng chỗ.</div>
+  <h3>Matrix — nhân bản stage theo trục</h3>
+  <p><code class="inline">matrix {}</code> tự động tạo tổ hợp Cartesian của các <code class="inline">axes</code>, chạy một bản sao stage cho mỗi tổ hợp — lý tưởng cho build đa hệ điều hành/đa trình duyệt.</p>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent none
+  stages {
+    stage(<span class="str">'Cross-browser tests'</span>) {
+      matrix {
+        axes {
+          axis {
+            name <span class="str">'BROWSER'</span>
+            values <span class="str">'chrome'</span>, <span class="str">'firefox'</span>, <span class="str">'safari'</span>
+          }
+          axis {
+            name <span class="str">'OS'</span>
+            values <span class="str">'linux'</span>, <span class="str">'windows'</span>
+          }
+        }
+        excludes {
+          exclude {
+            axis { name <span class="str">'BROWSER'</span>; values <span class="str">'safari'</span> }
+            axis { name <span class="str">'OS'</span>; values <span class="str">'windows'</span> }
+          }
+        }
+        stages {
+          stage(<span class="str">'Run'</span>) {
+            agent any
+            steps { <span class="fn">sh</span> <span class="str">"run-tests --browser=${BROWSER} --os=${OS}"</span> }
+          }
+        }
+      }
+    }
+  }
+}</pre>
+  <table>
+    <tr><th>Phần tử</th><th>Vai trò</th></tr>
+    <tr><td><code>axes / axis</code></td><td>Mỗi <code>axis</code> là một biến với danh sách giá trị; matrix nhân tổ hợp tất cả các axis.</td></tr>
+    <tr><td><code>excludes</code></td><td>Loại bỏ những tổ hợp không hợp lệ/không cần chạy (ví dụ Safari trên Windows).</td></tr>
+    <tr><td><code>stages</code> bên trong matrix</td><td>Các stage này lặp lại cho mỗi "cell" (tổ hợp) còn lại sau khi loại trừ.</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Khi nào dùng matrix thay vì viết tay nhiều stage?</b>Khi số tổ hợp lớn (3 browser × 2 OS = 6), viết tay 6 stage riêng biệt cực kỳ lặp lại và khó bảo trì. Matrix sinh chúng tự động chỉ từ khai báo axes.</div>
+  <div class="box warn"><b>⚠️ Lưu ý</b>Mỗi cell trong matrix chạy trên agent/executor riêng — cần đủ agent khả dụng, nếu không các cell sẽ xếp hàng chờ. <code class="inline">agent none</code> ở cấp pipeline là bắt buộc khi dùng parallel/matrix để tránh khóa một agent không cần thiết ở cấp cao nhất.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Viết một pipeline có stage "Test" chạy song song 2 nhánh Unit và Lint với <code class="inline">failFast true</code>, sau đó thêm một stage <code class="inline">matrix</code> chạy trên 2 giá trị <code class="inline">NODE_VERSION</code> (16, 18).</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Parallel &amp; Matrix</span></div>
+  <ol class="examples">
+    <li><span class="task">Chạy song song build frontend và backend.</span>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'Build'</span>) {
+  parallel {
+    stage(<span class="str">'Frontend'</span>) { agent any; steps { <span class="fn">sh</span> <span class="str">'npm run build'</span> } }
+    stage(<span class="str">'Backend'</span>)  { agent any; steps { <span class="fn">sh</span> <span class="str">'./gradlew build'</span> } }
+  }
+}</pre></li>
+    <li><span class="task">Bật failFast để dừng ngay khi một nhánh lỗi.</span>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'Test'</span>) {
+  failFast <span class="kw">true</span>
+  parallel { stage(<span class="str">'A'</span>) { steps { <span class="fn">sh</span> <span class="str">'./a.sh'</span> } } stage(<span class="str">'B'</span>) { steps { <span class="fn">sh</span> <span class="str">'./b.sh'</span> } } }
+}</pre></li>
+    <li><span class="task">Matrix build với một trục duy nhất (nhiều phiên bản Node).</span>
+<pre><span class="lbl">Jenkinsfile</span>matrix {
+  axes { axis { name <span class="str">'NODE'</span>; values <span class="str">'16'</span>, <span class="str">'18'</span>, <span class="str">'20'</span> } }
+  stages { stage(<span class="str">'Test'</span>) { steps { <span class="fn">sh</span> <span class="str">"nvm use ${NODE} && npm test"</span> } } }
+}</pre></li>
+    <li><span class="task">Matrix 2 trục cho OS và kiến trúc CPU.</span>
+<pre><span class="lbl">Jenkinsfile</span>axes {
+  axis { name <span class="str">'OS'</span>;   values <span class="str">'linux'</span>, <span class="str">'mac'</span> }
+  axis { name <span class="str">'ARCH'</span>; values <span class="str">'amd64'</span>, <span class="str">'arm64'</span> }
+}</pre></li>
+    <li><span class="task">Áp dụng failFast toàn cục cho mọi khối parallel.</span>
+<pre><span class="lbl">Jenkinsfile</span>options {
+  parallelsAlwaysFailFast()
+}</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Parallel &amp; Matrix</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết một khối <code class="inline">parallel</code> với 2 nhánh <code class="inline">A</code> và <code class="inline">B</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>parallel {
+  stage(<span class="str">'A'</span>) { steps { <span class="fn">echo</span> <span class="str">'A'</span> } }
+  stage(<span class="str">'B'</span>) { steps { <span class="fn">echo</span> <span class="str">'B'</span> } }
+}</pre></div></details></li>
+    <li><span class="task">Thêm <code class="inline">failFast true</code> vào stage cha của khối parallel trên.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>stage(<span class="str">'Test'</span>) {
+  failFast <span class="kw">true</span>
+  parallel { <span class="cmt">/* ... */</span> }
+}</pre></div></details></li>
+    <li><span class="task">Khai báo một axis tên <code class="inline">ENV</code> với 3 giá trị dev/staging/prod.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>axis { name <span class="str">'ENV'</span>; values <span class="str">'dev'</span>, <span class="str">'staging'</span>, <span class="str">'prod'</span> }</pre></div></details></li>
+    <li><span class="task">Loại trừ tổ hợp <code class="inline">BROWSER=safari</code> và <code class="inline">OS=linux</code> trong matrix.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>excludes {
+  exclude {
+    axis { name <span class="str">'BROWSER'</span>; values <span class="str">'safari'</span> }
+    axis { name <span class="str">'OS'</span>; values <span class="str">'linux'</span> }
+  }
+}</pre></div></details></li>
+    <li><span class="task">Viết stage bên trong matrix dùng biến axis <code class="inline">BROWSER</code> trong lệnh sh.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>stage(<span class="str">'Run'</span>) {
+  agent any
+  steps { <span class="fn">sh</span> <span class="str">"test.sh --browser=${BROWSER}"</span> }
+}</pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 4.3</span>
+  <h2>Parallel &amp; Matrix</h2>
+  <div class="box goal"><b>🎯 Goal</b>Run multiple branches of work concurrently with <code class="inline">parallel {}</code>, fail fast with <code class="inline">failFast</code>, and replicate a stage across combinations of variables with <code class="inline">matrix {}</code>.</div>
+  <h3>Parallel inside a stage</h3>
+  <p>The declarative <code class="inline">parallel</code> block runs several sub-branches <b>concurrently</b>, each of which may run on a different agent.</p>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent none
+  stages {
+    stage(<span class="str">'Test'</span>) {
+      failFast <span class="kw">true</span>
+      parallel {
+        stage(<span class="str">'Unit'</span>) {
+          agent any
+          steps { <span class="fn">sh</span> <span class="str">'npm run test:unit'</span> }
+        }
+        stage(<span class="str">'Lint'</span>) {
+          agent any
+          steps { <span class="fn">sh</span> <span class="str">'npm run lint'</span> }
+        }
+        stage(<span class="str">'E2E'</span>) {
+          agent any
+          steps { <span class="fn">sh</span> <span class="str">'npm run test:e2e'</span> }
+        }
+      }
+    }
+  }
+}</pre>
+  <table>
+    <tr><th>Option</th><th>Meaning</th></tr>
+    <tr><td><code>failFast true</code></td><td>Cancel remaining parallel branches as soon as one fails.</td></tr>
+    <tr><td><code>agent any</code> per branch</td><td>Lets each branch run on its own executor/agent, truly in parallel.</td></tr>
+  </table>
+  <div class="box tip"><b>💡 parallelsAlwaysFailFast()</b>Can be placed in the pipeline-level <code class="inline">options {}</code> block to apply failFast to <b>every</b> parallel block without repeating it everywhere.</div>
+  <h3>Matrix — replicating a stage across axes</h3>
+  <p><code class="inline">matrix {}</code> automatically generates the Cartesian product of the given <code class="inline">axes</code>, running a copy of the stage for every combination — ideal for cross-OS/cross-browser builds.</p>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent none
+  stages {
+    stage(<span class="str">'Cross-browser tests'</span>) {
+      matrix {
+        axes {
+          axis {
+            name <span class="str">'BROWSER'</span>
+            values <span class="str">'chrome'</span>, <span class="str">'firefox'</span>, <span class="str">'safari'</span>
+          }
+          axis {
+            name <span class="str">'OS'</span>
+            values <span class="str">'linux'</span>, <span class="str">'windows'</span>
+          }
+        }
+        excludes {
+          exclude {
+            axis { name <span class="str">'BROWSER'</span>; values <span class="str">'safari'</span> }
+            axis { name <span class="str">'OS'</span>; values <span class="str">'windows'</span> }
+          }
+        }
+        stages {
+          stage(<span class="str">'Run'</span>) {
+            agent any
+            steps { <span class="fn">sh</span> <span class="str">"run-tests --browser=${BROWSER} --os=${OS}"</span> }
+          }
+        }
+      }
+    }
+  }
+}</pre>
+  <table>
+    <tr><th>Element</th><th>Role</th></tr>
+    <tr><td><code>axes / axis</code></td><td>Each <code>axis</code> is a variable with a list of values; matrix multiplies all axes together.</td></tr>
+    <tr><td><code>excludes</code></td><td>Removes combinations that are invalid/unnecessary (e.g. Safari on Windows).</td></tr>
+    <tr><td><code>stages</code> inside matrix</td><td>These stages repeat for every remaining "cell" (combination) after exclusion.</td></tr>
+  </table>
+  <div class="box why"><b>🤔 When to use matrix instead of hand-writing stages?</b>When the number of combinations is large (3 browsers × 2 OSes = 6), hand-writing 6 separate stages is repetitive and hard to maintain. Matrix generates them automatically from the axes declaration.</div>
+  <div class="box warn"><b>⚠️ Note</b>Each matrix cell runs on its own agent/executor — you need enough agents available, otherwise cells queue up. <code class="inline">agent none</code> at the pipeline level is required when using parallel/matrix to avoid needlessly locking an agent at the top level.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Write a pipeline with a "Test" stage that runs Unit and Lint branches in parallel with <code class="inline">failFast true</code>, then add a <code class="inline">matrix</code> stage running against two <code class="inline">NODE_VERSION</code> values (16, 18).</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Parallel &amp; Matrix</span></div>
+  <ol class="examples">
+    <li><span class="task">Run frontend and backend builds in parallel.</span>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'Build'</span>) {
+  parallel {
+    stage(<span class="str">'Frontend'</span>) { agent any; steps { <span class="fn">sh</span> <span class="str">'npm run build'</span> } }
+    stage(<span class="str">'Backend'</span>)  { agent any; steps { <span class="fn">sh</span> <span class="str">'./gradlew build'</span> } }
+  }
+}</pre></li>
+    <li><span class="task">Enable failFast to stop as soon as one branch fails.</span>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'Test'</span>) {
+  failFast <span class="kw">true</span>
+  parallel { stage(<span class="str">'A'</span>) { steps { <span class="fn">sh</span> <span class="str">'./a.sh'</span> } } stage(<span class="str">'B'</span>) { steps { <span class="fn">sh</span> <span class="str">'./b.sh'</span> } } }
+}</pre></li>
+    <li><span class="task">Matrix build with a single axis (multiple Node versions).</span>
+<pre><span class="lbl">Jenkinsfile</span>matrix {
+  axes { axis { name <span class="str">'NODE'</span>; values <span class="str">'16'</span>, <span class="str">'18'</span>, <span class="str">'20'</span> } }
+  stages { stage(<span class="str">'Test'</span>) { steps { <span class="fn">sh</span> <span class="str">"nvm use ${NODE} && npm test"</span> } } }
+}</pre></li>
+    <li><span class="task">Two-axis matrix for OS and CPU architecture.</span>
+<pre><span class="lbl">Jenkinsfile</span>axes {
+  axis { name <span class="str">'OS'</span>;   values <span class="str">'linux'</span>, <span class="str">'mac'</span> }
+  axis { name <span class="str">'ARCH'</span>; values <span class="str">'amd64'</span>, <span class="str">'arm64'</span> }
+}</pre></li>
+    <li><span class="task">Apply failFast globally to every parallel block.</span>
+<pre><span class="lbl">Jenkinsfile</span>options {
+  parallelsAlwaysFailFast()
+}</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Parallel &amp; Matrix</span></div>
+  <ol class="drills">
+    <li><span class="task">Write a <code class="inline">parallel</code> block with branches <code class="inline">A</code> and <code class="inline">B</code>.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>parallel {
+  stage(<span class="str">'A'</span>) { steps { <span class="fn">echo</span> <span class="str">'A'</span> } }
+  stage(<span class="str">'B'</span>) { steps { <span class="fn">echo</span> <span class="str">'B'</span> } }
+}</pre></div></details></li>
+    <li><span class="task">Add <code class="inline">failFast true</code> to the parent stage of the parallel block above.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>stage(<span class="str">'Test'</span>) {
+  failFast <span class="kw">true</span>
+  parallel { <span class="cmt">/* ... */</span> }
+}</pre></div></details></li>
+    <li><span class="task">Declare an axis named <code class="inline">ENV</code> with 3 values dev/staging/prod.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>axis { name <span class="str">'ENV'</span>; values <span class="str">'dev'</span>, <span class="str">'staging'</span>, <span class="str">'prod'</span> }</pre></div></details></li>
+    <li><span class="task">Exclude the combination <code class="inline">BROWSER=safari</code> and <code class="inline">OS=linux</code> in a matrix.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>excludes {
+  exclude {
+    axis { name <span class="str">'BROWSER'</span>; values <span class="str">'safari'</span> }
+    axis { name <span class="str">'OS'</span>; values <span class="str">'linux'</span> }
+  }
+}</pre></div></details></li>
+    <li><span class="task">Write a stage inside a matrix using the axis variable <code class="inline">BROWSER</code> in a sh command.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>stage(<span class="str">'Run'</span>) {
+  agent any
+  steps { <span class="fn">sh</span> <span class="str">"test.sh --browser=${BROWSER}"</span> }
+}</pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 4.4 ============ -->
+<section class="lesson" id="when-conditions">
+<div class="lang vi">
+  <span class="phase-tag">Bài 4.4</span>
+  <h2>Điều kiện <code class="inline">when</code></h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Chạy hoặc bỏ qua một stage tùy theo điều kiện: nhánh, biến môi trường, biểu thức Groovy, thay đổi file, và kết hợp nhiều điều kiện với <code class="inline">allOf</code>/<code class="inline">anyOf</code>.</div>
+  <h3>Điều kiện cơ bản</h3>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'Deploy'</span>) {
+  when { branch <span class="str">'main'</span> }
+  steps { <span class="fn">sh</span> <span class="str">'./deploy.sh'</span> }
+}</pre>
+  <table>
+    <tr><th>Điều kiện</th><th>Kiểm tra</th></tr>
+    <tr><td><code>branch 'main'</code></td><td>Tên nhánh hiện tại (chỉ Multibranch Pipeline).</td></tr>
+    <tr><td><code>environment name: 'DEPLOY', value: 'true'</code></td><td>Giá trị của một biến môi trường.</td></tr>
+    <tr><td><code>expression { ... }</code></td><td>Biểu thức Groovy tùy ý, trả về true/false.</td></tr>
+    <tr><td><code>changeset "**/*.js"</code></td><td>Có file khớp pattern bị thay đổi trong commit.</td></tr>
+    <tr><td><code>tag "release-*"</code></td><td>Build được kích hoạt từ một Git tag khớp pattern.</td></tr>
+  </table>
+  <h3>expression{} — logic Groovy tùy ý</h3>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'Nightly only'</span>) {
+  when {
+    expression { <span class="kw">return</span> params.RUN_NIGHTLY == <span class="kw">true</span> }
+  }
+  steps { <span class="fn">sh</span> <span class="str">'./nightly-tests.sh'</span> }
+}</pre>
+  <h3>Kết hợp nhiều điều kiện</h3>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'Deploy prod'</span>) {
+  when {
+    allOf {
+      branch <span class="str">'main'</span>
+      environment name: <span class="str">'DEPLOY_ENV'</span>, value: <span class="str">'prod'</span>
+    }
+  }
+  steps { <span class="fn">sh</span> <span class="str">'./deploy-prod.sh'</span> }
+}
+
+stage(<span class="str">'Notify'</span>) {
+  when {
+    anyOf {
+      branch <span class="str">'main'</span>
+      branch <span class="str">'release/*'</span>
+    }
+  }
+  steps { <span class="fn">sh</span> <span class="str">'./notify.sh'</span> }
+}</pre>
+  <table>
+    <tr><th>Combinator</th><th>Ý nghĩa</th></tr>
+    <tr><td><code>allOf { ... }</code></td><td>Tất cả điều kiện con phải đúng (AND).</td></tr>
+    <tr><td><code>anyOf { ... }</code></td><td>Chỉ cần một điều kiện con đúng (OR).</td></tr>
+    <tr><td><code>not { ... }</code></td><td>Phủ định một điều kiện.</td></tr>
+  </table>
+  <h3>changeset — chỉ chạy khi file liên quan thay đổi</h3>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'Frontend tests'</span>) {
+  when { changeset <span class="str">"frontend/**"</span> }
+  steps { <span class="fn">sh</span> <span class="str">'npm test'</span> }
+}</pre>
+  <div class="box tip"><b>💡 beforeAgent true</b>Đặt <code class="inline">when { beforeAgent true; branch 'main' }</code> để Jenkins kiểm tra điều kiện <b>trước khi</b> cấp phát agent cho stage — tiết kiệm tài nguyên khi điều kiện false.</div>
+  <div class="box why"><b>🤔 Vì sao when tốt hơn if/else trong script?</b><code class="inline">when</code> là cú pháp declarative chuẩn, được Jenkins hiển thị rõ ràng trên UI (stage bị skip có nhãn riêng), dễ đọc hơn so với việc nhồi logic điều kiện vào một pipeline kiểu Scripted.</div>
+  <div class="box warn"><b>⚠️ Lưu ý</b><code class="inline">changeset</code> so khớp theo Ant-style glob và phụ thuộc vào SCM plugin hỗ trợ (Git hỗ trợ tốt). Với multibranch, một số điều kiện như <code class="inline">branch</code> chỉ có ý nghĩa khi job thực sự là Multibranch/Organization Folder.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Viết pipeline với 3 stage: "Test" luôn chạy, "Deploy Staging" chỉ khi nhánh là <code class="inline">develop</code>, "Deploy Prod" chỉ khi nhánh <code class="inline">main</code> VÀ biến <code class="inline">APPROVED=true</code>.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · When conditions</span></div>
+  <ol class="examples">
+    <li><span class="task">Chỉ chạy stage khi nhánh khớp pattern release/*.</span>
+<pre><span class="lbl">Jenkinsfile</span>when { branch <span class="str">'release/*'</span> }</pre></li>
+    <li><span class="task">Chạy stage dựa trên giá trị tham số build.</span>
+<pre><span class="lbl">Jenkinsfile</span>when { expression { params.ENVIRONMENT == <span class="str">'production'</span> } }</pre></li>
+    <li><span class="task">Bỏ qua stage nếu KHÔNG phải nhánh main.</span>
+<pre><span class="lbl">Jenkinsfile</span>when { not { branch <span class="str">'main'</span> } }</pre></li>
+    <li><span class="task">Chỉ test khi có file trong thư mục api/ thay đổi.</span>
+<pre><span class="lbl">Jenkinsfile</span>when { changeset <span class="str">"api/**"</span> }</pre></li>
+    <li><span class="task">Kết hợp branch VÀ tag bằng allOf.</span>
+<pre><span class="lbl">Jenkinsfile</span>when {
+  allOf {
+    branch <span class="str">'main'</span>
+    tag <span class="str">"v*"</span>
+  }
+}</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · When conditions</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết when chỉ chạy khi nhánh là <code class="inline">staging</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>when { branch <span class="str">'staging'</span> }</pre></div></details></li>
+    <li><span class="task">Viết when dùng expression kiểm tra biến môi trường <code class="inline">CI</code> bằng <code class="inline">'true'</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>when { expression { env.CI == <span class="str">'true'</span> } }</pre></div></details></li>
+    <li><span class="task">Viết when khớp bất kỳ nhánh nào trong hai nhánh main hoặc develop bằng anyOf.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>when {
+  anyOf {
+    branch <span class="str">'main'</span>
+    branch <span class="str">'develop'</span>
+  }
+}</pre></div></details></li>
+    <li><span class="task">Viết when dùng <code class="inline">environment</code> kiểm tra biến <code class="inline">DEPLOY</code> bằng <code class="inline">yes</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>when { environment name: <span class="str">'DEPLOY'</span>, value: <span class="str">'yes'</span> }</pre></div></details></li>
+    <li><span class="task">Đặt <code class="inline">beforeAgent true</code> cùng điều kiện branch main.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>when {
+  beforeAgent <span class="kw">true</span>
+  branch <span class="str">'main'</span>
+}</pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 4.4</span>
+  <h2>When Conditions</h2>
+  <div class="box goal"><b>🎯 Goal</b>Run or skip a stage based on conditions: branch, environment variable, Groovy expression, changed files, and combining conditions with <code class="inline">allOf</code>/<code class="inline">anyOf</code>.</div>
+  <h3>Basic conditions</h3>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'Deploy'</span>) {
+  when { branch <span class="str">'main'</span> }
+  steps { <span class="fn">sh</span> <span class="str">'./deploy.sh'</span> }
+}</pre>
+  <table>
+    <tr><th>Condition</th><th>Checks</th></tr>
+    <tr><td><code>branch 'main'</code></td><td>Current branch name (Multibranch Pipeline only).</td></tr>
+    <tr><td><code>environment name: 'DEPLOY', value: 'true'</code></td><td>The value of an environment variable.</td></tr>
+    <tr><td><code>expression { ... }</code></td><td>Arbitrary Groovy expression returning true/false.</td></tr>
+    <tr><td><code>changeset "**/*.js"</code></td><td>Whether a file matching the pattern was changed in the commit.</td></tr>
+    <tr><td><code>tag "release-*"</code></td><td>Build was triggered from a Git tag matching the pattern.</td></tr>
+  </table>
+  <h3>expression{} — arbitrary Groovy logic</h3>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'Nightly only'</span>) {
+  when {
+    expression { <span class="kw">return</span> params.RUN_NIGHTLY == <span class="kw">true</span> }
+  }
+  steps { <span class="fn">sh</span> <span class="str">'./nightly-tests.sh'</span> }
+}</pre>
+  <h3>Combining multiple conditions</h3>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'Deploy prod'</span>) {
+  when {
+    allOf {
+      branch <span class="str">'main'</span>
+      environment name: <span class="str">'DEPLOY_ENV'</span>, value: <span class="str">'prod'</span>
+    }
+  }
+  steps { <span class="fn">sh</span> <span class="str">'./deploy-prod.sh'</span> }
+}
+
+stage(<span class="str">'Notify'</span>) {
+  when {
+    anyOf {
+      branch <span class="str">'main'</span>
+      branch <span class="str">'release/*'</span>
+    }
+  }
+  steps { <span class="fn">sh</span> <span class="str">'./notify.sh'</span> }
+}</pre>
+  <table>
+    <tr><th>Combinator</th><th>Meaning</th></tr>
+    <tr><td><code>allOf { ... }</code></td><td>All nested conditions must be true (AND).</td></tr>
+    <tr><td><code>anyOf { ... }</code></td><td>Only one nested condition needs to be true (OR).</td></tr>
+    <tr><td><code>not { ... }</code></td><td>Negates a condition.</td></tr>
+  </table>
+  <h3>changeset — only run when relevant files change</h3>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'Frontend tests'</span>) {
+  when { changeset <span class="str">"frontend/**"</span> }
+  steps { <span class="fn">sh</span> <span class="str">'npm test'</span> }
+}</pre>
+  <div class="box tip"><b>💡 beforeAgent true</b>Set <code class="inline">when { beforeAgent true; branch 'main' }</code> so Jenkins evaluates the condition <b>before</b> allocating an agent for the stage — saves resources when the condition is false.</div>
+  <div class="box why"><b>🤔 Why is when better than script if/else?</b><code class="inline">when</code> is standard declarative syntax, clearly surfaced in the Jenkins UI (a skipped stage gets its own label), and easier to read than embedding conditional logic in a Scripted-style pipeline.</div>
+  <div class="box warn"><b>⚠️ Note</b><code class="inline">changeset</code> matches Ant-style globs and depends on SCM plugin support (Git supports it well). In multibranch, conditions like <code class="inline">branch</code> only make sense when the job is actually a Multibranch/Organization Folder job.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Write a pipeline with 3 stages: "Test" always runs, "Deploy Staging" only when the branch is <code class="inline">develop</code>, "Deploy Prod" only when branch is <code class="inline">main</code> AND variable <code class="inline">APPROVED=true</code>.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · When conditions</span></div>
+  <ol class="examples">
+    <li><span class="task">Only run a stage when the branch matches release/*.</span>
+<pre><span class="lbl">Jenkinsfile</span>when { branch <span class="str">'release/*'</span> }</pre></li>
+    <li><span class="task">Run a stage based on a build parameter's value.</span>
+<pre><span class="lbl">Jenkinsfile</span>when { expression { params.ENVIRONMENT == <span class="str">'production'</span> } }</pre></li>
+    <li><span class="task">Skip a stage unless it's the main branch.</span>
+<pre><span class="lbl">Jenkinsfile</span>when { not { branch <span class="str">'main'</span> } }</pre></li>
+    <li><span class="task">Only test when files under api/ changed.</span>
+<pre><span class="lbl">Jenkinsfile</span>when { changeset <span class="str">"api/**"</span> }</pre></li>
+    <li><span class="task">Combine branch AND tag with allOf.</span>
+<pre><span class="lbl">Jenkinsfile</span>when {
+  allOf {
+    branch <span class="str">'main'</span>
+    tag <span class="str">"v*"</span>
+  }
+}</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · When conditions</span></div>
+  <ol class="drills">
+    <li><span class="task">Write a when that only runs on the <code class="inline">staging</code> branch.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>when { branch <span class="str">'staging'</span> }</pre></div></details></li>
+    <li><span class="task">Write a when using expression checking that env var <code class="inline">CI</code> equals <code class="inline">'true'</code>.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>when { expression { env.CI == <span class="str">'true'</span> } }</pre></div></details></li>
+    <li><span class="task">Write a when matching either the main or develop branch with anyOf.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>when {
+  anyOf {
+    branch <span class="str">'main'</span>
+    branch <span class="str">'develop'</span>
+  }
+}</pre></div></details></li>
+    <li><span class="task">Write a when using <code class="inline">environment</code> checking var <code class="inline">DEPLOY</code> equals <code class="inline">yes</code>.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>when { environment name: <span class="str">'DEPLOY'</span>, value: <span class="str">'yes'</span> }</pre></div></details></li>
+    <li><span class="task">Set <code class="inline">beforeAgent true</code> together with a branch main condition.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>when {
+  beforeAgent <span class="kw">true</span>
+  branch <span class="str">'main'</span>
+}</pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 4.5 ============ -->
+<section class="lesson" id="input-parameters">
+<div class="lang vi">
+  <span class="phase-tag">Bài 4.5</span>
+  <h2>Input &amp; Parameters</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Khai báo tham số build với <code class="inline">parameters {}</code> (string/choice/booleanParam), tạo cổng phê duyệt thủ công với <code class="inline">input</code>, giới hạn người phê duyệt bằng <code class="inline">submitter</code>, và kết hợp với <code class="inline">timeout</code>.</div>
+  <h3>Khối parameters</h3>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent any
+  parameters {
+    string(name: <span class="str">'VERSION'</span>, defaultValue: <span class="str">'1.0.0'</span>, description: <span class="str">'Phiên bản cần deploy'</span>)
+    choice(name: <span class="str">'ENVIRONMENT'</span>, choices: [<span class="str">'staging'</span>, <span class="str">'production'</span>], description: <span class="str">'Môi trường đích'</span>)
+    booleanParam(name: <span class="str">'RUN_TESTS'</span>, defaultValue: <span class="kw">true</span>, description: <span class="str">'Có chạy test không'</span>)
+  }
+  stages {
+    stage(<span class="str">'Deploy'</span>) {
+      steps {
+        <span class="fn">echo</span> <span class="str">"Deploying ${params.VERSION} to ${params.ENVIRONMENT}"</span>
+      }
+    }
+  }
+}</pre>
+  <table>
+    <tr><th>Kiểu tham số</th><th>Dùng khi</th></tr>
+    <tr><td><code>string</code></td><td>Nhập chuỗi tự do (version, tên nhánh, ticket ID...).</td></tr>
+    <tr><td><code>choice</code></td><td>Chọn một trong danh sách cố định (môi trường, region...).</td></tr>
+    <tr><td><code>booleanParam</code></td><td>Bật/tắt một hành vi (chạy test, skip cache...).</td></tr>
+  </table>
+  <p>Truy cập giá trị tham số trong pipeline qua biến <code class="inline">params.TÊN_THAM_SỐ</code>.</p>
+  <h3>input — cổng phê duyệt thủ công</h3>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'Approve production deploy'</span>) {
+  steps {
+    script {
+      input message: <span class="str">'Triển khai lên production?'</span>,
+            ok: <span class="str">'Deploy'</span>,
+            submitter: <span class="str">'release-managers'</span>
+    }
+  }
+}</pre>
+  <table>
+    <tr><th>Tham số của input</th><th>Ý nghĩa</th></tr>
+    <tr><td><code>message</code></td><td>Nội dung hiển thị cho người phê duyệt.</td></tr>
+    <tr><td><code>ok</code></td><td>Nhãn nút xác nhận.</td></tr>
+    <tr><td><code>submitter</code></td><td>Chỉ user/group được liệt kê mới có quyền bấm phê duyệt.</td></tr>
+    <tr><td><code>parameters</code></td><td>Có thể yêu cầu nhập thêm tham số ngay tại bước input.</td></tr>
+  </table>
+  <h3>Kết hợp input với timeout</h3>
+  <p>Nếu không ai phê duyệt, pipeline sẽ <b>treo agent vô thời hạn</b> (hoặc chiếm executor nếu input chạy trong <code class="inline">stage</code> có agent). Bọc trong <code class="inline">timeout</code> để tự hủy sau một khoảng thời gian:</p>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'Approve production deploy'</span>) {
+  steps {
+    timeout(time: <span class="num">15</span>, unit: <span class="str">'MINUTES'</span>) {
+      input message: <span class="str">'Triển khai lên production?'</span>, submitter: <span class="str">'release-managers'</span>
+    }
+  }
+}
+stage(<span class="str">'Deploy'</span>) {
+  steps { <span class="fn">sh</span> <span class="str">'./deploy-prod.sh'</span> }
+}</pre>
+  <div class="box tip"><b>💡 Best practice</b>Đặt stage <code class="inline">input</code> với <code class="inline">agent none</code>/không giữ workspace (dùng <code class="inline">options { skipDefaultCheckout() }</code> hoặc tách stage input khỏi stage cần agent) để không chiếm executor trong lúc chờ người duyệt.</div>
+  <div class="box why"><b>🤔 Vì sao cần input thay vì chỉ trigger thủ công?</b><code class="inline">input</code> cho phép pipeline <b>tạm dừng đúng lúc</b> — build đã chạy test/build xong, chỉ còn thiếu quyết định con người trước khi deploy — thay vì phải chạy lại toàn bộ job theo cách thủ công.</div>
+  <div class="box warn"><b>⚠️ Lưu ý bảo mật</b>Không đặt <code class="inline">submitter</code> nghĩa là <b>bất kỳ ai có quyền Job/Build</b> đều phê duyệt được. Luôn khai báo <code class="inline">submitter</code> cho các bước nhạy cảm như deploy production.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Viết pipeline có tham số <code class="inline">choice ENVIRONMENT</code> (staging/production); nếu là production, thêm bước <code class="inline">input</code> giới hạn <code class="inline">submitter: 'admins'</code> và <code class="inline">timeout 10 phút</code> trước khi deploy.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Input &amp; Parameters</span></div>
+  <ol class="examples">
+    <li><span class="task">Tham số string cho tên nhánh cần build.</span>
+<pre><span class="lbl">Jenkinsfile</span>parameters {
+  string(name: <span class="str">'BRANCH'</span>, defaultValue: <span class="str">'main'</span>, description: <span class="str">'Nhánh cần build'</span>)
+}</pre></li>
+    <li><span class="task">Tham số choice chọn region deploy.</span>
+<pre><span class="lbl">Jenkinsfile</span>parameters {
+  choice(name: <span class="str">'REGION'</span>, choices: [<span class="str">'us-east-1'</span>, <span class="str">'ap-southeast-1'</span>])
+}</pre></li>
+    <li><span class="task">Tham số boolean bật/tắt gửi thông báo Slack.</span>
+<pre><span class="lbl">Jenkinsfile</span>parameters {
+  booleanParam(name: <span class="str">'NOTIFY_SLACK'</span>, defaultValue: <span class="kw">false</span>)
+}</pre></li>
+    <li><span class="task">Input yêu cầu phê duyệt trước khi xóa tài nguyên.</span>
+<pre><span class="lbl">Jenkinsfile</span>input message: <span class="str">'Xác nhận xóa môi trường staging?'</span>, ok: <span class="str">'Xóa'</span></pre></li>
+    <li><span class="task">Input kèm timeout 5 phút, tự hủy nếu không ai duyệt.</span>
+<pre><span class="lbl">Jenkinsfile</span>timeout(time: <span class="num">5</span>, unit: <span class="str">'MINUTES'</span>) {
+  input <span class="str">'Tiếp tục deploy?'</span>
+}</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Input &amp; Parameters</span></div>
+  <ol class="drills">
+    <li><span class="task">Khai báo tham số string <code class="inline">TICKET_ID</code> không có defaultValue.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>parameters {
+  string(name: <span class="str">'TICKET_ID'</span>, defaultValue: <span class="str">''</span>, description: <span class="str">'Mã ticket'</span>)
+}</pre></div></details></li>
+    <li><span class="task">Khai báo tham số choice <code class="inline">LOG_LEVEL</code> với 3 lựa chọn.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>parameters {
+  choice(name: <span class="str">'LOG_LEVEL'</span>, choices: [<span class="str">'debug'</span>, <span class="str">'info'</span>, <span class="str">'error'</span>])
+}</pre></div></details></li>
+    <li><span class="task">Viết bước input chỉ cho phép user thuộc group <code class="inline">qa-leads</code> phê duyệt.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>input message: <span class="str">'Phê duyệt release?'</span>, submitter: <span class="str">'qa-leads'</span></pre></div></details></li>
+    <li><span class="task">Bọc bước input trong timeout 30 phút.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>timeout(time: <span class="num">30</span>, unit: <span class="str">'MINUTES'</span>) {
+  input <span class="str">'Xác nhận?'</span>
+}</pre></div></details></li>
+    <li><span class="task">Truy cập giá trị tham số <code class="inline">ENVIRONMENT</code> trong một bước <code class="inline">echo</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="fn">echo</span> <span class="str">"Env: ${params.ENVIRONMENT}"</span></pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 4.5</span>
+  <h2>Input &amp; Parameters</h2>
+  <div class="box goal"><b>🎯 Goal</b>Declare build parameters with <code class="inline">parameters {}</code> (string/choice/booleanParam), create a manual approval gate with <code class="inline">input</code>, restrict approvers with <code class="inline">submitter</code>, and combine it with <code class="inline">timeout</code>.</div>
+  <h3>The parameters block</h3>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent any
+  parameters {
+    string(name: <span class="str">'VERSION'</span>, defaultValue: <span class="str">'1.0.0'</span>, description: <span class="str">'Version to deploy'</span>)
+    choice(name: <span class="str">'ENVIRONMENT'</span>, choices: [<span class="str">'staging'</span>, <span class="str">'production'</span>], description: <span class="str">'Target environment'</span>)
+    booleanParam(name: <span class="str">'RUN_TESTS'</span>, defaultValue: <span class="kw">true</span>, description: <span class="str">'Whether to run tests'</span>)
+  }
+  stages {
+    stage(<span class="str">'Deploy'</span>) {
+      steps {
+        <span class="fn">echo</span> <span class="str">"Deploying ${params.VERSION} to ${params.ENVIRONMENT}"</span>
+      }
+    }
+  }
+}</pre>
+  <table>
+    <tr><th>Parameter type</th><th>Use when</th></tr>
+    <tr><td><code>string</code></td><td>Free-form text input (version, branch name, ticket ID...).</td></tr>
+    <tr><td><code>choice</code></td><td>Pick one of a fixed list (environment, region...).</td></tr>
+    <tr><td><code>booleanParam</code></td><td>Toggle a behavior on/off (run tests, skip cache...).</td></tr>
+  </table>
+  <p>Access parameter values in the pipeline via <code class="inline">params.PARAMETER_NAME</code>.</p>
+  <h3>input — a manual approval gate</h3>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'Approve production deploy'</span>) {
+  steps {
+    script {
+      input message: <span class="str">'Deploy to production?'</span>,
+            ok: <span class="str">'Deploy'</span>,
+            submitter: <span class="str">'release-managers'</span>
+    }
+  }
+}</pre>
+  <table>
+    <tr><th>input parameter</th><th>Meaning</th></tr>
+    <tr><td><code>message</code></td><td>Text shown to the approver.</td></tr>
+    <tr><td><code>ok</code></td><td>Label of the confirm button.</td></tr>
+    <tr><td><code>submitter</code></td><td>Only the listed user/group is allowed to approve.</td></tr>
+    <tr><td><code>parameters</code></td><td>Can request additional parameter input at the same step.</td></tr>
+  </table>
+  <h3>Combining input with timeout</h3>
+  <p>If nobody approves, the pipeline will <b>hang indefinitely</b> (or hold an executor if input runs inside a <code class="inline">stage</code> with an agent). Wrap it in <code class="inline">timeout</code> to auto-abort after a period:</p>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'Approve production deploy'</span>) {
+  steps {
+    timeout(time: <span class="num">15</span>, unit: <span class="str">'MINUTES'</span>) {
+      input message: <span class="str">'Deploy to production?'</span>, submitter: <span class="str">'release-managers'</span>
+    }
+  }
+}
+stage(<span class="str">'Deploy'</span>) {
+  steps { <span class="fn">sh</span> <span class="str">'./deploy-prod.sh'</span> }
+}</pre>
+  <div class="box tip"><b>💡 Best practice</b>Give the <code class="inline">input</code> stage <code class="inline">agent none</code>/avoid holding a workspace (use <code class="inline">options { skipDefaultCheckout() }</code> or separate the input stage from the stage needing an agent) so it doesn't occupy an executor while waiting for approval.</div>
+  <div class="box why"><b>🤔 Why input instead of a manual trigger?</b><code class="inline">input</code> lets a pipeline <b>pause at exactly the right moment</b> — the build has already run tests/built, and only a human decision is missing before deploy — instead of having to manually re-run the whole job.</div>
+  <div class="box warn"><b>⚠️ Security note</b>Omitting <code class="inline">submitter</code> means <b>anyone with Job/Build permission</b> can approve. Always declare <code class="inline">submitter</code> for sensitive steps like production deploys.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Write a pipeline with a <code class="inline">choice ENVIRONMENT</code> parameter (staging/production); if production, add an <code class="inline">input</code> step restricted to <code class="inline">submitter: 'admins'</code> with a <code class="inline">10-minute timeout</code> before deploying.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Input &amp; Parameters</span></div>
+  <ol class="examples">
+    <li><span class="task">A string parameter for the branch to build.</span>
+<pre><span class="lbl">Jenkinsfile</span>parameters {
+  string(name: <span class="str">'BRANCH'</span>, defaultValue: <span class="str">'main'</span>, description: <span class="str">'Branch to build'</span>)
+}</pre></li>
+    <li><span class="task">A choice parameter to select the deploy region.</span>
+<pre><span class="lbl">Jenkinsfile</span>parameters {
+  choice(name: <span class="str">'REGION'</span>, choices: [<span class="str">'us-east-1'</span>, <span class="str">'ap-southeast-1'</span>])
+}</pre></li>
+    <li><span class="task">A boolean parameter to toggle Slack notifications.</span>
+<pre><span class="lbl">Jenkinsfile</span>parameters {
+  booleanParam(name: <span class="str">'NOTIFY_SLACK'</span>, defaultValue: <span class="kw">false</span>)
+}</pre></li>
+    <li><span class="task">Input requiring approval before deleting a resource.</span>
+<pre><span class="lbl">Jenkinsfile</span>input message: <span class="str">'Confirm deleting the staging environment?'</span>, ok: <span class="str">'Delete'</span></pre></li>
+    <li><span class="task">Input with a 5-minute timeout, auto-aborting if unapproved.</span>
+<pre><span class="lbl">Jenkinsfile</span>timeout(time: <span class="num">5</span>, unit: <span class="str">'MINUTES'</span>) {
+  input <span class="str">'Proceed with deploy?'</span>
+}</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Input &amp; Parameters</span></div>
+  <ol class="drills">
+    <li><span class="task">Declare a string parameter <code class="inline">TICKET_ID</code> with no defaultValue.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>parameters {
+  string(name: <span class="str">'TICKET_ID'</span>, defaultValue: <span class="str">''</span>, description: <span class="str">'Ticket ID'</span>)
+}</pre></div></details></li>
+    <li><span class="task">Declare a choice parameter <code class="inline">LOG_LEVEL</code> with 3 options.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>parameters {
+  choice(name: <span class="str">'LOG_LEVEL'</span>, choices: [<span class="str">'debug'</span>, <span class="str">'info'</span>, <span class="str">'error'</span>])
+}</pre></div></details></li>
+    <li><span class="task">Write an input step allowing only the <code class="inline">qa-leads</code> group to approve.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>input message: <span class="str">'Approve release?'</span>, submitter: <span class="str">'qa-leads'</span></pre></div></details></li>
+    <li><span class="task">Wrap an input step in a 30-minute timeout.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>timeout(time: <span class="num">30</span>, unit: <span class="str">'MINUTES'</span>) {
+  input <span class="str">'Confirm?'</span>
+}</pre></div></details></li>
+    <li><span class="task">Access the <code class="inline">ENVIRONMENT</code> parameter value in an <code class="inline">echo</code> step.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="fn">echo</span> <span class="str">"Env: ${params.ENVIRONMENT}"</span></pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<div class="pager">
+  <a class="prev" href="phase3-pipeline-fundamentals.html"><span class="dir">← <span class="vi">Trước</span><span class="en">Prev</span></span><span class="ttl"><span class="vi">Giai đoạn 3 · Pipeline cơ bản</span><span class="en">Stage 3 · Pipeline Fundamentals</span></span></a>
+  <a class="next" href="phase5-managing-jenkins.html"><span class="dir"><span class="vi">Tiếp theo</span><span class="en">Next</span> →</span><span class="ttl"><span class="vi">Giai đoạn 5 · Quản trị Jenkins</span><span class="en">Stage 5 · Managing Jenkins</span></span></a>
+</div>
+
+</main>
+</div>
+<script src="assets/i18n.js"></script>
+<script src="assets/scrollspy.js"></script>
+</body>
+</html>

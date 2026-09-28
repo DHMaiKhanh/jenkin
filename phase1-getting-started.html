@@ -1,0 +1,1186 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Giai đoạn 1 — Getting Started | Khóa học Jenkins</title>
+<link rel="stylesheet" href="assets/course.css">
+</head>
+<body class="lang-vi">
+<div class="layout">
+<nav class="side">
+  <div class="brand">🔧 Jenkins<small><span class="vi">Giai đoạn 1 · Getting Started</span><span class="en">Stage 1 · Getting Started</span></small></div>
+  <div class="lang-toggle">
+    <button data-lang="vi" class="on">VI</button>
+    <button data-lang="en">EN</button>
+  </div>
+  <a class="nav-home" href="index.html"><span class="vi">← Mục lục khóa học</span><span class="en">← Course index</span></a>
+  <div class="grp"><span class="vi">Bài học</span><span class="en">Lessons</span></div>
+  <a class="lnk" href="#install">1.1 · <span class="vi">Cài đặt Jenkins</span><span class="en">Installing Jenkins</span></a>
+  <a class="lnk" href="#setup-wizard">1.2 · <span class="vi">Trình cài đặt ban đầu</span><span class="en">Setup Wizard</span></a>
+  <a class="lnk" href="#ui-tour">1.3 · <span class="vi">Tổng quan giao diện</span><span class="en">UI Tour</span></a>
+  <a class="lnk" href="#first-pipeline">1.4 · <span class="vi">Pipeline đầu tiên</span><span class="en">First Pipeline</span></a>
+  <a class="lnk" href="#docker">1.5 · <span class="vi">Chạy Jenkins với Docker</span><span class="en">Jenkins with Docker</span></a>
+  <a class="lnk" href="#item-types">1.6 · <span class="vi">Các loại Item (New Item)</span><span class="en">New Item types</span></a>
+</nav>
+
+<main>
+<header class="top">
+  <div class="crumb"><span class="vi">Khóa học Jenkins › <b>Giai đoạn 1 — Getting Started</b></span><span class="en">Jenkins Course › <b>Stage 1 — Getting Started</b></span></div>
+  <h1>Getting Started</h1>
+  <p class="lead"><span class="vi">Mục tiêu giai đoạn: cài đặt được Jenkins, đi qua trình cài đặt ban đầu, làm quen giao diện, tạo Pipeline đầu tiên và biết chạy Jenkins bằng Docker.</span><span class="en">Stage goal: install Jenkins, get through the initial setup wizard, learn the UI, create your first Pipeline, and know how to run Jenkins with Docker.</span></p>
+</header>
+
+<!-- ============ 1.1 ============ -->
+<section class="lesson" id="install">
+<div class="lang vi">
+  <span class="phase-tag">Bài 1.1</span>
+  <h2>Cài đặt Jenkins</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Biết các cách cài Jenkins chính thức (WAR file, Docker, gói hệ điều hành), hiểu yêu cầu hệ thống tối thiểu, và biết <code class="inline">JENKINS_HOME</code> chứa gì.</div>
+  <h3>Yêu cầu hệ thống</h3>
+  <p>Theo tài liệu chính thức, Jenkins cần <b>Java 11 hoặc 17</b> (tùy phiên bản LTS), tối thiểu <b>256MB RAM</b> cho Jenkins (khuyến nghị ≥ 4GB cho môi trường thật), và ít nhất <b>10GB</b> dung lượng đĩa cho <code class="inline">JENKINS_HOME</code>.</p>
+<pre><span class="lbl">terminal</span><span class="cmt"># Kiểm tra phiên bản Java trước khi cài</span>
+java -version</pre>
+  <h3>Cách 1 — Chạy trực tiếp file WAR</h3>
+  <p>Đây là cách cài đặt "chuẩn" nhất, chạy được trên mọi hệ điều hành có Java: tải <code class="inline">jenkins.war</code> từ jenkins.io rồi chạy bằng lệnh <code class="inline">java -jar</code>.</p>
+<pre><span class="lbl">terminal</span><span class="cmt"># Tải bản LTS mới nhất</span>
+curl -fsSL https://get.jenkins.io/war-stable/latest/jenkins.war -o jenkins.war
+
+<span class="cmt"># Chạy Jenkins, mặc định lắng nghe cổng 8080</span>
+java -jar jenkins.war</pre>
+  <div class="box warn"><b>⚠️ Trên Windows (PowerShell)</b><code class="inline">curl</code> trong PowerShell chỉ là alias của <code class="inline">Invoke-WebRequest</code> và không hiểu các cờ kiểu Linux như <code class="inline">-fsSL</code>. Dùng <code class="inline">curl.exe</code> (ép gọi đúng binary curl thật) hoặc lệnh gốc <code class="inline">Invoke-WebRequest</code>:
+<pre><span class="lbl">PowerShell</span><span class="cmt"># Cách 1 — gọi đúng curl.exe</span>
+curl.exe -fsSL https://get.jenkins.io/war-stable/latest/jenkins.war -o jenkins.war
+
+<span class="cmt"># Cách 2 — dùng lệnh PowerShell gốc</span>
+Invoke-WebRequest -Uri "https://get.jenkins.io/war-stable/latest/jenkins.war" -OutFile "jenkins.war"</pre></div>
+  <h3>Chạy Jenkins trên cổng khác</h3>
+  <p>Mặc định Jenkins lắng nghe cổng <code class="inline">8080</code>. Muốn đổi sang cổng khác (ví dụ khi 8080 đã bị chiếm), dùng tham số <code class="inline">--httpPort</code> — cú pháp giống nhau trên mọi hệ điều hành:</p>
+<pre><span class="lbl">terminal</span><span class="cmt"># Chạy Jenkins trên cổng 9090 thay vì 8080</span>
+java -jar jenkins.war --httpPort=9090</pre>
+  <p>Sau khi chạy, truy cập <code class="inline">http://localhost:9090</code> (theo đúng cổng vừa đặt).</p>
+  <div class="box tip"><b>💡 Vài tham số cổng hữu ích</b>
+  <p><code class="inline">--httpPort=-1</code> — tắt hẳn cổng HTTP, thường dùng khi bật HTTPS.</p>
+  <p><code class="inline">--httpsPort=8443</code> — bật HTTPS ở cổng 8443. Kết hợp cả hai để chỉ chạy HTTPS: <code class="inline">java -jar jenkins.war --httpPort=-1 --httpsPort=8443</code>.</p>
+  <p>Xem toàn bộ tham số hỗ trợ bằng <code class="inline">java -jar jenkins.war --help</code>.</p></div>
+  <p>Sau khi chạy, Jenkins sẽ tự tạo thư mục <code class="inline">JENKINS_HOME</code> (mặc định <code class="inline">~/.jenkins</code> trên Linux/macOS, <code class="inline">%USERPROFILE%\.jenkins</code> trên Windows) để lưu toàn bộ cấu hình, job, plugin.</p>
+<pre><span class="lbl">JENKINS_HOME</span>~/.jenkins/
+├── config.xml              <span class="cmt"># cấu hình toàn cục</span>
+├── secrets/
+│   └── initialAdminPassword <span class="cmt"># mật khẩu admin lần đầu</span>
+├── jobs/                    <span class="cmt"># mỗi job/pipeline một thư mục con</span>
+├── plugins/                 <span class="cmt"># các plugin đã cài (.jpi/.hpi)</span>
+├── workspace/                <span class="cmt"># nơi checkout code &amp; chạy build</span>
+└── users/                    <span class="cmt"># tài khoản người dùng</span></pre>
+  <h3>Cách 2 — Docker</h3>
+<pre><span class="lbl">terminal</span>docker run -p 8080:8080 -p 50000:50000 -v jenkins_home:/var/jenkins_home jenkins/jenkins:lts</pre>
+  <h3>Cách 3 — Gói cài đặt hệ điều hành (apt/yum)</h3>
+<pre><span class="lbl">terminal (Debian/Ubuntu)</span><span class="cmt"># Thêm key + repo chính thức của Jenkins</span>
+sudo wget -O /usr/share/keyrings/jenkins-keyring.asc https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+echo deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/ | sudo tee /etc/apt/sources.list.d/jenkins.list
+
+sudo apt-get update
+sudo apt-get install jenkins</pre>
+<pre><span class="lbl">terminal (RHEL/CentOS)</span>sudo wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
+sudo rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
+sudo yum install jenkins</pre>
+  <table>
+    <tr><th>Cách cài</th><th>Ưu điểm</th><th>Khi nào dùng</th></tr>
+    <tr><td>WAR file</td><td>Đơn giản, chạy mọi nơi có Java, dễ nâng cấp bằng cách thay file</td><td>Thử nghiệm, học tập, máy dev</td></tr>
+    <tr><td>Docker</td><td>Cô lập, khởi động nhanh, dễ dùng lại qua docker-compose</td><td>CI/CD hiện đại, môi trường tạm, lab</td></tr>
+    <tr><td>Gói OS (apt/yum)</td><td>Tích hợp systemd, tự khởi động cùng hệ thống, quản lý log/service chuẩn</td><td>Server Linux chạy Jenkins lâu dài</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Vì sao Jenkins mặc định dùng cổng 8080?</b>8080 là cổng HTTP "thay thế" phổ biến, không cần quyền root/admin để bind (khác với cổng 80). Bạn hoàn toàn có thể đổi bằng <code class="inline">--httpPort=9090</code> hoặc biến môi trường <code class="inline">JENKINS_PORT</code>.</div>
+  <div class="box warn"><b>⚠️ Lỗi thường gặp</b>Cài Jenkins bằng gói apt/yum nhưng không biết <code class="inline">JENKINS_HOME</code> nằm ở <code class="inline">/var/lib/jenkins</code> (khác với cách chạy WAR thủ công là <code class="inline">~/.jenkins</code>) — dẫn đến tìm nhầm chỗ khi backup hoặc debug.</div>
+  <div class="box warn"><b>⚠️ Lỗi "Address already in use" — cổng 8080 đã bị chiếm</b>Khi chạy <code class="inline">java -jar jenkins.war</code> mà gặp <code class="inline">java.net.BindException: Address already in use: bind</code> → <code class="inline">Failed to bind to 0.0.0.0/0.0.0.0:8080</code>, nghĩa là cổng 8080 đang bị một tiến trình khác dùng — rất có thể là một Jenkins khác đã chạy sẵn từ lần trước và chưa tắt. Có 3 cách xử lý:
+  <p><b>Cách 1 — Dùng Jenkins đang chạy sẵn:</b> Có thể Jenkins đã chạy rồi. Mở trình duyệt vào <code class="inline">http://localhost:8080</code>; nếu vào được thì không cần khởi động lại nữa.</p>
+  <p><b>Cách 2 — Tìm và tắt tiến trình chiếm cổng 8080:</b></p>
+<pre><span class="lbl">PowerShell</span><span class="cmt"># Xem tiến trình nào đang giữ cổng 8080</span>
+Get-Process -Id (Get-NetTCPConnection -LocalPort 8080).OwningProcess
+
+<span class="cmt"># Nếu đúng là java (Jenkins cũ), tắt nó đi rồi chạy lại java -jar jenkins.war</span>
+Stop-Process -Id (Get-NetTCPConnection -LocalPort 8080).OwningProcess -Force</pre>
+  <p><b>Cách 3 — Chạy Jenkins ở cổng khác</b> (nếu cổng 8080 do ứng dụng khác dùng mà bạn muốn giữ):</p>
+<pre><span class="lbl">terminal</span>java -jar jenkins.war --httpPort=9090</pre>
+  Rồi truy cập <code class="inline">http://localhost:9090</code>.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Tải <code class="inline">jenkins.war</code> về máy, chạy bằng <code class="inline">java -jar jenkins.war</code>, sau đó mở <code class="inline">http://localhost:8080</code> và quan sát log console để tìm dòng chứa mật khẩu admin lần đầu.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Cài đặt</span></div>
+  <ol class="examples">
+    <li><span class="task">Chạy Jenkins từ file WAR trên cổng mặc định.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins.war</pre></li>
+    <li><span class="task">Chạy Jenkins trên cổng tùy chỉnh 9090.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins.war --httpPort=9090</pre></li>
+    <li><span class="task">Chạy Jenkins bằng Docker với volume lưu dữ liệu bền vững.</span>
+<pre><span class="lbl">terminal</span>docker run -d -p 8080:8080 -p 50000:50000 -v jenkins_home:/var/jenkins_home --name jenkins jenkins/jenkins:lts</pre></li>
+    <li><span class="task">Kiểm tra trạng thái service Jenkins sau khi cài bằng apt.</span>
+<pre><span class="lbl">terminal</span>sudo systemctl status jenkins</pre></li>
+    <li><span class="task">Chỉ định thư mục JENKINS_HOME tùy chỉnh khi chạy WAR.</span>
+<pre><span class="lbl">terminal</span>JENKINS_HOME=/opt/jenkins_data java -jar jenkins.war</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Cài đặt</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết lệnh chạy Jenkins WAR file mặc định.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>java -jar jenkins.war</pre></div></details></li>
+    <li><span class="task">Viết lệnh Docker chạy Jenkins LTS với volume <code class="inline">jenkins_home</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>docker run -p 8080:8080 -p 50000:50000 -v jenkins_home:/var/jenkins_home jenkins/jenkins:lts</pre></div></details></li>
+    <li><span class="task">Viết lệnh cài Jenkins bằng apt trên Ubuntu (bước cuối, sau khi thêm repo).</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>sudo apt-get update
+sudo apt-get install jenkins</pre></div></details></li>
+    <li><span class="task">Đổi cổng Jenkins sang 8081 khi chạy WAR.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>java -jar jenkins.war --httpPort=8081</pre></div></details></li>
+    <li><span class="task">JENKINS_HOME mặc định trên Linux khi chạy WAR thủ công nằm ở đâu?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt"># Mặc định</span>
+~/.jenkins</pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 1.1</span>
+  <h2>Installing Jenkins</h2>
+  <div class="box goal"><b>🎯 Goal</b>Know the official ways to install Jenkins (WAR file, Docker, OS packages), understand the minimum system requirements, and know what <code class="inline">JENKINS_HOME</code> contains.</div>
+  <h3>System requirements</h3>
+  <p>Per the official docs, Jenkins requires <b>Java 11 or 17</b> (depending on the LTS release), at least <b>256MB RAM</b> (≥ 4GB recommended for real usage), and at least <b>10GB</b> of disk space for <code class="inline">JENKINS_HOME</code>.</p>
+<pre><span class="lbl">terminal</span><span class="cmt"># Check the Java version before installing</span>
+java -version</pre>
+  <h3>Option 1 — Run the WAR file directly</h3>
+  <p>This is the most "standard" installation method, running on any OS with Java: download <code class="inline">jenkins.war</code> from jenkins.io and run it with <code class="inline">java -jar</code>.</p>
+<pre><span class="lbl">terminal</span><span class="cmt"># Download the latest LTS release</span>
+curl -fsSL https://get.jenkins.io/war-stable/latest/jenkins.war -o jenkins.war
+
+<span class="cmt"># Run Jenkins, listens on port 8080 by default</span>
+java -jar jenkins.war</pre>
+  <div class="box warn"><b>⚠️ On Windows (PowerShell)</b><code class="inline">curl</code> in PowerShell is just an alias for <code class="inline">Invoke-WebRequest</code> and doesn't understand Linux-style flags like <code class="inline">-fsSL</code>. Use <code class="inline">curl.exe</code> (forces the real curl binary) or the native <code class="inline">Invoke-WebRequest</code> cmdlet:
+<pre><span class="lbl">PowerShell</span><span class="cmt"># Option 1 — call the real curl.exe</span>
+curl.exe -fsSL https://get.jenkins.io/war-stable/latest/jenkins.war -o jenkins.war
+
+<span class="cmt"># Option 2 — use the native PowerShell cmdlet</span>
+Invoke-WebRequest -Uri "https://get.jenkins.io/war-stable/latest/jenkins.war" -OutFile "jenkins.war"</pre></div>
+  <h3>Running on a different port</h3>
+  <p>By default Jenkins listens on port <code class="inline">8080</code>. To switch to another port (e.g. when 8080 is already taken), use the <code class="inline">--httpPort</code> flag — the syntax is the same on every OS:</p>
+<pre><span class="lbl">terminal</span><span class="cmt"># Run Jenkins on port 9090 instead of 8080</span>
+java -jar jenkins.war --httpPort=9090</pre>
+  <p>Once it's running, visit <code class="inline">http://localhost:9090</code> (using whichever port you set).</p>
+  <div class="box tip"><b>💡 Handy port flags</b>
+  <p><code class="inline">--httpPort=-1</code> — disables the HTTP port entirely, typically used when enabling HTTPS.</p>
+  <p><code class="inline">--httpsPort=8443</code> — enables HTTPS on port 8443. Combine both to run HTTPS only: <code class="inline">java -jar jenkins.war --httpPort=-1 --httpsPort=8443</code>.</p>
+  <p>See all supported parameters with <code class="inline">java -jar jenkins.war --help</code>.</p></div>
+  <p>Once running, Jenkins automatically creates a <code class="inline">JENKINS_HOME</code> directory (default <code class="inline">~/.jenkins</code> on Linux/macOS, <code class="inline">%USERPROFILE%\.jenkins</code> on Windows) to store all configuration, jobs, and plugins.</p>
+<pre><span class="lbl">JENKINS_HOME</span>~/.jenkins/
+├── config.xml              <span class="cmt"># global configuration</span>
+├── secrets/
+│   └── initialAdminPassword <span class="cmt"># first-run admin password</span>
+├── jobs/                    <span class="cmt"># one subfolder per job/pipeline</span>
+├── plugins/                 <span class="cmt"># installed plugins (.jpi/.hpi)</span>
+├── workspace/                <span class="cmt"># where source is checked out &amp; builds run</span>
+└── users/                    <span class="cmt"># user accounts</span></pre>
+  <h3>Option 2 — Docker</h3>
+<pre><span class="lbl">terminal</span>docker run -p 8080:8080 -p 50000:50000 -v jenkins_home:/var/jenkins_home jenkins/jenkins:lts</pre>
+  <h3>Option 3 — Native OS packages (apt/yum)</h3>
+<pre><span class="lbl">terminal (Debian/Ubuntu)</span><span class="cmt"># Add Jenkins' official key + repo</span>
+sudo wget -O /usr/share/keyrings/jenkins-keyring.asc https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+echo deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/ | sudo tee /etc/apt/sources.list.d/jenkins.list
+
+sudo apt-get update
+sudo apt-get install jenkins</pre>
+<pre><span class="lbl">terminal (RHEL/CentOS)</span>sudo wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
+sudo rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
+sudo yum install jenkins</pre>
+  <table>
+    <tr><th>Method</th><th>Pros</th><th>When to use</th></tr>
+    <tr><td>WAR file</td><td>Simple, runs anywhere with Java, easy to upgrade by swapping the file</td><td>Experiments, learning, dev machine</td></tr>
+    <tr><td>Docker</td><td>Isolated, quick to start, reusable via docker-compose</td><td>Modern CI/CD, ephemeral environments, labs</td></tr>
+    <tr><td>OS package (apt/yum)</td><td>Integrates with systemd, autostarts with the system, standard log/service management</td><td>Linux server running Jenkins long-term</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Why does Jenkins default to port 8080?</b>8080 is a common "alternate" HTTP port that doesn't require root/admin privileges to bind (unlike port 80). You can change it with <code class="inline">--httpPort=9090</code> or the <code class="inline">JENKINS_PORT</code> environment variable.</div>
+  <div class="box warn"><b>⚠️ Common mistake</b>Installing Jenkins via apt/yum but not knowing <code class="inline">JENKINS_HOME</code> lives at <code class="inline">/var/lib/jenkins</code> (different from the manual WAR run's <code class="inline">~/.jenkins</code>) — leading to looking in the wrong place when backing up or debugging.</div>
+  <div class="box warn"><b>⚠️ "Address already in use" error — port 8080 is taken</b>If running <code class="inline">java -jar jenkins.war</code> throws <code class="inline">java.net.BindException: Address already in use: bind</code> → <code class="inline">Failed to bind to 0.0.0.0/0.0.0.0:8080</code>, it means port 8080 is already used by another process — most likely another Jenkins that's still running from before. Three ways to fix it:
+  <p><b>Option 1 — Use the Jenkins that's already running:</b> Jenkins may already be up. Open <code class="inline">http://localhost:8080</code> in your browser; if it loads, you don't need to restart it.</p>
+  <p><b>Option 2 — Find and kill the process holding port 8080:</b></p>
+<pre><span class="lbl">PowerShell</span><span class="cmt"># See which process is holding port 8080</span>
+Get-Process -Id (Get-NetTCPConnection -LocalPort 8080).OwningProcess
+
+<span class="cmt"># If it's java (old Jenkins), kill it, then run java -jar jenkins.war again</span>
+Stop-Process -Id (Get-NetTCPConnection -LocalPort 8080).OwningProcess -Force</pre>
+  <p><b>Option 3 — Run Jenkins on a different port</b> (if port 8080 is used by another app you want to keep):</p>
+<pre><span class="lbl">terminal</span>java -jar jenkins.war --httpPort=9090</pre>
+  Then visit <code class="inline">http://localhost:9090</code>.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Download <code class="inline">jenkins.war</code>, run it with <code class="inline">java -jar jenkins.war</code>, then open <code class="inline">http://localhost:8080</code> and watch the console log for the line containing the initial admin password.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Install</span></div>
+  <ol class="examples">
+    <li><span class="task">Run Jenkins from the WAR file on the default port.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins.war</pre></li>
+    <li><span class="task">Run Jenkins on custom port 9090.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins.war --httpPort=9090</pre></li>
+    <li><span class="task">Run Jenkins via Docker with a persistent volume.</span>
+<pre><span class="lbl">terminal</span>docker run -d -p 8080:8080 -p 50000:50000 -v jenkins_home:/var/jenkins_home --name jenkins jenkins/jenkins:lts</pre></li>
+    <li><span class="task">Check the Jenkins service status after an apt install.</span>
+<pre><span class="lbl">terminal</span>sudo systemctl status jenkins</pre></li>
+    <li><span class="task">Point JENKINS_HOME to a custom directory when running the WAR.</span>
+<pre><span class="lbl">terminal</span>JENKINS_HOME=/opt/jenkins_data java -jar jenkins.war</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Install</span></div>
+  <ol class="drills">
+    <li><span class="task">Write the command to run the default Jenkins WAR file.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>java -jar jenkins.war</pre></div></details></li>
+    <li><span class="task">Write the Docker command to run Jenkins LTS with a <code class="inline">jenkins_home</code> volume.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>docker run -p 8080:8080 -p 50000:50000 -v jenkins_home:/var/jenkins_home jenkins/jenkins:lts</pre></div></details></li>
+    <li><span class="task">Write the command to install Jenkins via apt on Ubuntu (final step, after adding the repo).</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>sudo apt-get update
+sudo apt-get install jenkins</pre></div></details></li>
+    <li><span class="task">Change Jenkins to port 8081 when running the WAR.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>java -jar jenkins.war --httpPort=8081</pre></div></details></li>
+    <li><span class="task">Where is JENKINS_HOME by default on Linux for a manual WAR run?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt"># Default</span>
+~/.jenkins</pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 1.2 ============ -->
+<section class="lesson" id="setup-wizard">
+<div class="lang vi">
+  <span class="phase-tag">Bài 1.2</span>
+  <h2>Trình cài đặt ban đầu (Setup Wizard)</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Hiểu quy trình mở khóa Jenkins lần đầu, sự khác nhau giữa "Install suggested plugins" và chọn plugin thủ công, và tạo được tài khoản admin đầu tiên.</div>
+  <h3>Bước 1 — Mở khóa Jenkins (Unlock Jenkins)</h3>
+  <p>Lần đầu truy cập <code class="inline">http://localhost:8080</code>, Jenkins yêu cầu dán mật khẩu admin ban đầu để xác nhận bạn có quyền truy cập máy chủ. Mật khẩu này được sinh tự động và ghi vào một file.</p>
+<pre><span class="lbl">terminal</span><span class="cmt"># Linux/macOS — chạy WAR thủ công</span>
+cat ~/.jenkins/secrets/initialAdminPassword
+
+<span class="cmt"># Cài bằng apt/yum</span>
+sudo cat /var/lib/jenkins/secrets/initialAdminPassword
+
+<span class="cmt"># Container Docker</span>
+docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword</pre>
+  <h3>Bước 2 — Cài plugin</h3>
+  <p>Sau khi mở khóa, Jenkins cho bạn chọn giữa hai lựa chọn cài plugin:</p>
+  <table>
+    <tr><th>Lựa chọn</th><th>Nội dung</th><th>Khi nào chọn</th></tr>
+    <tr><td>Install suggested plugins</td><td>Bộ plugin phổ biến nhất: Git, Pipeline, GitHub, Credentials Binding, Matrix Auth...</td><td>Người mới, muốn có ngay một Jenkins dùng được cho hầu hết use-case</td></tr>
+    <tr><td>Select plugins to install</td><td>Danh sách đầy đủ, tự tick từng plugin cần thiết</td><td>Môi trường production cần tối giản, kiểm soát chặt attack surface</td></tr>
+  </table>
+  <div class="box tip"><b>💡 Có thể cài thêm plugin sau</b>Dù chọn phương án nào ở bước này, bạn luôn có thể vào <b>Manage Jenkins → Plugins</b> để cài thêm hoặc gỡ bớt plugin bất cứ lúc nào sau này.</div>
+  <h3>Bước 3 — Tạo admin user đầu tiên</h3>
+  <p>Form yêu cầu username, password, tên đầy đủ và email. Đây sẽ là tài khoản admin toàn quyền đầu tiên, thay thế cho việc phải dùng mật khẩu <code class="inline">initialAdminPassword</code> về sau.</p>
+<pre><span class="lbl">form mẫu</span>Username:  admin
+Password:  ********
+Full name: DevOps Admin
+E-mail:    admin@example.com</pre>
+  <p>Bước cuối là xác nhận <b>Jenkins URL</b> (địa chỉ mà Jenkins dùng để tự tham chiếu, ví dụ trong email thông báo build) rồi bấm "Start using Jenkins".</p>
+  <div class="box why"><b>🤔 Vì sao phải dán file mật khẩu thay vì hỏi trực tiếp?</b>Yêu cầu đọc file trên chính máy chủ chứng minh bạn có quyền truy cập filesystem/console của server đó — ngăn người lạ trên mạng chiếm quyền admin của một Jenkins vừa cài xong và chưa được bảo vệ.</div>
+  <div class="box warn"><b>⚠️ Lỗi thường gặp</b>Bỏ qua bước tạo admin bằng nút "Skip and continue as admin" trong môi trường không phải demo — Jenkins sẽ tiếp tục dùng tài khoản <code class="inline">admin</code> mặc định với mật khẩu ngẫu nhiên, gây khó khăn khi cần đăng nhập lại sau này.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Từ đầu, cài Jenkins bằng Docker, lấy mật khẩu bằng <code class="inline">docker exec</code>, chọn "Install suggested plugins", rồi tạo một tài khoản admin tên riêng của bạn thay vì bấm "Skip".</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Setup Wizard</span></div>
+  <ol class="examples">
+    <li><span class="task">Lấy mật khẩu admin ban đầu khi Jenkins chạy trong container Docker tên "jenkins".</span>
+<pre><span class="lbl">terminal</span>docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword</pre></li>
+    <li><span class="task">Lấy mật khẩu admin khi Jenkins cài bằng apt trên Ubuntu.</span>
+<pre><span class="lbl">terminal</span>sudo cat /var/lib/jenkins/secrets/initialAdminPassword</pre></li>
+    <li><span class="task">Lấy mật khẩu admin khi chạy WAR file thủ công trên Windows.</span>
+<pre><span class="lbl">terminal (PowerShell)</span>Get-Content "$env:USERPROFILE\.jenkins\secrets\initialAdminPassword"</pre></li>
+    <li><span class="task">Bỏ qua Setup Wizard hoàn toàn khi khởi động lần đầu (dùng cho môi trường tự động hóa).</span>
+<pre><span class="lbl">terminal</span>java -Djenkins.install.runSetupWizard=false -jar jenkins.war</pre></li>
+    <li><span class="task">Xem danh sách plugin đã được cài sau khi hoàn tất wizard.</span>
+<pre><span class="lbl">Manage Jenkins</span><span class="cmt"># Manage Jenkins → Plugins → tab "Installed plugins"</span></pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Setup Wizard</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết lệnh xem mật khẩu admin ban đầu trên Linux (WAR thủ công).</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>cat ~/.jenkins/secrets/initialAdminPassword</pre></div></details></li>
+    <li><span class="task">Viết lệnh xem mật khẩu admin bên trong container Docker tên "jenkins".</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword</pre></div></details></li>
+    <li><span class="task">Nêu 2 lựa chọn cài plugin ở bước Setup Wizard.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">1. Install suggested plugins
+2. Select plugins to install</span></pre></div></details></li>
+    <li><span class="task">Viết flag khởi động Jenkins mà bỏ qua hoàn toàn Setup Wizard.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>java -Djenkins.install.runSetupWizard=false -jar jenkins.war</pre></div></details></li>
+    <li><span class="task">JENKINS_HOME của bản cài apt trên Linux nằm ở đâu (để tìm file mật khẩu)?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>/var/lib/jenkins</pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 1.2</span>
+  <h2>Post-Installation Setup Wizard</h2>
+  <div class="box goal"><b>🎯 Goal</b>Understand the process of unlocking Jenkins the first time, the difference between "Install suggested plugins" and selecting plugins manually, and how to create the first admin account.</div>
+  <h3>Step 1 — Unlock Jenkins</h3>
+  <p>The first time you visit <code class="inline">http://localhost:8080</code>, Jenkins asks you to paste the initial admin password to confirm you have access to the server. This password is auto-generated and written to a file.</p>
+<pre><span class="lbl">terminal</span><span class="cmt"># Linux/macOS — manual WAR run</span>
+cat ~/.jenkins/secrets/initialAdminPassword
+
+<span class="cmt"># Installed via apt/yum</span>
+sudo cat /var/lib/jenkins/secrets/initialAdminPassword
+
+<span class="cmt"># Docker container</span>
+docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword</pre>
+  <h3>Step 2 — Install plugins</h3>
+  <p>After unlocking, Jenkins offers two choices for installing plugins:</p>
+  <table>
+    <tr><th>Choice</th><th>Content</th><th>When to pick it</th></tr>
+    <tr><td>Install suggested plugins</td><td>The most common plugin set: Git, Pipeline, GitHub, Credentials Binding, Matrix Auth...</td><td>Beginners who want a Jenkins that immediately works for most use cases</td></tr>
+    <tr><td>Select plugins to install</td><td>Full list, tick exactly the plugins you need</td><td>Production environments that need a minimal footprint and tight attack surface</td></tr>
+  </table>
+  <div class="box tip"><b>💡 You can install more plugins later</b>Whichever option you pick here, you can always go to <b>Manage Jenkins → Plugins</b> to install or remove plugins at any time afterward.</div>
+  <h3>Step 3 — Create the first admin user</h3>
+  <p>The form asks for a username, password, full name, and email. This becomes the first full-access admin account, replacing the need to keep using the <code class="inline">initialAdminPassword</code>.</p>
+<pre><span class="lbl">sample form</span>Username:  admin
+Password:  ********
+Full name: DevOps Admin
+E-mail:    admin@example.com</pre>
+  <p>The final step confirms the <b>Jenkins URL</b> (the address Jenkins uses to reference itself, e.g. in build notification emails), then click "Start using Jenkins".</p>
+  <div class="box why"><b>🤔 Why require pasting a password file instead of just asking?</b>Requiring you to read a file on the server itself proves you have filesystem/console access to that machine — preventing a stranger on the network from claiming admin rights on a freshly installed, still-unprotected Jenkins.</div>
+  <div class="box warn"><b>⚠️ Common mistake</b>Clicking "Skip and continue as admin" in a non-demo environment — Jenkins keeps using the default <code class="inline">admin</code> account with a random password, causing trouble logging in later.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Starting fresh, install Jenkins via Docker, retrieve the password with <code class="inline">docker exec</code>, choose "Install suggested plugins", then create an admin account with your own name instead of clicking "Skip".</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Setup Wizard</span></div>
+  <ol class="examples">
+    <li><span class="task">Retrieve the initial admin password when Jenkins runs in a Docker container named "jenkins".</span>
+<pre><span class="lbl">terminal</span>docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword</pre></li>
+    <li><span class="task">Retrieve the admin password for an apt install on Ubuntu.</span>
+<pre><span class="lbl">terminal</span>sudo cat /var/lib/jenkins/secrets/initialAdminPassword</pre></li>
+    <li><span class="task">Retrieve the admin password for a manual WAR run on Windows.</span>
+<pre><span class="lbl">terminal (PowerShell)</span>Get-Content "$env:USERPROFILE\.jenkins\secrets\initialAdminPassword"</pre></li>
+    <li><span class="task">Skip the Setup Wizard entirely on first boot (for automated environments).</span>
+<pre><span class="lbl">terminal</span>java -Djenkins.install.runSetupWizard=false -jar jenkins.war</pre></li>
+    <li><span class="task">Check which plugins were installed once the wizard is finished.</span>
+<pre><span class="lbl">Manage Jenkins</span><span class="cmt"># Manage Jenkins → Plugins → "Installed plugins" tab</span></pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Setup Wizard</span></div>
+  <ol class="drills">
+    <li><span class="task">Write the command to read the initial admin password on Linux (manual WAR).</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>cat ~/.jenkins/secrets/initialAdminPassword</pre></div></details></li>
+    <li><span class="task">Write the command to read the admin password inside a Docker container named "jenkins".</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword</pre></div></details></li>
+    <li><span class="task">Name the two plugin-install choices in the Setup Wizard.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">1. Install suggested plugins
+2. Select plugins to install</span></pre></div></details></li>
+    <li><span class="task">Write the flag to start Jenkins while fully skipping the Setup Wizard.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>java -Djenkins.install.runSetupWizard=false -jar jenkins.war</pre></div></details></li>
+    <li><span class="task">Where is JENKINS_HOME for an apt install on Linux (to find the password file)?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>/var/lib/jenkins</pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 1.3 ============ -->
+<section class="lesson" id="ui-tour">
+<div class="lang vi">
+  <span class="phase-tag">Bài 1.3</span>
+  <h2>Tổng quan giao diện Jenkins</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Nhận diện nhanh các vùng chính của giao diện Jenkins: Dashboard, New Item, Build Queue, Executor Status, Manage Jenkins, trang lịch sử build của một job, và breadcrumb.</div>
+  <h3>Dashboard — trang chủ</h3>
+  <p>Sau khi đăng nhập, bạn luôn được đưa về <b>Dashboard</b>: danh sách các job/pipeline hiện có, dạng bảng gồm cột trạng thái (quả cầu màu), tên job, xu hướng build gần nhất (weather icon), và ngày build cuối.</p>
+  <table>
+    <tr><th>Biểu tượng</th><th>Ý nghĩa</th></tr>
+    <tr><td>🔵 Quả cầu xanh dương</td><td>Build thành công gần nhất</td></tr>
+    <tr><td>🔴 Quả cầu đỏ</td><td>Build thất bại gần nhất</td></tr>
+    <tr><td>⚪ Quả cầu xám</td><td>Job chưa từng chạy hoặc bị disable</td></tr>
+    <tr><td>☀️/⛅/⛈️ Biểu tượng thời tiết</td><td>Độ ổn định trung bình các build gần đây</td></tr>
+  </table>
+  <h3>New Item — tạo job mới</h3>
+  <p>Nút <b>New Item</b> ở menu bên trái mở form tạo job mới: đặt tên rồi chọn loại (Freestyle project, Pipeline, Multibranch Pipeline, Folder...).</p>
+<pre><span class="lbl">breadcrumb</span>Dashboard › New Item</pre>
+  <h3>Build Queue &amp; Executor Status</h3>
+  <p>Góc dưới bên trái Dashboard có 2 khối quan trọng: <b>Build Queue</b> liệt kê các build đang chờ chạy (vì hết executor rảnh), và <b>Executor Status</b> hiển thị các "luồng thi hành" (executor) trên từng node, cho biết node nào đang bận build gì.</p>
+  <div class="box tip"><b>💡 Executor là gì?</b>Mỗi executor là một "chỗ" để chạy một build tại một thời điểm trên một node (agent). Node master mặc định thường có 2 executor; bạn có thể tăng/giảm ở <b>Manage Jenkins → Nodes</b>.</div>
+  <h3>Manage Jenkins</h3>
+  <p>Đây là "trung tâm điều khiển" toàn hệ thống: cấu hình hệ thống (System), quản lý Plugins, quản lý Credentials, quản lý Nodes (agent), Security, và xem Logs.</p>
+  <h3>Trang lịch sử build của một job</h3>
+  <p>Click vào tên một job sẽ vào trang riêng của nó, có menu bên trái: <b>Status</b>, <b>Changes</b>, <b>Build Now</b>, <b>Configure</b>, và danh sách các lần build (Build History) theo thứ tự mới nhất trước, mỗi build có số thứ tự <code class="inline">#N</code> và console log riêng.</p>
+<pre><span class="lbl">breadcrumb</span>Dashboard › my-pipeline › #42 › Console Output</pre>
+  <div class="box why"><b>🤔 Vì sao mỗi build có console log riêng biệt?</b>Jenkins lưu log của mỗi lần chạy độc lập trong thư mục <code class="inline">jobs/&lt;job&gt;/builds/&lt;N&gt;/log</code> để bạn có thể so sánh build hiện tại với các lần trước, kể cả khi job đã bị sửa cấu hình sau đó.</div>
+  <div class="box warn"><b>⚠️ Lỗi thường gặp</b>Nhầm giữa nút <b>Build Now</b> (nằm trên trang của job) với nút <b>New Item</b> (nằm trên Dashboard) — người mới hay tìm mãi không thấy "Build Now" vì đang đứng ở Dashboard thay vì trong trang job.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Từ Dashboard, tạo một Freestyle job trống, vào trang job đó, bấm Build Now, rồi mở Console Output của build vừa chạy và đọc breadcrumb ở đầu trang.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · UI Tour</span></div>
+  <ol class="examples">
+    <li><span class="task">Đường breadcrumb khi xem console log của build số 15 của job "deploy-app".</span>
+<pre><span class="lbl">breadcrumb</span>Dashboard › deploy-app › #15 › Console Output</pre></li>
+    <li><span class="task">Đường dẫn tới trang quản lý plugin.</span>
+<pre><span class="lbl">breadcrumb</span>Dashboard › Manage Jenkins › Plugins</pre></li>
+    <li><span class="task">Đường dẫn tới trang cấu hình một node/agent.</span>
+<pre><span class="lbl">breadcrumb</span>Dashboard › Manage Jenkins › Nodes › agent-01 › Configure</pre></li>
+    <li><span class="task">Đường dẫn tạo một Pipeline job mới.</span>
+<pre><span class="lbl">breadcrumb</span>Dashboard › New Item</pre></li>
+    <li><span class="task">Đường dẫn xem lịch sử thay đổi code (Changes) của một job.</span>
+<pre><span class="lbl">breadcrumb</span>Dashboard › my-pipeline › Changes</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · UI Tour</span></div>
+  <ol class="drills">
+    <li><span class="task">Quả cầu màu gì thể hiện build gần nhất thành công?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">Quả cầu xanh dương (blue ball)</span></pre></div></details></li>
+    <li><span class="task">Nút nào dùng để tạo job/pipeline mới, và nằm ở đâu?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">Nút "New Item", nằm ở menu bên trái của Dashboard</span></pre></div></details></li>
+    <li><span class="task">Executor là gì (giải thích ngắn gọn)?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">Một "chỗ" để chạy một build tại một thời điểm trên một node/agent</span></pre></div></details></li>
+    <li><span class="task">Vào đâu để xem/sửa danh sách plugin đã cài?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>Manage Jenkins → Plugins</pre></div></details></li>
+    <li><span class="task">Viết breadcrumb đầy đủ khi xem Console Output của build #7 job "unit-tests".</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>Dashboard › unit-tests › #7 › Console Output</pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 1.3</span>
+  <h2>Jenkins UI Overview</h2>
+  <div class="box goal"><b>🎯 Goal</b>Quickly identify the main areas of the Jenkins UI: Dashboard, New Item, Build Queue, Executor Status, Manage Jenkins, a job's build history page, and breadcrumbs.</div>
+  <h3>Dashboard — the home page</h3>
+  <p>After logging in, you always land on the <b>Dashboard</b>: a list of existing jobs/pipelines as a table with a status column (colored ball), job name, recent build trend (weather icon), and last build date.</p>
+  <table>
+    <tr><th>Icon</th><th>Meaning</th></tr>
+    <tr><td>🔵 Blue ball</td><td>Most recent build succeeded</td></tr>
+    <tr><td>🔴 Red ball</td><td>Most recent build failed</td></tr>
+    <tr><td>⚪ Grey ball</td><td>Job never ran or is disabled</td></tr>
+    <tr><td>☀️/⛅/⛈️ Weather icon</td><td>Average stability of recent builds</td></tr>
+  </table>
+  <h3>New Item — creating a job</h3>
+  <p>The <b>New Item</b> button in the left menu opens the new-job form: enter a name, then pick a type (Freestyle project, Pipeline, Multibranch Pipeline, Folder...).</p>
+<pre><span class="lbl">breadcrumb</span>Dashboard › New Item</pre>
+  <h3>Build Queue &amp; Executor Status</h3>
+  <p>The bottom-left of the Dashboard has two important widgets: <b>Build Queue</b> lists builds waiting to run (because no executor is free), and <b>Executor Status</b> shows the "execution slots" (executors) on each node, telling you which node is busy building what.</p>
+  <div class="box tip"><b>💡 What is an executor?</b>Each executor is a "slot" that can run one build at a time on one node (agent). The default master/controller node usually has 2 executors; you can adjust this under <b>Manage Jenkins → Nodes</b>.</div>
+  <h3>Manage Jenkins</h3>
+  <p>This is the system-wide "control center": System configuration, managing Plugins, managing Credentials, managing Nodes (agents), Security, and viewing Logs.</p>
+  <h3>A job's build history page</h3>
+  <p>Clicking a job's name opens its own page, with a left menu: <b>Status</b>, <b>Changes</b>, <b>Build Now</b>, <b>Configure</b>, and a build list (Build History) newest-first, each build numbered <code class="inline">#N</code> with its own console log.</p>
+<pre><span class="lbl">breadcrumb</span>Dashboard › my-pipeline › #42 › Console Output</pre>
+  <div class="box why"><b>🤔 Why does each build get its own separate console log?</b>Jenkins stores each run's log independently under <code class="inline">jobs/&lt;job&gt;/builds/&lt;N&gt;/log</code> so you can compare the current build to previous ones, even after the job's configuration has since been edited.</div>
+  <div class="box warn"><b>⚠️ Common mistake</b>Confusing the <b>Build Now</b> button (on a job's own page) with <b>New Item</b> (on the Dashboard) — beginners often hunt for "Build Now" while still on the Dashboard instead of inside the job page.</div>
+  <div class="box practice"><b>✍️ Exercise</b>From the Dashboard, create an empty Freestyle job, open its page, click Build Now, then open the Console Output of that build and read the breadcrumb at the top.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · UI Tour</span></div>
+  <ol class="examples">
+    <li><span class="task">Breadcrumb when viewing the console log of build #15 of job "deploy-app".</span>
+<pre><span class="lbl">breadcrumb</span>Dashboard › deploy-app › #15 › Console Output</pre></li>
+    <li><span class="task">Path to the plugin management page.</span>
+<pre><span class="lbl">breadcrumb</span>Dashboard › Manage Jenkins › Plugins</pre></li>
+    <li><span class="task">Path to configure a specific node/agent.</span>
+<pre><span class="lbl">breadcrumb</span>Dashboard › Manage Jenkins › Nodes › agent-01 › Configure</pre></li>
+    <li><span class="task">Path to create a new Pipeline job.</span>
+<pre><span class="lbl">breadcrumb</span>Dashboard › New Item</pre></li>
+    <li><span class="task">Path to view a job's source code Changes.</span>
+<pre><span class="lbl">breadcrumb</span>Dashboard › my-pipeline › Changes</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · UI Tour</span></div>
+  <ol class="drills">
+    <li><span class="task">What color ball indicates the most recent build succeeded?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">Blue ball</span></pre></div></details></li>
+    <li><span class="task">Which button creates a new job/pipeline, and where is it?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">The "New Item" button, in the Dashboard's left-hand menu</span></pre></div></details></li>
+    <li><span class="task">What is an executor (brief explanation)?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">A "slot" that can run one build at a time on a node/agent</span></pre></div></details></li>
+    <li><span class="task">Where do you go to view/edit the list of installed plugins?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>Manage Jenkins → Plugins</pre></div></details></li>
+    <li><span class="task">Write the full breadcrumb for the Console Output of build #7 of job "unit-tests".</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>Dashboard › unit-tests › #7 › Console Output</pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 1.4 ============ -->
+<section class="lesson" id="first-pipeline">
+<div class="lang vi">
+  <span class="phase-tag">Bài 1.4</span>
+  <h2>Tạo Pipeline đầu tiên</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Tạo được một Pipeline job, phân biệt "Pipeline script" trực tiếp với "Pipeline script from SCM", viết một Jenkinsfile Declarative tối giản, chạy build và đọc Console Output.</div>
+  <h3>Tạo job kiểu Pipeline</h3>
+  <p>Từ Dashboard bấm <b>New Item</b> → nhập tên → chọn loại <b>Pipeline</b> → OK. Kéo xuống phần <b>Pipeline</b> ở cuối trang cấu hình, có 2 lựa chọn cho mục "Definition":</p>
+  <table>
+    <tr><th>Definition</th><th>Ý nghĩa</th><th>Khi nào dùng</th></tr>
+    <tr><td>Pipeline script</td><td>Dán trực tiếp nội dung Jenkinsfile vào ô textarea trên giao diện web</td><td>Thử nghiệm nhanh, học tập, demo</td></tr>
+    <tr><td>Pipeline script from SCM</td><td>Jenkins tự checkout file <code class="inline">Jenkinsfile</code> từ một repo Git (hoặc SVN...)</td><td>Thực tế/production — Pipeline được version control cùng code</td></tr>
+  </table>
+  <h3>Jenkinsfile Declarative tối giản</h3>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    stages {
+        stage(<span class="str">'Build'</span>) {
+            steps {
+                echo <span class="str">'Building...'</span>
+            }
+        }
+        stage(<span class="str">'Test'</span>) {
+            steps {
+                echo <span class="str">'Running tests...'</span>
+            }
+        }
+        stage(<span class="str">'Deploy'</span>) {
+            steps {
+                echo <span class="str">'Deploying...'</span>
+            }
+        }
+    }
+}</pre>
+  <ul>
+    <li><b><code class="inline">agent any</code></b> — cho Jenkins tự chọn bất kỳ node nào rảnh để chạy toàn bộ pipeline.</li>
+    <li><b><code class="inline">stages</code></b> — chuỗi các giai đoạn hiển thị dạng biểu đồ trực quan (Stage View) trên trang job.</li>
+    <li><b><code class="inline">steps</code></b> — các lệnh thật sự thực thi bên trong một stage, ví dụ <code class="inline">sh</code>, <code class="inline">bat</code>, <code class="inline">echo</code>.</li>
+  </ul>
+  <h3>Pipeline script from SCM</h3>
+  <p>Khi chọn SCM, bạn khai báo repository URL, branch, và đường dẫn tới Jenkinsfile (mặc định <code class="inline">Jenkinsfile</code> ở gốc repo).</p>
+<pre><span class="lbl">cấu hình SCM</span>SCM:            Git
+Repository URL: https://github.com/acme/my-app.git
+Branch:         */main
+Script Path:    Jenkinsfile</pre>
+  <h3>Kích hoạt build và đọc log</h3>
+  <p>Bấm <b>Build Now</b> ở trang job. Build mới xuất hiện trong Build History với số <code class="inline">#1</code>. Click vào số đó rồi chọn <b>Console Output</b> để xem log từng bước — mỗi <code class="inline">stage</code> có phần log riêng, dòng cuối thường là <code class="inline">Finished: SUCCESS</code> hoặc <code class="inline">FAILURE</code>.</p>
+<pre><span class="lbl">console output (rút gọn)</span>[Pipeline] stage
+[Pipeline] { (Build)
+[Pipeline] echo
+Building...
+[Pipeline] }
+[Pipeline] stage
+[Pipeline] { (Test)
+[Pipeline] echo
+Running tests...
+[Pipeline] }
+Finished: SUCCESS</pre>
+  <div class="box why"><b>🤔 Vì sao nên dùng "Pipeline script from SCM" thay vì dán code?</b>Khi Jenkinsfile nằm trong repo cùng code ứng dụng, mọi thay đổi pipeline được review qua pull request, có lịch sử git, và tự động áp dụng cho đúng branch/commit đang build — dán trực tiếp trên UI thì không có version control.</div>
+  <div class="box warn"><b>⚠️ Lỗi thường gặp</b>Quên rằng <code class="inline">agent any</code> có thể chạy trên một node khác không có sẵn tool cần thiết (ví dụ Node.js, Docker) — dẫn tới lỗi "command not found" dù pipeline đúng cú pháp.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Tạo Pipeline job mới, dùng "Pipeline script" dán đúng Jenkinsfile 3 stage ở trên, bấm Build Now, rồi mở Console Output để xác nhận cả 3 dòng "echo" xuất hiện.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Pipeline đầu tiên</span></div>
+  <ol class="examples">
+    <li><span class="task">Jenkinsfile tối giản chỉ 1 stage in ra dòng chữ.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    stages {
+        stage(<span class="str">'Hello'</span>) {
+            steps { echo <span class="str">'Hello Jenkins'</span> }
+        }
+    }
+}</pre>
+      <ul class="anno">
+        <li><code class="inline">pipeline { }</code> — khối bao ngoài, khai báo pipeline kiểu <b>Declarative</b>.</li>
+        <li><code class="inline">agent any</code> — chạy trên <b>bất kỳ node/máy nào</b> đang rảnh.</li>
+        <li><code class="inline">stages { }</code> → <code class="inline">stage('Hello')</code> — một <b>giai đoạn</b> (stage) tên "Hello".</li>
+        <li><code class="inline">steps { echo ... }</code> — bước thực thi; ở đây chỉ <b>in ra dòng chữ</b> <code class="inline">Hello Jenkins</code>.</li>
+      </ul>
+      <p class="anno-sum">👉 Ví dụ "Hello World" để kiểm tra pipeline có chạy được không.</p></li>
+    <li><span class="task">Pipeline chạy lệnh shell thật (không chỉ echo).</span>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'Build'</span>) {
+    steps {
+        sh <span class="str">'npm install &amp;&amp; npm run build'</span>
+    }
+}</pre>
+      <ul class="anno">
+        <li><code class="inline">sh '...'</code> — chạy <b>lệnh shell</b> trên node Linux/Unix (trên Windows dùng <code class="inline">bat</code>).</li>
+        <li><code class="inline">npm install &amp;&amp; npm run build</code> — cài dependencies rồi build project.</li>
+      </ul>
+      <p class="anno-sum">👉 Khác ví dụ 1: nó <b>thực sự làm việc</b> (build code) thay vì chỉ in chữ.</p></li>
+    <li><span class="task">Khai báo Pipeline script from SCM bằng Git.</span>
+<pre><span class="lbl">Job configuration</span>Definition:      Pipeline script from SCM
+SCM:             Git
+Repository URL:  https://github.com/acme/app.git
+Script Path:     Jenkinsfile</pre>
+      <ul class="anno">
+        <li>Đây là <b>cấu hình Job</b> trên giao diện web Jenkins, <b>không phải code</b>.</li>
+        <li>Thay vì dán pipeline vào Jenkins, nó <b>lấy file Jenkinsfile từ Git repo</b>.</li>
+        <li><code class="inline">Script Path: Jenkinsfile</code> — đường dẫn tới file trong repo.</li>
+      </ul>
+      <p class="anno-sum">👉 Ưu điểm: pipeline được lưu cùng source code, quản lý version bằng Git.</p></li>
+    <li><span class="task">Thêm biến môi trường dùng chung cho toàn pipeline.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    environment {
+        APP_ENV = <span class="str">'staging'</span>
+    }
+    stages {
+        stage(<span class="str">'Deploy'</span>) {
+            steps { echo <span class="str">"Deploy to ${APP_ENV}"</span> }
+        }
+    }
+}</pre>
+      <ul class="anno">
+        <li><code class="inline">environment { APP_ENV = 'staging' }</code> — khai báo <b>biến môi trường</b> dùng chung cho cả pipeline.</li>
+        <li><code class="inline">${APP_ENV}</code> — chèn giá trị biến vào chuỗi → in ra <code class="inline">Deploy to staging</code>.</li>
+        <li>⚠️ Phải dùng <b>nháy kép</b> <code class="inline">"..."</code> mới thay được biến; nháy đơn <code class="inline">'...'</code> sẽ in nguyên chữ <code class="inline">${APP_ENV}</code>.</li>
+      </ul></li>
+    <li><span class="task">Xem log console của build vừa chạy qua giao diện web (đường dẫn breadcrumb).</span>
+<pre><span class="lbl">breadcrumb</span>Dashboard › my-pipeline › #1 › Console Output</pre>
+      <ul class="anno">
+        <li>Đây là <b>đường dẫn thao tác (breadcrumb)</b> trên web Jenkins để xem log console.</li>
+        <li>Dashboard → pipeline <code class="inline">my-pipeline</code> → build <code class="inline">#1</code> → <b>Console Output</b> (toàn bộ output/lỗi).</li>
+      </ul></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Pipeline đầu tiên</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết Jenkinsfile Declarative tối thiểu hợp lệ (chỉ cần chạy được, không cần logic gì).</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    stages {
+        stage(<span class="str">'Build'</span>) {
+            steps { echo <span class="str">'OK'</span> }
+        }
+    }
+}</pre></div></details></li>
+    <li><span class="task">Thêm một stage tên "Test" chạy lệnh <code class="inline">npm test</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>stage(<span class="str">'Test'</span>) {
+    steps { sh <span class="str">'npm test'</span> }
+}</pre></div></details></li>
+    <li><span class="task">Cho biết khối nào dùng để chạy lệnh shell trong một step.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>sh <span class="str">'ten-cau-lenh'</span></pre></div></details></li>
+    <li><span class="task">Chỉ định Jenkins nằm ở đường dẫn khác gốc repo, ví dụ <code class="inline">ci/Jenkinsfile</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>Script Path: ci/Jenkinsfile</pre></div></details></li>
+    <li><span class="task">Nút nào trên trang job dùng để kích hoạt một build thủ công?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>Build Now</pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 1.4</span>
+  <h2>Creating Your First Pipeline</h2>
+  <div class="box goal"><b>🎯 Goal</b>Create a Pipeline job, distinguish inline "Pipeline script" from "Pipeline script from SCM", write a minimal Declarative Jenkinsfile, trigger a build, and read the Console Output.</div>
+  <h3>Creating a Pipeline job</h3>
+  <p>From the Dashboard click <b>New Item</b> → enter a name → pick type <b>Pipeline</b> → OK. Scroll to the <b>Pipeline</b> section at the bottom of the config page — there are 2 choices for "Definition":</p>
+  <table>
+    <tr><th>Definition</th><th>Meaning</th><th>When to use</th></tr>
+    <tr><td>Pipeline script</td><td>Paste the Jenkinsfile content directly into a textarea in the web UI</td><td>Quick experiments, learning, demos</td></tr>
+    <tr><td>Pipeline script from SCM</td><td>Jenkins checks out a <code class="inline">Jenkinsfile</code> from a Git (or SVN...) repo automatically</td><td>Real/production use — the pipeline is version-controlled alongside the code</td></tr>
+  </table>
+  <h3>A minimal Declarative Jenkinsfile</h3>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    stages {
+        stage(<span class="str">'Build'</span>) {
+            steps {
+                echo <span class="str">'Building...'</span>
+            }
+        }
+        stage(<span class="str">'Test'</span>) {
+            steps {
+                echo <span class="str">'Running tests...'</span>
+            }
+        }
+        stage(<span class="str">'Deploy'</span>) {
+            steps {
+                echo <span class="str">'Deploying...'</span>
+            }
+        }
+    }
+}</pre>
+  <ul>
+    <li><b><code class="inline">agent any</code></b> — lets Jenkins pick any available node to run the whole pipeline.</li>
+    <li><b><code class="inline">stages</code></b> — a sequence of phases rendered as a visual diagram (Stage View) on the job page.</li>
+    <li><b><code class="inline">steps</code></b> — the actual commands executed inside a stage, e.g. <code class="inline">sh</code>, <code class="inline">bat</code>, <code class="inline">echo</code>.</li>
+  </ul>
+  <h3>Pipeline script from SCM</h3>
+  <p>When choosing SCM, you declare the repository URL, branch, and path to the Jenkinsfile (default <code class="inline">Jenkinsfile</code> at the repo root).</p>
+<pre><span class="lbl">SCM configuration</span>SCM:            Git
+Repository URL: https://github.com/acme/my-app.git
+Branch:         */main
+Script Path:    Jenkinsfile</pre>
+  <h3>Triggering a build and reading the log</h3>
+  <p>Click <b>Build Now</b> on the job page. A new build appears in Build History as <code class="inline">#1</code>. Click that number and open <b>Console Output</b> to see step-by-step logs — each <code class="inline">stage</code> has its own log section, and the last line is usually <code class="inline">Finished: SUCCESS</code> or <code class="inline">FAILURE</code>.</p>
+<pre><span class="lbl">console output (trimmed)</span>[Pipeline] stage
+[Pipeline] { (Build)
+[Pipeline] echo
+Building...
+[Pipeline] }
+[Pipeline] stage
+[Pipeline] { (Test)
+[Pipeline] echo
+Running tests...
+[Pipeline] }
+Finished: SUCCESS</pre>
+  <div class="box why"><b>🤔 Why prefer "Pipeline script from SCM" over pasting code?</b>When the Jenkinsfile lives in the same repo as the application code, every pipeline change gets reviewed via pull request, has git history, and automatically applies to the right branch/commit being built — pasting into the UI has no version control.</div>
+  <div class="box warn"><b>⚠️ Common mistake</b>Forgetting that <code class="inline">agent any</code> might run on a different node that lacks a required tool (e.g. Node.js, Docker) — causing "command not found" errors even though the pipeline syntax is correct.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Create a new Pipeline job, use "Pipeline script" to paste the 3-stage Jenkinsfile above, click Build Now, then open Console Output and confirm all 3 "echo" lines appear.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · First Pipeline</span></div>
+  <ol class="examples">
+    <li><span class="task">Minimal Jenkinsfile with a single stage that prints a message.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    stages {
+        stage(<span class="str">'Hello'</span>) {
+            steps { echo <span class="str">'Hello Jenkins'</span> }
+        }
+    }
+}</pre>
+      <ul class="anno">
+        <li><code class="inline">pipeline { }</code> — the outer block declaring a <b>Declarative</b> pipeline.</li>
+        <li><code class="inline">agent any</code> — run on <b>any free node/machine</b>.</li>
+        <li><code class="inline">stages { }</code> → <code class="inline">stage('Hello')</code> — a single <b>stage</b> named "Hello".</li>
+        <li><code class="inline">steps { echo ... }</code> — the step that runs; here it just <b>prints the line</b> <code class="inline">Hello Jenkins</code>.</li>
+      </ul>
+      <p class="anno-sum">👉 A "Hello World" to check the pipeline runs at all.</p></li>
+    <li><span class="task">Pipeline that runs a real shell command (not just echo).</span>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'Build'</span>) {
+    steps {
+        sh <span class="str">'npm install &amp;&amp; npm run build'</span>
+    }
+}</pre>
+      <ul class="anno">
+        <li><code class="inline">sh '...'</code> — runs a <b>shell command</b> on a Linux/Unix node (use <code class="inline">bat</code> on Windows).</li>
+        <li><code class="inline">npm install &amp;&amp; npm run build</code> — install dependencies, then build the project.</li>
+      </ul>
+      <p class="anno-sum">👉 Unlike example 1, this <b>does real work</b> (builds code) instead of just printing.</p></li>
+    <li><span class="task">Configure Pipeline script from SCM with Git.</span>
+<pre><span class="lbl">Job configuration</span>Definition:      Pipeline script from SCM
+SCM:             Git
+Repository URL:  https://github.com/acme/app.git
+Script Path:     Jenkinsfile</pre>
+      <ul class="anno">
+        <li>This is <b>job configuration</b> in the web UI, <b>not code</b>.</li>
+        <li>Instead of pasting the pipeline, Jenkins <b>pulls the Jenkinsfile from a Git repo</b>.</li>
+        <li><code class="inline">Script Path: Jenkinsfile</code> — path to the file inside the repo.</li>
+      </ul>
+      <p class="anno-sum">👉 Benefit: the pipeline is stored with the source code and version-controlled in Git.</p></li>
+    <li><span class="task">Add a pipeline-wide environment variable.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    environment {
+        APP_ENV = <span class="str">'staging'</span>
+    }
+    stages {
+        stage(<span class="str">'Deploy'</span>) {
+            steps { echo <span class="str">"Deploy to ${APP_ENV}"</span> }
+        }
+    }
+}</pre>
+      <ul class="anno">
+        <li><code class="inline">environment { APP_ENV = 'staging' }</code> — declares an <b>environment variable</b> shared across the whole pipeline.</li>
+        <li><code class="inline">${APP_ENV}</code> — interpolates the value into the string → prints <code class="inline">Deploy to staging</code>.</li>
+        <li>⚠️ You must use <b>double quotes</b> <code class="inline">"..."</code> for interpolation; single quotes <code class="inline">'...'</code> print <code class="inline">${APP_ENV}</code> literally.</li>
+      </ul></li>
+    <li><span class="task">View the console log of the just-triggered build via the web UI (breadcrumb path).</span>
+<pre><span class="lbl">breadcrumb</span>Dashboard › my-pipeline › #1 › Console Output</pre>
+      <ul class="anno">
+        <li>This is the <b>breadcrumb</b> path in the Jenkins web UI for viewing the console log.</li>
+        <li>Dashboard → pipeline <code class="inline">my-pipeline</code> → build <code class="inline">#1</code> → <b>Console Output</b> (full output/errors).</li>
+      </ul></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · First Pipeline</span></div>
+  <ol class="drills">
+    <li><span class="task">Write a minimal valid Declarative Jenkinsfile (just needs to run, no real logic).</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="kw">pipeline</span> {
+    agent <span class="kw">any</span>
+    stages {
+        stage(<span class="str">'Build'</span>) {
+            steps { echo <span class="str">'OK'</span> }
+        }
+    }
+}</pre></div></details></li>
+    <li><span class="task">Add a stage named "Test" that runs <code class="inline">npm test</code>.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>stage(<span class="str">'Test'</span>) {
+    steps { sh <span class="str">'npm test'</span> }
+}</pre></div></details></li>
+    <li><span class="task">Which directive runs a shell command inside a step?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>sh <span class="str">'command-name'</span></pre></div></details></li>
+    <li><span class="task">Point Jenkins to a Jenkinsfile not at the repo root, e.g. <code class="inline">ci/Jenkinsfile</code>.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>Script Path: ci/Jenkinsfile</pre></div></details></li>
+    <li><span class="task">Which button on the job page manually triggers a build?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>Build Now</pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 1.5 ============ -->
+<section class="lesson" id="docker">
+<div class="lang vi">
+  <span class="phase-tag">Bài 1.5</span>
+  <h2>Chạy Jenkins với Docker</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Chạy được Jenkins bằng <code class="inline">docker run</code> đúng port và volume, viết được một <code class="inline">docker-compose.yml</code> tương đương, hiểu vì sao phải persist <code class="inline">JENKINS_HOME</code>, và biết khái niệm Docker-in-Docker khi pipeline cần build image.</div>
+  <h3>Vì sao chạy Docker chung với Jenkins? — 2 mục đích</h3>
+  <p>Nhiều người hay nhầm lẫn: "Docker + Jenkins" thực ra phục vụ <b>hai mục đích hoàn toàn khác nhau</b>. Nên phân biệt rõ hai kiểu này trước khi đi vào lệnh cụ thể.</p>
+  <table>
+    <tr><th>Kiểu</th><th>Ý nghĩa</th><th>Lợi ích chính</th></tr>
+    <tr><td>Jenkins <b>trong</b> Docker</td><td>Bản thân Jenkins chạy dưới dạng một container</td><td>Cài nhanh, dễ nâng cấp, gọn máy</td></tr>
+    <tr><td>Jenkins <b>dùng</b> Docker</td><td>Pipeline build/test bên trong container riêng</td><td>Môi trường sạch, nhất quán, dễ deploy</td></tr>
+  </table>
+  <h4>1 · Chạy Jenkins <b>bên trong</b> Docker (Jenkins-in-Docker)</h4>
+  <p>Tức là bản thân Jenkins được cài đặt dưới dạng một container — chính là những gì các lệnh <code class="inline">docker run</code> / <code class="inline">docker-compose</code> ở dưới làm.</p>
+  <ul>
+    <li><b>Cài đặt nhanh, không làm bẩn máy</b> — không cần cài Java hay cài trực tiếp lên hệ điều hành; xóa container là sạch.</li>
+    <li><b>Dễ nâng cấp / rollback</b> — chỉ cần đổi tag image (ví dụ từ <code class="inline">lts</code> sang phiên bản mới).</li>
+    <li><b>Tái lập môi trường giống hệt</b> trên máy dev, server, hay CI khác nhau.</li>
+    <li><b>Dữ liệu Jenkins</b> (job, config, plugin) lưu ở volume <code class="inline">jenkins_home</code> nên không mất khi container bị xóa.</li>
+  </ul>
+  <h4>2 · Jenkins <b>dùng</b> Docker để build/test (Docker-in-Pipeline)</h4>
+  <p>Đây mới là lý do chính khiến Docker + Jenkins mạnh. Trong pipeline, mỗi bước build chạy trong một container riêng, mới tinh:</p>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent {
+        docker { image <span class="str">'node:20'</span> }   <span class="cmt">// build trong container Node 20 sạch</span>
+    }
+    stages {
+        stage(<span class="str">'Build'</span>) {
+            steps { sh <span class="str">'npm install && npm run build'</span> }
+        }
+    }
+}</pre>
+  <ul>
+    <li><b>Môi trường build sạch &amp; nhất quán</b> — mỗi lần build có môi trường mới tinh, tránh cảnh "máy tôi chạy được mà server thì lỗi".</li>
+    <li><b>Không cần cài đủ thứ lên Jenkins server</b> — cần Node 20 thì kéo image <code class="inline">node:20</code>, cần Python thì <code class="inline">python:3.12</code>, không xung đột phiên bản.</li>
+    <li><b>Cô lập</b> — build project A không ảnh hưởng project B.</li>
+    <li><b>Đóng gói sản phẩm thành Docker image</b> để deploy: build xong → tạo image → push lên registry → deploy lên server/K8s.</li>
+  </ul>
+  <div class="box tip"><b>💡 Thực tế thường kết hợp cả hai</b>Jenkins chạy <b>trong</b> Docker, và pipeline của nó lại <b>dùng</b> Docker để build → tạo ra image để deploy. Phần còn lại của bài này đi sâu vào kiểu 1 (chạy Jenkins bằng Docker); kiểu 2 (pipeline dùng Docker) được nói kỹ hơn ở mục "Docker-in-Docker" cuối bài.</div>
+  <h3>Lệnh docker run cơ bản</h3>
+<pre><span class="lbl">terminal</span>docker run -d \
+  --name jenkins \
+  -p 8080:8080 \
+  -p 50000:50000 \
+  -v jenkins_home:/var/jenkins_home \
+  jenkins/jenkins:lts</pre>
+  <table>
+    <tr><th>Tham số</th><th>Ý nghĩa</th></tr>
+    <tr><td><code>-p 8080:8080</code></td><td>Cổng giao diện web Jenkins</td></tr>
+    <tr><td><code>-p 50000:50000</code></td><td>Cổng dùng cho agent JNLP kết nối vào controller</td></tr>
+    <tr><td><code>-v jenkins_home:/var/jenkins_home</code></td><td>Volume Docker lưu bền vững toàn bộ dữ liệu Jenkins</td></tr>
+    <tr><td><code>jenkins/jenkins:lts</code></td><td>Image chính thức, bản Long-Term Support</td></tr>
+  </table>
+  <h3>docker-compose.yml tương đương</h3>
+<pre><span class="lbl">docker-compose.yml</span>version: <span class="str">'3.8'</span>
+services:
+  jenkins:
+    image: jenkins/jenkins:lts
+    container_name: jenkins
+    ports:
+      - <span class="str">"8080:8080"</span>
+      - <span class="str">"50000:50000"</span>
+    volumes:
+      - jenkins_home:/var/jenkins_home
+    restart: unless-stopped
+
+volumes:
+  jenkins_home:</pre>
+<pre><span class="lbl">terminal</span>docker compose up -d</pre>
+  <h3>Vì sao phải persist JENKINS_HOME</h3>
+  <p>Toàn bộ dữ liệu quan trọng của Jenkins — job, build history, plugin, credentials, cấu hình bảo mật — đều nằm trong <code class="inline">/var/jenkins_home</code> bên trong container. Nếu không mount volume, xoá container là <b>mất sạch dữ liệu</b>.</p>
+  <div class="box warn"><b>⚠️ Lỗi thường gặp</b>Chạy <code class="inline">docker run</code> mà quên <code class="inline">-v jenkins_home:/var/jenkins_home</code> — mọi thứ hoạt động bình thường cho đến khi ai đó chạy <code class="inline">docker rm</code>, lúc đó toàn bộ job và lịch sử build biến mất vĩnh viễn.</div>
+  <h3>Docker-in-Docker khi pipeline cần build image</h3>
+  <p>Nếu Jenkinsfile của bạn cần chạy <code class="inline">docker build</code> để đóng gói ứng dụng thành image, container Jenkins (vốn đã là Docker) cần có quyền chạy Docker bên trong nó. Cách phổ biến nhất là <b>mount Docker socket</b> của host vào container Jenkins thay vì cài Docker-in-Docker (DinD) thật sự.</p>
+<pre><span class="lbl">terminal</span>docker run -d \
+  --name jenkins \
+  -p 8080:8080 -p 50000:50000 \
+  -v jenkins_home:/var/jenkins_home \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  jenkins/jenkins:lts</pre>
+  <div class="box why"><b>🤔 Vì sao dùng Docker socket thay vì Docker-in-Docker thật?</b>Mount socket cho Jenkins "mượn" daemon Docker của máy host, tránh việc chạy một Docker daemon lồng bên trong container (phức tạp, tốn tài nguyên, cần chế độ <code class="inline">--privileged</code>). Đánh đổi: các container được Jenkins build ra thực chất là "anh em" chạy trên cùng host Docker, không thực sự bị cô lập hoàn toàn với Jenkins.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Viết file <code class="inline">docker-compose.yml</code> ở trên, chạy <code class="inline">docker compose up -d</code>, xác nhận Jenkins truy cập được ở <code class="inline">localhost:8080</code>, sau đó dừng và xóa container (<code class="inline">docker compose down</code>) rồi chạy lại — kiểm chứng dữ liệu (job, plugin) vẫn còn nguyên nhờ volume.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Docker</span></div>
+  <ol class="examples">
+    <li><span class="task">Chạy Jenkins nền (detached) với tên container cố định.</span>
+<pre><span class="lbl">terminal</span>docker run -d --name jenkins -p 8080:8080 -p 50000:50000 -v jenkins_home:/var/jenkins_home jenkins/jenkins:lts</pre></li>
+    <li><span class="task">Xem log của container Jenkins đang chạy.</span>
+<pre><span class="lbl">terminal</span>docker logs -f jenkins</pre></li>
+    <li><span class="task">Dừng và khởi động lại container Jenkins mà không mất dữ liệu.</span>
+<pre><span class="lbl">terminal</span>docker stop jenkins
+docker start jenkins</pre></li>
+    <li><span class="task">Backup toàn bộ JENKINS_HOME từ named volume ra file tar.</span>
+<pre><span class="lbl">terminal</span>docker run --rm -v jenkins_home:/data -v $(pwd):/backup alpine tar czf /backup/jenkins_home.tar.gz -C /data .</pre></li>
+    <li><span class="task">Cho phép pipeline build Docker image bằng cách mount Docker socket.</span>
+<pre><span class="lbl">terminal</span>docker run -d -v jenkins_home:/var/jenkins_home -v /var/run/docker.sock:/var/run/docker.sock jenkins/jenkins:lts</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Docker</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết lệnh <code class="inline">docker run</code> đầy đủ port + volume chuẩn cho Jenkins LTS.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>docker run -d -p 8080:8080 -p 50000:50000 -v jenkins_home:/var/jenkins_home jenkins/jenkins:lts</pre></div></details></li>
+    <li><span class="task">Cổng 50000 trong Jenkins dùng để làm gì?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">Cổng cho agent JNLP kết nối vào Jenkins controller</span></pre></div></details></li>
+    <li><span class="task">Viết đoạn <code class="inline">volumes:</code> trong docker-compose.yml khai báo named volume <code class="inline">jenkins_home</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>volumes:
+  jenkins_home:</pre></div></details></li>
+    <li><span class="task">Viết lệnh khởi động lại toàn bộ service khai báo trong docker-compose.yml.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>docker compose up -d</pre></div></details></li>
+    <li><span class="task">Viết dòng mount cần thêm để pipeline có thể chạy <code class="inline">docker build</code> bên trong Jenkins.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>-v /var/run/docker.sock:/var/run/docker.sock</pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 1.5</span>
+  <h2>Running Jenkins with Docker</h2>
+  <div class="box goal"><b>🎯 Goal</b>Run Jenkins with <code class="inline">docker run</code> using the correct ports and volume, write an equivalent <code class="inline">docker-compose.yml</code>, understand why persisting <code class="inline">JENKINS_HOME</code> matters, and know the Docker-in-Docker concept for pipelines that build images.</div>
+  <h3>Why run Docker with Jenkins? — 2 purposes</h3>
+  <p>People often mix this up: "Docker + Jenkins" actually serves <b>two completely different purposes</b>. It helps to tell them apart before diving into specific commands.</p>
+  <table>
+    <tr><th>Mode</th><th>What it means</th><th>Main benefit</th></tr>
+    <tr><td>Jenkins <b>inside</b> Docker</td><td>Jenkins itself runs as a container</td><td>Quick install, easy upgrades, clean host</td></tr>
+    <tr><td>Jenkins <b>using</b> Docker</td><td>Pipeline builds/tests inside their own container</td><td>Clean, consistent environment, easy deploy</td></tr>
+  </table>
+  <h4>1 · Running Jenkins <b>inside</b> Docker (Jenkins-in-Docker)</h4>
+  <p>This means Jenkins itself is installed as a container — exactly what the <code class="inline">docker run</code> / <code class="inline">docker-compose</code> commands below do.</p>
+  <ul>
+    <li><b>Fast install, no mess on the host</b> — no need to install Java or anything directly on the OS; delete the container and it's gone clean.</li>
+    <li><b>Easy upgrade / rollback</b> — just change the image tag (e.g. from <code class="inline">lts</code> to a newer version).</li>
+    <li><b>Reproducible environment</b> across dev machines, servers, and other CI setups.</li>
+    <li><b>Jenkins data</b> (jobs, config, plugins) lives in the <code class="inline">jenkins_home</code> volume, so it survives container deletion.</li>
+  </ul>
+  <h4>2 · Jenkins <b>using</b> Docker to build/test (Docker-in-Pipeline)</h4>
+  <p>This is the main reason Docker + Jenkins is so powerful. In a pipeline, each build step runs inside its own fresh container:</p>
+<pre><span class="lbl">Jenkinsfile</span><span class="kw">pipeline</span> {
+    agent {
+        docker { image <span class="str">'node:20'</span> }   <span class="cmt">// build in a clean Node 20 container</span>
+    }
+    stages {
+        stage(<span class="str">'Build'</span>) {
+            steps { sh <span class="str">'npm install && npm run build'</span> }
+        }
+    }
+}</pre>
+  <ul>
+    <li><b>Clean &amp; consistent build environment</b> — every build gets a brand-new environment, avoiding "works on my machine but fails on the server".</li>
+    <li><b>No need to install everything on the Jenkins server</b> — need Node 20? pull <code class="inline">node:20</code>; need Python? <code class="inline">python:3.12</code> — no version conflicts.</li>
+    <li><b>Isolation</b> — building project A doesn't affect project B.</li>
+    <li><b>Packaging the product as a Docker image</b> for deployment: build → create image → push to a registry → deploy to a server/K8s.</li>
+  </ul>
+  <div class="box tip"><b>💡 In practice you usually combine both</b>Jenkins runs <b>inside</b> Docker, and its pipeline in turn <b>uses</b> Docker to build → producing an image to deploy. The rest of this lesson focuses on mode 1 (running Jenkins via Docker); mode 2 (pipelines using Docker) is covered in more depth in the "Docker-in-Docker" section at the end.</div>
+  <h3>Basic docker run command</h3>
+<pre><span class="lbl">terminal</span>docker run -d \
+  --name jenkins \
+  -p 8080:8080 \
+  -p 50000:50000 \
+  -v jenkins_home:/var/jenkins_home \
+  jenkins/jenkins:lts</pre>
+  <table>
+    <tr><th>Flag</th><th>Meaning</th></tr>
+    <tr><td><code>-p 8080:8080</code></td><td>Jenkins web UI port</td></tr>
+    <tr><td><code>-p 50000:50000</code></td><td>Port used by JNLP agents to connect to the controller</td></tr>
+    <tr><td><code>-v jenkins_home:/var/jenkins_home</code></td><td>Docker volume that persists all Jenkins data</td></tr>
+    <tr><td><code>jenkins/jenkins:lts</code></td><td>The official image, Long-Term Support release</td></tr>
+  </table>
+  <h3>Equivalent docker-compose.yml</h3>
+<pre><span class="lbl">docker-compose.yml</span>version: <span class="str">'3.8'</span>
+services:
+  jenkins:
+    image: jenkins/jenkins:lts
+    container_name: jenkins
+    ports:
+      - <span class="str">"8080:8080"</span>
+      - <span class="str">"50000:50000"</span>
+    volumes:
+      - jenkins_home:/var/jenkins_home
+    restart: unless-stopped
+
+volumes:
+  jenkins_home:</pre>
+<pre><span class="lbl">terminal</span>docker compose up -d</pre>
+  <h3>Why persisting JENKINS_HOME matters</h3>
+  <p>All of Jenkins' important data — jobs, build history, plugins, credentials, security configuration — lives under <code class="inline">/var/jenkins_home</code> inside the container. Without a mounted volume, deleting the container means <b>losing everything</b>.</p>
+  <div class="box warn"><b>⚠️ Common mistake</b>Running <code class="inline">docker run</code> without <code class="inline">-v jenkins_home:/var/jenkins_home</code> — everything works fine until someone runs <code class="inline">docker rm</code>, at which point all jobs and build history are permanently gone.</div>
+  <h3>Docker-in-Docker for pipelines that build images</h3>
+  <p>If your Jenkinsfile needs to run <code class="inline">docker build</code> to package the app into an image, the Jenkins container (which is itself Docker) needs permission to run Docker inside it. The most common approach is to <b>mount the host's Docker socket</b> into the Jenkins container instead of running true Docker-in-Docker (DinD).</p>
+<pre><span class="lbl">terminal</span>docker run -d \
+  --name jenkins \
+  -p 8080:8080 -p 50000:50000 \
+  -v jenkins_home:/var/jenkins_home \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  jenkins/jenkins:lts</pre>
+  <div class="box why"><b>🤔 Why use the Docker socket instead of real Docker-in-Docker?</b>Mounting the socket lets Jenkins "borrow" the host machine's Docker daemon, avoiding a nested Docker daemon running inside the container (complex, resource-heavy, requires <code class="inline">--privileged</code>). Trade-off: containers built by Jenkins are actually "siblings" running on the same host Docker daemon, not fully isolated from Jenkins.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Write the <code class="inline">docker-compose.yml</code> above, run <code class="inline">docker compose up -d</code>, confirm Jenkins is reachable at <code class="inline">localhost:8080</code>, then stop and remove the container (<code class="inline">docker compose down</code>) and start it again — verify jobs and plugins are still there thanks to the volume.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Docker</span></div>
+  <ol class="examples">
+    <li><span class="task">Run Jenkins detached with a fixed container name.</span>
+<pre><span class="lbl">terminal</span>docker run -d --name jenkins -p 8080:8080 -p 50000:50000 -v jenkins_home:/var/jenkins_home jenkins/jenkins:lts</pre></li>
+    <li><span class="task">View the running Jenkins container's logs.</span>
+<pre><span class="lbl">terminal</span>docker logs -f jenkins</pre></li>
+    <li><span class="task">Stop and restart the Jenkins container without losing data.</span>
+<pre><span class="lbl">terminal</span>docker stop jenkins
+docker start jenkins</pre></li>
+    <li><span class="task">Back up the entire JENKINS_HOME from a named volume to a tar file.</span>
+<pre><span class="lbl">terminal</span>docker run --rm -v jenkins_home:/data -v $(pwd):/backup alpine tar czf /backup/jenkins_home.tar.gz -C /data .</pre></li>
+    <li><span class="task">Allow a pipeline to build Docker images by mounting the Docker socket.</span>
+<pre><span class="lbl">terminal</span>docker run -d -v jenkins_home:/var/jenkins_home -v /var/run/docker.sock:/var/run/docker.sock jenkins/jenkins:lts</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Docker</span></div>
+  <ol class="drills">
+    <li><span class="task">Write the full <code class="inline">docker run</code> command with the standard ports + volume for Jenkins LTS.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>docker run -d -p 8080:8080 -p 50000:50000 -v jenkins_home:/var/jenkins_home jenkins/jenkins:lts</pre></div></details></li>
+    <li><span class="task">What is port 50000 used for in Jenkins?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">The port JNLP agents use to connect to the Jenkins controller</span></pre></div></details></li>
+    <li><span class="task">Write the <code class="inline">volumes:</code> block in docker-compose.yml declaring named volume <code class="inline">jenkins_home</code>.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>volumes:
+  jenkins_home:</pre></div></details></li>
+    <li><span class="task">Write the command to start all services declared in docker-compose.yml.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>docker compose up -d</pre></div></details></li>
+    <li><span class="task">Write the extra mount needed so a pipeline can run <code class="inline">docker build</code> inside Jenkins.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>-v /var/run/docker.sock:/var/run/docker.sock</pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 1.6 ============ -->
+<section class="lesson" id="item-types">
+<div class="lang vi">
+  <span class="phase-tag">Bài 1.6</span>
+  <h2>Các loại Item khi tạo job mới</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Hiểu 6 loại item hiển thị ở màn hình <b>New Item</b>, phân biệt được <b>job</b> (thứ tự chạy build: Pipeline, Freestyle, Multi-configuration) với <b>container</b> (thứ chứa/sinh ra job khác: Folder, Multibranch Pipeline, Organization Folder), và biết chọn đúng loại cho từng tình huống.</div>
+  <p>Khi bấm <b>New Item</b>, nhập tên rồi Jenkins hiện màn hình <b>Select an item type</b> — chính là màn hình bạn đang thấy. Dưới đây là bản mô phỏng lại:</p>
+
+  <div class="itype-mock" role="img" aria-label="Mô phỏng màn hình Select an item type của Jenkins với 6 loại item">
+    <div class="field"><span class="cmt">Enter an item name</span> — <b>e2e portal pos</b></div>
+    <div class="sel-label">Select an item type</div>
+    <div class="itype on">
+      <div class="ic"><svg viewBox="0 0 48 48" aria-hidden="true"><rect x="3" y="3" width="42" height="42" rx="11" fill="#3b6ec9"/><path d="M11 19c4-5 9-5 13 0s9 5 13 0" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/><path d="M11 29c4-5 9-5 13 0s9 5 13 0" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg></div>
+      <div class="txt"><div class="nm">Pipeline</div><div class="ds">Build, test và deploy bằng pipeline. Hỗ trợ nhiều stage, chạy song song, và chạy trên nhiều agent.</div></div>
+    </div>
+    <div class="itype">
+      <div class="ic"><svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><path d="M24 5 41 14v20L24 43 7 34V14z"/><path d="M7 14l17 9 17-9"/><path d="M24 23v20"/></svg></div>
+      <div class="txt"><div class="nm">Freestyle project</div><div class="ds">Loại job cổ điển, đa dụng: checkout từ tối đa một SCM, chạy các build step tuần tự, rồi tới post-build step như lưu artifact và gửi email.</div></div>
+    </div>
+    <div class="itype">
+      <div class="ic"><svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><path d="M24 6 43 16 24 26 5 16z"/><path d="M5 24l19 10 19-10"/><path d="M5 32l19 10 19-10"/></svg></div>
+      <div class="txt"><div class="nm">Multi-configuration project</div><div class="ds">Phù hợp với dự án cần nhiều cấu hình khác nhau, ví dụ test trên nhiều môi trường, build theo từng nền tảng, v.v.</div></div>
+    </div>
+    <div class="itype">
+      <div class="ic"><svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><path d="M6 13a2 2 0 0 1 2-2h9l4 5h19a2 2 0 0 1 2 2v18a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z"/></svg></div>
+      <div class="txt"><div class="nm">Folder</div><div class="ds">Tạo một hộp chứa các item lồng bên trong, tiện để nhóm nhiều thứ lại. Khác với View (chỉ là bộ lọc), Folder tạo một namespace riêng nên có thể trùng tên miễn là ở khác folder.</div></div>
+    </div>
+    <div class="itype">
+      <div class="ic"><svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="14" cy="11" r="4"/><circle cx="14" cy="37" r="4"/><circle cx="34" cy="14" r="4"/><path d="M14 15v18"/><path d="M34 18c0 9-8 9-14 12"/></svg></div>
+      <div class="txt"><div class="nm">Multibranch Pipeline</div><div class="ds">Tạo một loạt Pipeline con theo các branch phát hiện được trong một repo SCM.</div></div>
+    </div>
+    <div class="itype">
+      <div class="ic"><svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><path d="M9 42V9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v33"/><path d="M27 20h10a2 2 0 0 1 2 2v20"/><path d="M5 42h38"/><path d="M14 14h6M14 21h6M14 28h6M31 26h4M31 32h4"/></svg></div>
+      <div class="txt"><div class="nm">Organization Folder</div><div class="ds">Quét cả một tổ chức và tự tạo một Multibranch Pipeline cho mỗi repo có Jenkinsfile.</div></div>
+    </div>
+    <div class="okbtn">OK</div>
+  </div>
+
+  <h3>1 · Pipeline</h3>
+  <p>Loại job <b>hiện đại và được khuyên dùng nhất</b>. Toàn bộ quy trình build → test → deploy được mô tả bằng <b>code</b> — một <code class="inline">Jenkinsfile</code> viết theo cú pháp Declarative hoặc Scripted (Groovy). Hỗ trợ nhiều <code class="inline">stage</code>, chạy song song (<code class="inline">parallel</code>), chạy trên nhiều agent, và "bền" qua các lần khởi động lại Jenkins. Vì là code nên pipeline được version control cùng ứng dụng.</p>
+  <h3>2 · Freestyle project</h3>
+  <p>Loại job <b>cổ điển</b>, cấu hình hoàn toàn bằng giao diện web (point-and-click). Checkout từ <b>tối đa một</b> SCM, chạy các build step <b>tuần tự</b> (shell, batch, Maven...), rồi tới post-build step (lưu artifact, gửi email...). Dễ với người mới, nhưng hạn chế: không có stage/parallel trực quan, khó version control, khó tái sử dụng khi quy trình phức tạp.</p>
+  <h3>3 · Multi-configuration project <span style="color:var(--dim);font-weight:400;font-size:.9rem">(Matrix project)</span></h3>
+  <p>Chạy <b>cùng một</b> cấu hình build trên <b>nhiều tổ hợp</b> (matrix) — mỗi chiều gọi là một "axis". Ví dụ test trên 3 phiên bản JDK × 2 hệ điều hành = 6 lần chạy tự động. Phù hợp khi cần kiểm thử đa nền tảng, đa phiên bản, đa trình duyệt.</p>
+  <h3>4 · Folder</h3>
+  <p><b>Không phải job</b> — mà là một "hộp chứa" để nhóm và tổ chức các item con. Khác với <b>View</b> (chỉ là bộ lọc hiển thị trên Dashboard), Folder tạo ra một <b>namespace riêng</b>, nên bạn có thể có hai job trùng tên miễn là chúng nằm ở hai folder khác nhau. Folder còn có thể chứa credentials/cấu hình riêng theo phạm vi.</p>
+  <h3>5 · Multibranch Pipeline</h3>
+  <p>Tự động tạo một Pipeline con cho <b>mỗi branch</b> (và thường cả Pull Request) có chứa <code class="inline">Jenkinsfile</code> trong <b>một</b> repo. Jenkins quét repo: branch mới → tạo job, branch bị xóa → gỡ job. Rất tiện cho workflow Git nhiều nhánh.</p>
+  <h3>6 · Organization Folder</h3>
+  <p>Cao hơn Multibranch một bậc: quét <b>cả một tổ chức/nhóm</b> (GitHub org, GitLab group, Bitbucket project) và tự tạo một <b>Multibranch Pipeline cho mỗi repo</b> có Jenkinsfile. Dùng cho tổ chức lớn với nhiều repo — thêm repo mới là Jenkins tự nhận ra và dựng job.</p>
+
+  <table>
+    <tr><th>Loại</th><th>Bản chất</th><th>Khi nào dùng</th></tr>
+    <tr><td>Pipeline</td><td>Job định nghĩa bằng Jenkinsfile (code)</td><td>CI/CD hiện đại — lựa chọn mặc định</td></tr>
+    <tr><td>Freestyle project</td><td>Job cấu hình bằng UI, chạy step tuần tự</td><td>Task đơn giản một vài bước, người mới</td></tr>
+    <tr><td>Multi-configuration</td><td>Job chạy trên một ma trận cấu hình</td><td>Test đa nền tảng / đa phiên bản</td></tr>
+    <tr><td>Folder</td><td>Container tạo namespace riêng</td><td>Nhóm &amp; tổ chức nhiều job</td></tr>
+    <tr><td>Multibranch Pipeline</td><td>Tự sinh pipeline theo branch của 1 repo</td><td>Repo Git nhiều nhánh + Pull Request</td></tr>
+    <tr><td>Organization Folder</td><td>Tự sinh multibranch cho mọi repo trong org</td><td>Nhiều repo trong cùng một tổ chức</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Job khác Container ở điểm nào?</b>3 loại đầu (Pipeline, Freestyle, Multi-configuration) là <b>job thật sự chạy build</b>. 3 loại sau (Folder, Multibranch, Organization Folder) là <b>container</b>: bản thân chúng không build gì cả. Đặc biệt, Multibranch và Organization Folder còn <b>tự động tạo job con</b> cho bạn dựa trên nội dung repo, thay vì bạn phải tạo tay từng cái.</div>
+  <div class="box warn"><b>⚠️ Lỗi thường gặp</b>Chọn <b>Freestyle</b> cho một quy trình CI/CD nhiều bước rồi mắc kẹt khi cần thêm stage/parallel hay đưa cấu hình vào Git — lúc đó phải làm lại bằng Pipeline. Hoặc nhầm <b>Multibranch Pipeline</b> (một repo, nhiều branch) với <b>Organization Folder</b> (nhiều repo trong một tổ chức).</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Vào <b>New Item</b>, gõ tên và quan sát đủ 6 loại. Tạo thử một <b>Folder</b> tên <code class="inline">team-a</code>, đi vào trong nó rồi tạo tiếp một <b>Pipeline</b> — để ý breadcrumb giờ là <code class="inline">Dashboard › team-a › &lt;pipeline&gt;</code>, chứng tỏ Folder đã tạo một namespace riêng.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Loại Item</span></div>
+  <ol class="examples">
+    <li><span class="task">Dự án CI/CD có build → test → deploy nhiều stage, cấu hình để trong Git.</span>
+<pre><span class="lbl">chọn loại</span>Pipeline</pre></li>
+    <li><span class="task">Cần test cùng một codebase trên JDK 11, 17 và 21.</span>
+<pre><span class="lbl">chọn loại</span>Multi-configuration project</pre></li>
+    <li><span class="task">Sắp xếp 20 job thành các nhóm theo team, không sợ trùng tên.</span>
+<pre><span class="lbl">chọn loại</span>Folder</pre></li>
+    <li><span class="task">Một repo có các branch main / develop / feature-*, mỗi branch có Jenkinsfile riêng.</span>
+<pre><span class="lbl">chọn loại</span>Multibranch Pipeline</pre></li>
+    <li><span class="task">Cả một GitHub organization 50 repo, muốn Jenkins tự dựng job cho repo nào có Jenkinsfile.</span>
+<pre><span class="lbl">chọn loại</span>Organization Folder</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Loại Item</span></div>
+  <ol class="drills">
+    <li><span class="task">Loại item nào được khuyên dùng cho CI/CD hiện đại và định nghĩa bằng Jenkinsfile?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>Pipeline</pre></div></details></li>
+    <li><span class="task">Loại nào cấu hình hoàn toàn bằng UI và chạy các step tuần tự?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>Freestyle project</pre></div></details></li>
+    <li><span class="task">Folder khác View ở điểm cốt lõi nào?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt"># Folder tạo namespace riêng (cho phép trùng tên ở khác folder)
+# View chỉ là một bộ lọc hiển thị, không tạo namespace</span></pre></div></details></li>
+    <li><span class="task">Loại nào tự tạo một pipeline cho từng branch bên trong một repo?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>Multibranch Pipeline</pre></div></details></li>
+    <li><span class="task">Muốn quét cả một GitHub org và tạo job cho mọi repo có Jenkinsfile → dùng loại nào?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>Organization Folder</pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 1.6</span>
+  <h2>New Item Types</h2>
+  <div class="box goal"><b>🎯 Goal</b>Understand the 6 item types on the <b>New Item</b> screen, tell apart a <b>job</b> (something that runs a build: Pipeline, Freestyle, Multi-configuration) from a <b>container</b> (something that holds or generates other jobs: Folder, Multibranch Pipeline, Organization Folder), and pick the right type for each situation.</div>
+  <p>When you click <b>New Item</b>, enter a name, and Jenkins shows the <b>Select an item type</b> screen — exactly the one you're looking at. Here's a recreation of it:</p>
+
+  <div class="itype-mock" role="img" aria-label="Recreation of the Jenkins Select an item type screen with 6 item types">
+    <div class="field"><span class="cmt">Enter an item name</span> — <b>e2e portal pos</b></div>
+    <div class="sel-label">Select an item type</div>
+    <div class="itype on">
+      <div class="ic"><svg viewBox="0 0 48 48" aria-hidden="true"><rect x="3" y="3" width="42" height="42" rx="11" fill="#3b6ec9"/><path d="M11 19c4-5 9-5 13 0s9 5 13 0" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/><path d="M11 29c4-5 9-5 13 0s9 5 13 0" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg></div>
+      <div class="txt"><div class="nm">Pipeline</div><div class="ds">Build, test, and deploy using pipelines. Supports stages, parallel work, and running on multiple agents.</div></div>
+    </div>
+    <div class="itype">
+      <div class="ic"><svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><path d="M24 5 41 14v20L24 43 7 34V14z"/><path d="M7 14l17 9 17-9"/><path d="M24 23v20"/></svg></div>
+      <div class="txt"><div class="nm">Freestyle project</div><div class="ds">Classic, general-purpose job type that checks out from up to one SCM, executes build steps serially, followed by post-build steps like archiving artifacts and sending email.</div></div>
+    </div>
+    <div class="itype">
+      <div class="ic"><svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><path d="M24 6 43 16 24 26 5 16z"/><path d="M5 24l19 10 19-10"/><path d="M5 32l19 10 19-10"/></svg></div>
+      <div class="txt"><div class="nm">Multi-configuration project</div><div class="ds">Suitable for projects that need a large number of different configurations, such as testing on multiple environments, platform-specific builds, etc.</div></div>
+    </div>
+    <div class="itype">
+      <div class="ic"><svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><path d="M6 13a2 2 0 0 1 2-2h9l4 5h19a2 2 0 0 1 2 2v18a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z"/></svg></div>
+      <div class="txt"><div class="nm">Folder</div><div class="ds">Creates a container that stores nested items. Useful for grouping things together. Unlike a view, which is just a filter, a folder creates a separate namespace, so you can have items of the same name in different folders.</div></div>
+    </div>
+    <div class="itype">
+      <div class="ic"><svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="14" cy="11" r="4"/><circle cx="14" cy="37" r="4"/><circle cx="34" cy="14" r="4"/><path d="M14 15v18"/><path d="M34 18c0 9-8 9-14 12"/></svg></div>
+      <div class="txt"><div class="nm">Multibranch Pipeline</div><div class="ds">Creates a set of Pipeline projects according to detected branches in one SCM repository.</div></div>
+    </div>
+    <div class="itype">
+      <div class="ic"><svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><path d="M9 42V9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v33"/><path d="M27 20h10a2 2 0 0 1 2 2v20"/><path d="M5 42h38"/><path d="M14 14h6M14 21h6M14 28h6M31 26h4M31 32h4"/></svg></div>
+      <div class="txt"><div class="nm">Organization Folder</div><div class="ds">Scans an entire organization and automatically creates a Multibranch Pipeline for each repository containing a Jenkinsfile.</div></div>
+    </div>
+    <div class="okbtn">OK</div>
+  </div>
+
+  <h3>1 · Pipeline</h3>
+  <p>The <b>modern, recommended</b> job type. The whole build → test → deploy flow is described as <b>code</b> — a <code class="inline">Jenkinsfile</code> written in Declarative or Scripted (Groovy) syntax. Supports multiple <code class="inline">stage</code>s, parallel execution (<code class="inline">parallel</code>), running across multiple agents, and survives Jenkins restarts. Because it's code, the pipeline is version-controlled alongside the app.</p>
+  <h3>2 · Freestyle project</h3>
+  <p>The <b>classic</b> job type, configured entirely through the web UI (point-and-click). Checks out from <b>up to one</b> SCM, runs build steps <b>serially</b> (shell, batch, Maven...), then post-build steps (archive artifacts, email...). Beginner-friendly, but limited: no visual stages/parallel, hard to version-control, hard to reuse once the workflow gets complex.</p>
+  <h3>3 · Multi-configuration project <span style="color:var(--dim);font-weight:400;font-size:.9rem">(Matrix project)</span></h3>
+  <p>Runs <b>the same</b> build configuration across <b>many combinations</b> (a matrix) — each dimension is an "axis". E.g. testing on 3 JDK versions × 2 operating systems = 6 automatic runs. Ideal for cross-platform, cross-version, cross-browser testing.</p>
+  <h3>4 · Folder</h3>
+  <p><b>Not a job</b> — a "container" for grouping and organizing nested items. Unlike a <b>View</b> (just a display filter on the Dashboard), a Folder creates a <b>separate namespace</b>, so you can have two jobs with the same name as long as they live in different folders. Folders can also hold folder-scoped credentials/config.</p>
+  <h3>5 · Multibranch Pipeline</h3>
+  <p>Automatically creates a child Pipeline for <b>each branch</b> (and usually each Pull Request) containing a <code class="inline">Jenkinsfile</code> in <b>one</b> repo. Jenkins scans the repo: new branch → new job, deleted branch → job removed. Perfect for multi-branch Git workflows.</p>
+  <h3>6 · Organization Folder</h3>
+  <p>One level above Multibranch: it scans <b>a whole organization/group</b> (GitHub org, GitLab group, Bitbucket project) and automatically creates a <b>Multibranch Pipeline per repo</b> that has a Jenkinsfile. Great for large orgs with many repos — add a new repo and Jenkins picks it up and builds it on its own.</p>
+
+  <table>
+    <tr><th>Type</th><th>What it is</th><th>When to use</th></tr>
+    <tr><td>Pipeline</td><td>Job defined by a Jenkinsfile (code)</td><td>Modern CI/CD — the default choice</td></tr>
+    <tr><td>Freestyle project</td><td>UI-configured job, runs steps serially</td><td>Simple few-step tasks, beginners</td></tr>
+    <tr><td>Multi-configuration</td><td>Job run across a matrix of configs</td><td>Cross-platform / cross-version testing</td></tr>
+    <tr><td>Folder</td><td>Container that creates its own namespace</td><td>Grouping &amp; organizing many jobs</td></tr>
+    <tr><td>Multibranch Pipeline</td><td>Auto-generates a pipeline per branch of 1 repo</td><td>Multi-branch Git repo + Pull Requests</td></tr>
+    <tr><td>Organization Folder</td><td>Auto-generates multibranch for every repo in an org</td><td>Many repos in one organization</td></tr>
+  </table>
+  <div class="box why"><b>🤔 What's the difference between a job and a container?</b>The first 3 types (Pipeline, Freestyle, Multi-configuration) are <b>real jobs that run builds</b>. The last 3 (Folder, Multibranch, Organization Folder) are <b>containers</b>: they don't build anything themselves. In particular, Multibranch and Organization Folder go further and <b>auto-create child jobs</b> for you based on repo contents, instead of you creating each one by hand.</div>
+  <div class="box warn"><b>⚠️ Common mistake</b>Picking <b>Freestyle</b> for a multi-step CI/CD flow, then getting stuck when you need stages/parallel or want the config in Git — forcing a rewrite as a Pipeline. Or confusing <b>Multibranch Pipeline</b> (one repo, many branches) with <b>Organization Folder</b> (many repos in one org).</div>
+  <div class="box practice"><b>✍️ Exercise</b>Open <b>New Item</b>, type a name, and look at all 6 types. Create a <b>Folder</b> named <code class="inline">team-a</code>, go inside it and create a <b>Pipeline</b> — notice the breadcrumb is now <code class="inline">Dashboard › team-a › &lt;pipeline&gt;</code>, proving the Folder made its own namespace.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Item types</span></div>
+  <ol class="examples">
+    <li><span class="task">A CI/CD project with multi-stage build → test → deploy, config kept in Git.</span>
+<pre><span class="lbl">pick type</span>Pipeline</pre></li>
+    <li><span class="task">You need to test the same codebase on JDK 11, 17, and 21.</span>
+<pre><span class="lbl">pick type</span>Multi-configuration project</pre></li>
+    <li><span class="task">Organize 20 jobs into per-team groups without name clashes.</span>
+<pre><span class="lbl">pick type</span>Folder</pre></li>
+    <li><span class="task">A repo with main / develop / feature-* branches, each with its own Jenkinsfile.</span>
+<pre><span class="lbl">pick type</span>Multibranch Pipeline</pre></li>
+    <li><span class="task">A whole 50-repo GitHub org; Jenkins should auto-build any repo that has a Jenkinsfile.</span>
+<pre><span class="lbl">pick type</span>Organization Folder</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Item types</span></div>
+  <ol class="drills">
+    <li><span class="task">Which item type is recommended for modern CI/CD and defined by a Jenkinsfile?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>Pipeline</pre></div></details></li>
+    <li><span class="task">Which type is configured entirely via the UI and runs steps serially?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>Freestyle project</pre></div></details></li>
+    <li><span class="task">What's the core difference between a Folder and a View?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt"># A Folder creates its own namespace (same names allowed in different folders)
+# A View is only a display filter — no namespace</span></pre></div></details></li>
+    <li><span class="task">Which type auto-creates a pipeline for each branch inside a single repo?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>Multibranch Pipeline</pre></div></details></li>
+    <li><span class="task">To scan a whole GitHub org and build every repo that has a Jenkinsfile → which type?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>Organization Folder</pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<div class="pager">
+  <a class="disabled"><span class="dir"><span class="vi">Trước</span><span class="en">Previous</span></span><span class="ttl">—</span></a>
+  <a class="next" href="phase2-using-jenkins.html"><span class="dir"><span class="vi">Tiếp theo</span><span class="en">Next</span></span><span class="ttl"><span class="vi">Giai đoạn 2 — Using Jenkins</span><span class="en">Stage 2 — Using Jenkins</span></span></a>
+</div>
+
+</main>
+</div>
+<script src="assets/i18n.js"></script>
+<script src="assets/scrollspy.js"></script>
+</body>
+</html>

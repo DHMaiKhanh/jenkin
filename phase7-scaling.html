@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Giai đoạn 7 — Scaling &amp; Distributed Builds | Khóa học Jenkins</title>
+<link rel="stylesheet" href="assets/course.css">
+</head>
+<body class="lang-vi">
+<div class="layout">
+<nav class="side">
+  <div class="brand">🤵 Jenkins<small><span class="vi">Giai đoạn 7 · Mở rộng &amp; Phân tán</span><span class="en">Stage 7 · Scaling &amp; Distributed Builds</span></small></div>
+  <div class="lang-toggle">
+    <button data-lang="vi" class="on">VI</button>
+    <button data-lang="en">EN</button>
+  </div>
+  <a class="nav-home" href="index.html"><span class="vi">← Mục lục khóa học</span><span class="en">← Course index</span></a>
+  <div class="grp"><span class="vi">Bài học</span><span class="en">Lessons</span></div>
+  <a class="lnk" href="#controller-agent">7.1 · <span class="vi">Kiến trúc Controller/Agent</span><span class="en">Controller/Agent architecture</span></a>
+  <a class="lnk" href="#ssh-jnlp-agents">7.2 · <span class="vi">Agent SSH &amp; JNLP/WebSocket</span><span class="en">SSH &amp; JNLP/WebSocket Agents</span></a>
+  <a class="lnk" href="#docker-agents">7.3 · <span class="vi">Docker Agent trong Pipeline</span><span class="en">Docker Agents in Pipeline</span></a>
+  <a class="lnk" href="#kubernetes-plugin">7.4 · <span class="vi">Kubernetes Plugin</span><span class="en">Kubernetes plugin</span></a>
+  <a class="lnk" href="#cloud-agents">7.5 · <span class="vi">Cloud Agents</span><span class="en">Cloud Agents</span></a>
+</nav>
+
+<main>
+<header class="top">
+  <div class="crumb"><span class="vi">Khóa học Jenkins › <b>Giai đoạn 7 — Mở rộng &amp; Phân tán</b></span><span class="en">Jenkins Course › <b>Stage 7 — Scaling &amp; Distributed Builds</b></span></div>
+  <h1>Scaling &amp; Distributed Builds</h1>
+  <p class="lead"><span class="vi">Mục tiêu giai đoạn: hiểu vì sao và làm thế nào để mở rộng Jenkins ra nhiều máy build, từ agent SSH/JNLP thủ công đến agent Docker và Kubernetes co giãn tự động, và agent cloud theo nhu cầu.</span><span class="en">Stage goal: understand why and how to scale Jenkins across many build machines — from manual SSH/JNLP agents to elastic Docker and Kubernetes agents, and on-demand cloud agents.</span></p>
+</header>
+
+<!-- ============ 7.1 ============ -->
+<section class="lesson" id="controller-agent">
+<div class="lang vi">
+  <span class="phase-tag">Bài 7.1</span>
+  <h2>Kiến trúc Controller/Agent</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Hiểu vì sao Jenkins tách "controller" (điều phối) khỏi "agent" (thực thi build), khái niệm executor, label, node tích hợp sẵn (built-in node), và cách nghĩ về scale ngang vs scale dọc.</div>
+  <h3>Vì sao phải tách controller khỏi agent?</h3>
+  <p>Controller (trước đây gọi là "master") chịu trách nhiệm: lưu cấu hình, lập lịch job, phục vụ UI, điều phối plugin. Nếu build cũng chạy ngay trên controller, tài nguyên CPU/RAM/ổ đĩa bị build "ăn" mất, ảnh hưởng đến sự ổn định và bảo mật của toàn hệ thống Jenkins. Vì vậy thực hành khuyến nghị chính thức là: <b>không build trên controller</b> (built-in node) trong môi trường production — chuyển toàn bộ việc build sang các <b>agent</b> riêng biệt.</p>
+  <h3>Executor &amp; Label</h3>
+  <p>Mỗi node (controller hoặc agent) có một số lượng <b>executor</b> — mỗi executor là một "khe" (slot) có thể chạy một build tại một thời điểm. <b>Label</b> là nhãn gắn cho node để Pipeline chọn đúng nơi chạy.</p>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent { label <span class="str">'linux &amp;&amp; docker'</span> }  <span class="cmt">// chỉ chạy trên agent có cả 2 label</span>
+  stages {
+    stage(<span class="str">'Build'</span>) {
+      steps { sh <span class="str">'make build'</span> }
+    }
+  }
+}</pre>
+  <table>
+    <tr><th>Khái niệm</th><th>Ý nghĩa</th><th>Ví dụ</th></tr>
+    <tr><td>Node</td><td>Một máy (vật lý/ảo/container) có thể chạy build</td><td>Controller, agent-linux-01</td></tr>
+    <tr><td>Executor</td><td>Số build đồng thời tối đa trên 1 node</td><td>4 executor → chạy tối đa 4 build song song</td></tr>
+    <tr><td>Label</td><td>Nhãn để định tuyến job đến đúng node</td><td><code>linux</code>, <code>docker</code>, <code>gpu</code></td></tr>
+    <tr><td>Built-in node</td><td>Node chạy ngay trên controller</td><td>Không nên dùng để build production</td></tr>
+  </table>
+  <h3>Scale ngang vs scale dọc</h3>
+  <ul>
+    <li><b>Scale dọc (vertical)</b>: tăng CPU/RAM cho một agent — đơn giản nhưng có giới hạn phần cứng và điểm nghẽn duy nhất.</li>
+    <li><b>Scale ngang (horizontal)</b>: thêm nhiều agent — chịu tải tốt hơn, chống lỗi tốt hơn (một agent chết không ảnh hưởng agent khác), là hướng đi khuyến nghị khi số lượng job/team tăng.</li>
+  </ul>
+  <div class="box why"><b>🤔 Vì sao nên offload build khỏi controller?</b>Controller là "bộ não" duy nhất của toàn hệ thống Jenkins — nếu nó sập, mọi job đều dừng. Giữ controller nhẹ (chỉ điều phối) và đẩy toàn bộ workload build ra agent giúp controller luôn phản hồi nhanh, giảm rủi ro bảo mật (build code lạ chạy trên máy cô lập) và cho phép scale từng phần độc lập.</div>
+  <div class="box warn"><b>⚠️ Built-in node = 0 executor trong production</b>Một sai lầm phổ biến là để mặc định built-in node có executor > 0 rồi build luôn trên đó. Hãy đặt số executor của built-in node về <b>0</b> và chỉ dùng label để định tuyến build sang các agent chuyên dụng.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Vào <i>Manage Jenkins › Nodes</i>, đặt số executor của built-in node về 0, sau đó viết một Jenkinsfile có <code class="inline">agent { label 'linux' }</code> và kiểm tra build bị "pending" nếu chưa có agent nào gắn label đó.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Controller/Agent</span></div>
+  <ol class="examples">
+    <li><span class="task">Chạy pipeline trên bất kỳ agent nào có label "linux".</span>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent { label <span class="str">'linux'</span> }
+  stages { stage(<span class="str">'Build'</span>) { steps { sh <span class="str">'echo build'</span> } } }
+}</pre></li>
+    <li><span class="task">Yêu cầu agent có nhiều label cùng lúc.</span>
+<pre><span class="lbl">Jenkinsfile</span>agent { label <span class="str">'linux &amp;&amp; java17'</span> }</pre></li>
+    <li><span class="task">Chọn 1 trong 2 label bằng toán tử OR.</span>
+<pre><span class="lbl">Jenkinsfile</span>agent { label <span class="str">'linux || windows'</span> }</pre></li>
+    <li><span class="task">Kiểm tra số executor hiện có qua Groovy script console.</span>
+<pre><span class="lbl">script console</span><span class="fn">Jenkins</span>.<span class="fn">get</span>().<span class="fn">getComputers</span>().<span class="fn">each</span> { c ->
+  println <span class="str">"${c.name}: ${c.numExecutors} executors"</span>
+}</pre></li>
+    <li><span class="task">Đặt built-in node về chế độ không nhận build mới.</span>
+<pre><span class="lbl">cấu hình node</span><span class="cmt"># Manage Jenkins › Nodes › Built-In Node › Configure</span>
+<span class="cmt"># Number of executors: 0</span>
+<span class="cmt"># Usage: Only build jobs with label expressions matching this node</span></pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Controller/Agent</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết đoạn <code class="inline">agent</code> yêu cầu label "docker".</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>agent { label <span class="str">'docker'</span> }</pre></div></details></li>
+    <li><span class="task">Viết label expression yêu cầu agent vừa có "linux" vừa có "gpu".</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>agent { label <span class="str">'linux &amp;&amp; gpu'</span> }</pre></div></details></li>
+    <li><span class="task">Giải thích ngắn gọn vì sao không nên build trên controller.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Build có thể ăn hết CPU/RAM/đĩa của controller,
+// làm chậm hoặc sập điều phối toàn hệ thống Jenkins,
+// và mở rủi ro bảo mật khi chạy code lạ trên máy chính.</span></pre></div></details></li>
+    <li><span class="task">Nêu khác biệt giữa scale ngang và scale dọc trong 1 câu mỗi loại.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Scale dọc: nâng cấp phần cứng của 1 agent (CPU/RAM).
+// Scale ngang: thêm nhiều agent để chia tải và chống lỗi.</span></pre></div></details></li>
+    <li><span class="task">Viết lệnh Groovy console liệt kê tên tất cả node.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="fn">Jenkins</span>.<span class="fn">get</span>().<span class="fn">getNodes</span>().<span class="fn">each</span> { n -> println n.<span class="fn">getNodeName</span>() }</pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 7.1</span>
+  <h2>Controller/Agent Architecture</h2>
+  <div class="box goal"><b>🎯 Goal</b>Understand why Jenkins separates the "controller" (orchestration) from "agents" (build execution), the concepts of executors and labels, the built-in node, and how to think about horizontal vs vertical scaling.</div>
+  <h3>Why separate controller from agents?</h3>
+  <p>The controller (formerly "master") is responsible for storing configuration, scheduling jobs, serving the UI, and coordinating plugins. If builds also run directly on the controller, they consume CPU/RAM/disk that the controller needs, hurting stability and security. That's why official best practice is: <b>don't build on the controller</b> (built-in node) in production — move all build work to dedicated <b>agents</b>.</p>
+  <h3>Executors &amp; Labels</h3>
+  <p>Each node (controller or agent) has a number of <b>executors</b> — each executor is a "slot" that can run one build at a time. A <b>label</b> is a tag attached to a node so Pipelines can pick the right place to run.</p>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent { label <span class="str">'linux &amp;&amp; docker'</span> }  <span class="cmt">// only runs on an agent with both labels</span>
+  stages {
+    stage(<span class="str">'Build'</span>) {
+      steps { sh <span class="str">'make build'</span> }
+    }
+  }
+}</pre>
+  <table>
+    <tr><th>Concept</th><th>Meaning</th><th>Example</th></tr>
+    <tr><td>Node</td><td>A machine (physical/virtual/container) that can run builds</td><td>Controller, agent-linux-01</td></tr>
+    <tr><td>Executor</td><td>Max concurrent builds on 1 node</td><td>4 executors → up to 4 parallel builds</td></tr>
+    <tr><td>Label</td><td>Tag used to route a job to the right node</td><td><code>linux</code>, <code>docker</code>, <code>gpu</code></td></tr>
+    <tr><td>Built-in node</td><td>Node running directly on the controller</td><td>Not recommended for production builds</td></tr>
+  </table>
+  <h3>Horizontal vs vertical scaling</h3>
+  <ul>
+    <li><b>Vertical scaling</b>: give one agent more CPU/RAM — simple but limited by hardware and a single bottleneck.</li>
+    <li><b>Horizontal scaling</b>: add more agents — handles more load, more fault-tolerant (one agent dying doesn't affect others), the recommended direction as job/team count grows.</li>
+  </ul>
+  <div class="box why"><b>🤔 Why offload builds from the controller?</b>The controller is the single "brain" of the whole Jenkins system — if it goes down, every job stops. Keeping the controller lean (orchestration only) and pushing all build workload to agents keeps the controller responsive, reduces security risk (untrusted build code runs on an isolated machine), and lets you scale each part independently.</div>
+  <div class="box warn"><b>⚠️ Built-in node = 0 executors in production</b>A common mistake is leaving the built-in node's executor count above 0 and building there. Set the built-in node's executor count to <b>0</b> and use labels to route builds to dedicated agents only.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Go to <i>Manage Jenkins › Nodes</i>, set the built-in node's executor count to 0, then write a Jenkinsfile with <code class="inline">agent { label 'linux' }</code> and observe the build stay "pending" until an agent with that label exists.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Controller/Agent</span></div>
+  <ol class="examples">
+    <li><span class="task">Run a pipeline on any agent labeled "linux".</span>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent { label <span class="str">'linux'</span> }
+  stages { stage(<span class="str">'Build'</span>) { steps { sh <span class="str">'echo build'</span> } } }
+}</pre></li>
+    <li><span class="task">Require multiple labels at once.</span>
+<pre><span class="lbl">Jenkinsfile</span>agent { label <span class="str">'linux &amp;&amp; java17'</span> }</pre></li>
+    <li><span class="task">Pick either of two labels with OR.</span>
+<pre><span class="lbl">Jenkinsfile</span>agent { label <span class="str">'linux || windows'</span> }</pre></li>
+    <li><span class="task">Check current executor counts via the Groovy script console.</span>
+<pre><span class="lbl">script console</span><span class="fn">Jenkins</span>.<span class="fn">get</span>().<span class="fn">getComputers</span>().<span class="fn">each</span> { c ->
+  println <span class="str">"${c.name}: ${c.numExecutors} executors"</span>
+}</pre></li>
+    <li><span class="task">Set the built-in node to refuse new builds.</span>
+<pre><span class="lbl">node config</span><span class="cmt"># Manage Jenkins › Nodes › Built-In Node › Configure</span>
+<span class="cmt"># Number of executors: 0</span>
+<span class="cmt"># Usage: Only build jobs with label expressions matching this node</span></pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Controller/Agent</span></div>
+  <ol class="drills">
+    <li><span class="task">Write an <code class="inline">agent</code> block requiring the "docker" label.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>agent { label <span class="str">'docker'</span> }</pre></div></details></li>
+    <li><span class="task">Write a label expression requiring both "linux" and "gpu".</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>agent { label <span class="str">'linux &amp;&amp; gpu'</span> }</pre></div></details></li>
+    <li><span class="task">Briefly explain why you shouldn't build on the controller.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Builds can consume all the controller's CPU/RAM/disk,
+// slowing or crashing orchestration for the whole system,
+// and expose security risk running untrusted code on the main box.</span></pre></div></details></li>
+    <li><span class="task">State the difference between horizontal and vertical scaling in one sentence each.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Vertical: upgrade one agent's hardware (CPU/RAM).
+// Horizontal: add more agents to spread load and tolerate failure.</span></pre></div></details></li>
+    <li><span class="task">Write a Groovy console snippet listing all node names.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="fn">Jenkins</span>.<span class="fn">get</span>().<span class="fn">getNodes</span>().<span class="fn">each</span> { n -> println n.<span class="fn">getNodeName</span>() }</pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 7.2 ============ -->
+<section class="lesson" id="ssh-jnlp-agents">
+<div class="lang vi">
+  <span class="phase-tag">Bài 7.2</span>
+  <h2>Agent SSH &amp; JNLP/WebSocket</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Biết cách thêm một agent SSH thường trực từng bước, hiểu cơ chế agent JNLP/inbound kết nối qua <code class="inline">agent.jar</code>, các vấn đề firewall/port, và cách giới hạn job theo label.</div>
+  <h3>Thêm agent qua SSH — từng bước</h3>
+  <ol class="steps">
+    <li>Chuẩn bị máy Linux/Windows đã cài Java (JDK tương thích với controller), tạo user chuyên dụng (vd <code class="inline">jenkins</code>) với quyền vào thư mục làm việc.</li>
+    <li>Trên controller: <i>Manage Jenkins › Nodes › New Node</i>, đặt tên, chọn "Permanent Agent".</li>
+    <li>Điền <b>Remote root directory</b> (vd <code class="inline">/home/jenkins/agent</code>), gắn <b>Labels</b> (vd <code class="inline">linux docker</code>).</li>
+    <li>Chọn <b>Launch method: Launch agents via SSH</b>, nhập host, cổng 22, credentials (SSH key hoặc user/pass).</li>
+    <li>Lưu lại — controller tự SSH vào, copy <code class="inline">agent.jar</code> và khởi động agent.</li>
+  </ol>
+<pre><span class="lbl">Node config (Groovy CasC ví dụ)</span>jenkins:
+  nodes:
+    - permanent:
+        name: <span class="str">"agent-linux-01"</span>
+        remoteFS: <span class="str">"/home/jenkins/agent"</span>
+        labelString: <span class="str">"linux docker"</span>
+        launcher:
+          ssh:
+            host: <span class="str">"10.0.1.20"</span>
+            port: <span class="num">22</span>
+            credentialsId: <span class="str">"ssh-agent-key"</span></pre>
+  <h3>Agent JNLP / Inbound (WebSocket)</h3>
+  <p>Với agent JNLP (nay gọi là <b>inbound agent</b>), chiều kết nối <b>ngược lại</b>: agent chủ động kết nối ra controller (hữu ích khi agent nằm sau NAT/firewall không cho phép controller SSH vào). Agent chạy file <code class="inline">agent.jar</code> tải từ controller.</p>
+<pre><span class="lbl">terminal (trên máy agent)</span><span class="cmt"># Tải agent.jar từ chính controller</span>
+curl -sO https://jenkins.example.com/jnlpJars/agent.jar
+
+<span class="cmt"># Kết nối bằng WebSocket (khuyến nghị — chỉ cần cổng 443/80)</span>
+java -jar agent.jar -url https://jenkins.example.com/ \
+  -secret <span class="str">@secret-file.txt</span> -name <span class="str">"agent-linux-01"</span> \
+  -webSocket -workDir <span class="str">"/home/jenkins/agent"</span></pre>
+  <table>
+    <tr><th>Kiểu launch</th><th>Ai chủ động kết nối</th><th>Yêu cầu mạng</th></tr>
+    <tr><td>SSH agent</td><td>Controller → Agent</td><td>Controller cần SSH (22) tới agent</td></tr>
+    <tr><td>JNLP/Inbound (TCP)</td><td>Agent → Controller</td><td>Cần mở cổng TCP riêng cho inbound agent trên controller</td></tr>
+    <tr><td>JNLP/Inbound (WebSocket)</td><td>Agent → Controller</td><td>Chỉ cần cổng HTTP/HTTPS chuẩn (80/443) — đơn giản nhất qua firewall</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Khi nào chọn JNLP/WebSocket thay vì SSH?</b>Khi agent ở mạng cô lập, sau NAT, hoặc trong môi trường không cho phép controller khởi tạo kết nối vào (agent tự "gọi về"). Chế độ WebSocket đặc biệt tiện vì không cần mở thêm cổng TCP riêng — dùng luôn cổng HTTPS mà Jenkins UI đã chạy.</div>
+  <h3>Giới hạn job theo label</h3>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent { label <span class="str">'agent-linux-01'</span> }  <span class="cmt">// ép job chạy đúng 1 agent cụ thể</span>
+  stages { stage(<span class="str">'Test'</span>) { steps { sh <span class="str">'./run-tests.sh'</span> } } }
+}</pre>
+  <div class="box warn"><b>⚠️ Bảo mật khóa bí mật của agent</b>Secret của inbound agent (hiển thị khi tạo node) cho phép bất kỳ ai có nó kết nối làm agent giả mạo vào controller. Không commit secret vào Git, và thu hồi/khởi tạo lại nếu rò rỉ.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Tạo 1 permanent agent bằng SSH tới một VM Linux, gắn label <code class="inline">linux</code>, sau đó viết một Jenkinsfile ép chạy đúng agent đó bằng label và xác nhận log build hiện đúng hostname của agent.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · SSH &amp; JNLP</span></div>
+  <ol class="examples">
+    <li><span class="task">Kết nối agent inbound qua WebSocket.</span>
+<pre><span class="lbl">terminal</span>java -jar agent.jar -url https://jenkins.local/ -secret <span class="str">@sec.txt</span> -name <span class="str">"a1"</span> -webSocket</pre></li>
+    <li><span class="task">Kết nối agent inbound kiểu TCP cổng cố định.</span>
+<pre><span class="lbl">terminal</span>java -jar agent.jar -url https://jenkins.local/ -secret <span class="str">@sec.txt</span> -name <span class="str">"a1"</span> -tunnel jenkins.local:50000</pre></li>
+    <li><span class="task">Cấu hình node CasC dùng launcher SSH.</span>
+<pre><span class="lbl">jenkins.yaml</span>launcher:
+  ssh:
+    host: <span class="str">"10.0.1.20"</span>
+    credentialsId: <span class="str">"ssh-key"</span></pre></li>
+    <li><span class="task">Ép một stage chạy trên agent có label cụ thể.</span>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'Deploy'</span>) {
+  agent { label <span class="str">'agent-linux-01'</span> }
+  steps { sh <span class="str">'./deploy.sh'</span> }
+}</pre></li>
+    <li><span class="task">Kiểm tra kết nối SSH thủ công trước khi thêm agent.</span>
+<pre><span class="lbl">terminal</span>ssh jenkins@10.0.1.20 <span class="str">"java -version"</span></pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · SSH &amp; JNLP</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết lệnh chạy agent.jar kết nối WebSocket tới <code class="inline">https://ci.local/</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>java -jar agent.jar -url https://ci.local/ -secret <span class="str">@sec.txt</span> -name <span class="str">"a1"</span> -webSocket</pre></div></details></li>
+    <li><span class="task">Viết Jenkinsfile ép job chạy đúng label "windows".</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>pipeline { agent { label <span class="str">'windows'</span> } stages { stage(<span class="str">'B'</span>){steps{bat <span class="str">'build.bat'</span>}} } }</pre></div></details></li>
+    <li><span class="task">Nêu lý do chính để chọn agent JNLP/inbound thay vì SSH.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Agent nằm sau NAT/firewall — controller không SSH được vào,
+// nên để agent tự kết nối ra controller.</span></pre></div></details></li>
+    <li><span class="task">Viết đoạn Remote root directory hợp lý cho agent SSH Linux.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>remoteFS: <span class="str">"/home/jenkins/agent"</span></pre></div></details></li>
+    <li><span class="task">Giải thích rủi ro nếu để lộ secret của inbound agent.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Bất kỳ ai có secret có thể giả làm agent hợp lệ
+// kết nối vào controller và thực thi code trên đó.</span></pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 7.2</span>
+  <h2>SSH &amp; JNLP/WebSocket Agents</h2>
+  <div class="box goal"><b>🎯 Goal</b>Learn to add a permanent SSH agent step-by-step, understand how a JNLP/inbound agent connects via <code class="inline">agent.jar</code>, firewall/port considerations, and how to restrict jobs to labels.</div>
+  <h3>Adding an SSH agent — step by step</h3>
+  <ol class="steps">
+    <li>Prepare a Linux/Windows machine with Java installed (a version compatible with the controller), create a dedicated user (e.g. <code class="inline">jenkins</code>) with access to the working directory.</li>
+    <li>On the controller: <i>Manage Jenkins › Nodes › New Node</i>, name it, choose "Permanent Agent".</li>
+    <li>Fill in the <b>Remote root directory</b> (e.g. <code class="inline">/home/jenkins/agent</code>), attach <b>Labels</b> (e.g. <code class="inline">linux docker</code>).</li>
+    <li>Choose <b>Launch method: Launch agents via SSH</b>, enter host, port 22, credentials (SSH key or user/pass).</li>
+    <li>Save — the controller SSHes in, copies <code class="inline">agent.jar</code>, and starts the agent.</li>
+  </ol>
+<pre><span class="lbl">Node config (CasC example)</span>jenkins:
+  nodes:
+    - permanent:
+        name: <span class="str">"agent-linux-01"</span>
+        remoteFS: <span class="str">"/home/jenkins/agent"</span>
+        labelString: <span class="str">"linux docker"</span>
+        launcher:
+          ssh:
+            host: <span class="str">"10.0.1.20"</span>
+            port: <span class="num">22</span>
+            credentialsId: <span class="str">"ssh-agent-key"</span></pre>
+  <h3>JNLP / Inbound (WebSocket) Agents</h3>
+  <p>With a JNLP agent (now called an <b>inbound agent</b>), the connection direction is <b>reversed</b>: the agent initiates the connection out to the controller (useful when the agent sits behind NAT/firewall that won't let the controller SSH in). The agent runs the <code class="inline">agent.jar</code> file downloaded from the controller.</p>
+<pre><span class="lbl">terminal (on the agent machine)</span><span class="cmt"># Download agent.jar from the controller itself</span>
+curl -sO https://jenkins.example.com/jnlpJars/agent.jar
+
+<span class="cmt"># Connect using WebSocket (recommended — only needs port 443/80)</span>
+java -jar agent.jar -url https://jenkins.example.com/ \
+  -secret <span class="str">@secret-file.txt</span> -name <span class="str">"agent-linux-01"</span> \
+  -webSocket -workDir <span class="str">"/home/jenkins/agent"</span></pre>
+  <table>
+    <tr><th>Launch type</th><th>Who initiates</th><th>Network requirement</th></tr>
+    <tr><td>SSH agent</td><td>Controller → Agent</td><td>Controller needs SSH (22) to the agent</td></tr>
+    <tr><td>JNLP/Inbound (TCP)</td><td>Agent → Controller</td><td>Needs a dedicated open TCP port for inbound agents on the controller</td></tr>
+    <tr><td>JNLP/Inbound (WebSocket)</td><td>Agent → Controller</td><td>Only needs the standard HTTP/HTTPS port (80/443) — simplest through firewalls</td></tr>
+  </table>
+  <div class="box why"><b>🤔 When to pick JNLP/WebSocket over SSH?</b>When the agent is on an isolated network, behind NAT, or in an environment that doesn't allow the controller to initiate inbound connections (the agent "calls home" instead). WebSocket mode is especially convenient since it needs no extra TCP port — it reuses the HTTPS port the Jenkins UI already runs on.</div>
+  <h3>Restricting jobs to labels</h3>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent { label <span class="str">'agent-linux-01'</span> }  <span class="cmt">// force the job onto one specific agent</span>
+  stages { stage(<span class="str">'Test'</span>) { steps { sh <span class="str">'./run-tests.sh'</span> } } }
+}</pre>
+  <div class="box warn"><b>⚠️ Protect the agent secret</b>An inbound agent's secret (shown when creating the node) lets anyone who has it connect a rogue agent to the controller. Never commit it to Git, and rotate it if leaked.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Create one permanent agent via SSH to a Linux VM, tag it with the <code class="inline">linux</code> label, then write a Jenkinsfile that forces the build onto that exact agent via the label and confirm the build log shows that agent's hostname.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · SSH &amp; JNLP</span></div>
+  <ol class="examples">
+    <li><span class="task">Connect an inbound agent over WebSocket.</span>
+<pre><span class="lbl">terminal</span>java -jar agent.jar -url https://jenkins.local/ -secret <span class="str">@sec.txt</span> -name <span class="str">"a1"</span> -webSocket</pre></li>
+    <li><span class="task">Connect an inbound agent using a fixed TCP port.</span>
+<pre><span class="lbl">terminal</span>java -jar agent.jar -url https://jenkins.local/ -secret <span class="str">@sec.txt</span> -name <span class="str">"a1"</span> -tunnel jenkins.local:50000</pre></li>
+    <li><span class="task">Configure a node in CasC using the SSH launcher.</span>
+<pre><span class="lbl">jenkins.yaml</span>launcher:
+  ssh:
+    host: <span class="str">"10.0.1.20"</span>
+    credentialsId: <span class="str">"ssh-key"</span></pre></li>
+    <li><span class="task">Force one stage to run on a specific labeled agent.</span>
+<pre><span class="lbl">Jenkinsfile</span>stage(<span class="str">'Deploy'</span>) {
+  agent { label <span class="str">'agent-linux-01'</span> }
+  steps { sh <span class="str">'./deploy.sh'</span> }
+}</pre></li>
+    <li><span class="task">Test the SSH connection manually before adding the agent.</span>
+<pre><span class="lbl">terminal</span>ssh jenkins@10.0.1.20 <span class="str">"java -version"</span></pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · SSH &amp; JNLP</span></div>
+  <ol class="drills">
+    <li><span class="task">Write the command to run agent.jar connecting via WebSocket to <code class="inline">https://ci.local/</code>.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>java -jar agent.jar -url https://ci.local/ -secret <span class="str">@sec.txt</span> -name <span class="str">"a1"</span> -webSocket</pre></div></details></li>
+    <li><span class="task">Write a Jenkinsfile forcing the job onto the "windows" label.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>pipeline { agent { label <span class="str">'windows'</span> } stages { stage(<span class="str">'B'</span>){steps{bat <span class="str">'build.bat'</span>}} } }</pre></div></details></li>
+    <li><span class="task">State the main reason to choose a JNLP/inbound agent over SSH.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// The agent is behind NAT/firewall — the controller cannot
+// SSH into it, so the agent connects out to the controller instead.</span></pre></div></details></li>
+    <li><span class="task">Write a reasonable Remote root directory for a Linux SSH agent.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>remoteFS: <span class="str">"/home/jenkins/agent"</span></pre></div></details></li>
+    <li><span class="task">Explain the risk of leaking an inbound agent's secret.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Anyone with the secret can impersonate a valid agent
+// and connect to the controller to execute code on it.</span></pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 7.3 ============ -->
+<section class="lesson" id="docker-agents">
+<div class="lang vi">
+  <span class="phase-tag">Bài 7.3</span>
+  <h2>Docker Agent trong Pipeline</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Dùng <code class="inline">agent { docker {...} }</code> và <code class="inline">agent { dockerfile true }</code> để chạy build trong container hermetic, tái lập được, không phụ thuộc môi trường agent vật lý.</div>
+  <h3>Cần Docker Pipeline plugin</h3>
+  <p>Plugin <b>Docker Pipeline</b> (cùng Docker Engine cài trên agent) cho phép Jenkinsfile khai báo image làm môi trường build ngay trong <code class="inline">agent</code> mà không cần cài Node.js/Python/... trực tiếp trên agent host.</p>
+  <h3>agent { docker { image ... } }</h3>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent {
+    docker {
+      image <span class="str">'node:18'</span>
+      label <span class="str">'docker'</span>            <span class="cmt">// chạy trên agent host có Docker</span>
+      args  <span class="str">'-v $HOME/.npm:/root/.npm'</span> <span class="cmt">// mount cache npm</span>
+    }
+  }
+  stages {
+    stage(<span class="str">'Install &amp; Test'</span>) {
+      steps {
+        sh <span class="str">'npm ci'</span>
+        sh <span class="str">'npm test'</span>
+      }
+    }
+  }
+}</pre>
+  <p>Jenkins tự động: kéo image, khởi động container, <b>mount workspace agent host vào container</b> tại cùng đường dẫn, chạy các <code class="inline">sh</code> step bên trong container, rồi dọn container sau khi build xong.</p>
+  <h3>agent { dockerfile true }</h3>
+  <p>Khi cần môi trường tùy biến hơn (nhiều tool, phiên bản đặc thù), thay vì dùng image có sẵn, dùng chính <code class="inline">Dockerfile</code> trong repo để build image tạm rồi chạy trong đó.</p>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent {
+    dockerfile {
+      filename <span class="str">'Dockerfile.ci'</span>
+      dir <span class="str">'build'</span>
+      additionalBuildArgs <span class="str">'--build-arg VERSION=1.2'</span>
+    }
+  }
+  stages {
+    stage(<span class="str">'Build'</span>) { steps { sh <span class="str">'make'</span> } }
+  }
+}</pre>
+<pre><span class="lbl">build/Dockerfile.ci</span><span class="kw">FROM</span> ubuntu:22.04
+<span class="kw">RUN</span> apt-get update &amp;&amp; apt-get install -y make gcc
+<span class="kw">ARG</span> VERSION
+<span class="kw">ENV</span> APP_VERSION=$VERSION</pre>
+  <table>
+    <tr><th>Cách</th><th>Khi dùng</th><th>Ưu điểm</th></tr>
+    <tr><td><code>docker { image '...' }</code></td><td>Đã có image chuẩn public/nội bộ</td><td>Nhanh, đơn giản, cache tốt</td></tr>
+    <tr><td><code>dockerfile true</code></td><td>Cần tool/cấu hình đặc thù không có image sẵn</td><td>Toàn quyền kiểm soát môi trường, versioned cùng repo</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Vì sao dùng Docker agent thay vì agent vật lý cài sẵn tool?</b>Môi trường build trở nên <b>hermetic</b> (đóng gói, tái lập được) — không còn "chạy được trên máy tôi nhưng lỗi trên CI" vì mọi phiên bản tool đều cố định trong image. Nhiều job với yêu cầu Node/Python/Java khác nhau có thể dùng chung 1 agent host mà không xung đột.</div>
+  <div class="box warn"><b>⚠️ Docker-in-Docker &amp; quyền truy cập socket</b>Agent host cần cài Docker Engine và user Jenkins agent cần quyền truy cập <code class="inline">docker.sock</code> — đây là bề mặt tấn công cần cân nhắc (container có thể "thoát" ra host qua socket). Cân nhắc dùng agent chuyên dụng chỉ chạy Docker builds, tách biệt khỏi agent khác.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Viết một Jenkinsfile dùng <code class="inline">agent { docker { image 'python:3.12' } }</code> để chạy <code class="inline">pytest</code>, sau đó đổi sang <code class="inline">dockerfile true</code> với một Dockerfile cài thêm 1 hệ thống lib mà image gốc không có.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Docker Agent</span></div>
+  <ol class="examples">
+    <li><span class="task">Build Node.js trong container node:18.</span>
+<pre><span class="lbl">Jenkinsfile</span>agent { docker { image <span class="str">'node:18'</span> } }</pre></li>
+    <li><span class="task">Chạy test Python trong container với cache pip.</span>
+<pre><span class="lbl">Jenkinsfile</span>agent {
+  docker { image <span class="str">'python:3.12'</span> args <span class="str">'-v $HOME/.cache/pip:/root/.cache/pip'</span> }
+}</pre></li>
+    <li><span class="task">Dùng Dockerfile riêng nằm trong thư mục con.</span>
+<pre><span class="lbl">Jenkinsfile</span>agent { dockerfile { dir <span class="str">'ci'</span> filename <span class="str">'Dockerfile'</span> } }</pre></li>
+    <li><span class="task">Truyền build-arg vào Dockerfile khi build image agent.</span>
+<pre><span class="lbl">Jenkinsfile</span>agent { dockerfile { additionalBuildArgs <span class="str">'--build-arg GO_VERSION=1.22'</span> } }</pre></li>
+    <li><span class="task">Chỉ định agent host cụ thể chạy Docker qua label.</span>
+<pre><span class="lbl">Jenkinsfile</span>agent { docker { image <span class="str">'maven:3.9-eclipse-temurin-17'</span> label <span class="str">'docker &amp;&amp; linux'</span> } }</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Docker Agent</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết <code class="inline">agent</code> chạy container <code class="inline">golang:1.22</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>agent { docker { image <span class="str">'golang:1.22'</span> } }</pre></div></details></li>
+    <li><span class="task">Viết <code class="inline">agent</code> dùng Dockerfile tên <code class="inline">Dockerfile.ci</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>agent { dockerfile { filename <span class="str">'Dockerfile.ci'</span> } }</pre></div></details></li>
+    <li><span class="task">Mount thư mục cache maven vào container qua args.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>agent { docker { image <span class="str">'maven:3.9'</span> args <span class="str">'-v $HOME/.m2:/root/.m2'</span> } }</pre></div></details></li>
+    <li><span class="task">Nêu 1 rủi ro bảo mật khi Jenkins agent có quyền dùng docker.sock.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Container có thể thoát ra và điều khiển Docker daemon
+// trên chính agent host (leo thang đặc quyền qua docker.sock).</span></pre></div></details></li>
+    <li><span class="task">Giải thích "hermetic build" trong 1 câu.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Môi trường build cố định, đóng gói sẵn (image),
+// cho kết quả giống nhau bất kể chạy trên máy nào.</span></pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 7.3</span>
+  <h2>Docker Agents in Pipeline</h2>
+  <div class="box goal"><b>🎯 Goal</b>Use <code class="inline">agent { docker {...} }</code> and <code class="inline">agent { dockerfile true }</code> to run builds in a hermetic, reproducible container, independent of the physical agent host environment.</div>
+  <h3>Requires the Docker Pipeline plugin</h3>
+  <p>The <b>Docker Pipeline</b> plugin (along with Docker Engine installed on the agent) lets a Jenkinsfile declare a build environment image right in <code class="inline">agent</code>, without installing Node.js/Python/... directly on the agent host.</p>
+  <h3>agent { docker { image ... } }</h3>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent {
+    docker {
+      image <span class="str">'node:18'</span>
+      label <span class="str">'docker'</span>            <span class="cmt">// runs on an agent host that has Docker</span>
+      args  <span class="str">'-v $HOME/.npm:/root/.npm'</span> <span class="cmt">// mount npm cache</span>
+    }
+  }
+  stages {
+    stage(<span class="str">'Install &amp; Test'</span>) {
+      steps {
+        sh <span class="str">'npm ci'</span>
+        sh <span class="str">'npm test'</span>
+      }
+    }
+  }
+}</pre>
+  <p>Jenkins automatically pulls the image, starts the container, <b>mounts the agent host's workspace into the container</b> at the same path, runs <code class="inline">sh</code> steps inside the container, then cleans up the container after the build.</p>
+  <h3>agent { dockerfile true }</h3>
+  <p>When you need a more customized environment (multiple tools, specific versions) instead of an off-the-shelf image, use the repo's own <code class="inline">Dockerfile</code> to build a throwaway image and run in it.</p>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent {
+    dockerfile {
+      filename <span class="str">'Dockerfile.ci'</span>
+      dir <span class="str">'build'</span>
+      additionalBuildArgs <span class="str">'--build-arg VERSION=1.2'</span>
+    }
+  }
+  stages {
+    stage(<span class="str">'Build'</span>) { steps { sh <span class="str">'make'</span> } }
+  }
+}</pre>
+<pre><span class="lbl">build/Dockerfile.ci</span><span class="kw">FROM</span> ubuntu:22.04
+<span class="kw">RUN</span> apt-get update &amp;&amp; apt-get install -y make gcc
+<span class="kw">ARG</span> VERSION
+<span class="kw">ENV</span> APP_VERSION=$VERSION</pre>
+  <table>
+    <tr><th>Approach</th><th>When to use</th><th>Advantage</th></tr>
+    <tr><td><code>docker { image '...' }</code></td><td>A standard public/internal image already exists</td><td>Fast, simple, good caching</td></tr>
+    <tr><td><code>dockerfile true</code></td><td>Need specific tools/config not covered by an existing image</td><td>Full control over the environment, versioned with the repo</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Why use Docker agents instead of a physical agent with tools pre-installed?</b>The build environment becomes <b>hermetic</b> (packaged, reproducible) — no more "works on my machine but fails on CI" because every tool version is pinned in the image. Many jobs with different Node/Python/Java requirements can share one agent host without conflicts.</div>
+  <div class="box warn"><b>⚠️ Docker-in-Docker &amp; socket access</b>The agent host needs Docker Engine installed and the Jenkins agent user needs access to <code class="inline">docker.sock</code> — this is an attack surface to consider (a container may "escape" to the host via the socket). Consider dedicating agents solely to Docker builds, separated from other agents.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Write a Jenkinsfile using <code class="inline">agent { docker { image 'python:3.12' } }</code> to run <code class="inline">pytest</code>, then switch to <code class="inline">dockerfile true</code> with a Dockerfile that adds one system library missing from the base image.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Docker Agent</span></div>
+  <ol class="examples">
+    <li><span class="task">Build a Node.js app in a node:18 container.</span>
+<pre><span class="lbl">Jenkinsfile</span>agent { docker { image <span class="str">'node:18'</span> } }</pre></li>
+    <li><span class="task">Run Python tests in a container with a pip cache.</span>
+<pre><span class="lbl">Jenkinsfile</span>agent {
+  docker { image <span class="str">'python:3.12'</span> args <span class="str">'-v $HOME/.cache/pip:/root/.cache/pip'</span> }
+}</pre></li>
+    <li><span class="task">Use a custom Dockerfile in a subdirectory.</span>
+<pre><span class="lbl">Jenkinsfile</span>agent { dockerfile { dir <span class="str">'ci'</span> filename <span class="str">'Dockerfile'</span> } }</pre></li>
+    <li><span class="task">Pass a build-arg when building the agent image.</span>
+<pre><span class="lbl">Jenkinsfile</span>agent { dockerfile { additionalBuildArgs <span class="str">'--build-arg GO_VERSION=1.22'</span> } }</pre></li>
+    <li><span class="task">Restrict to a specific Docker-capable host via label.</span>
+<pre><span class="lbl">Jenkinsfile</span>agent { docker { image <span class="str">'maven:3.9-eclipse-temurin-17'</span> label <span class="str">'docker &amp;&amp; linux'</span> } }</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Docker Agent</span></div>
+  <ol class="drills">
+    <li><span class="task">Write an <code class="inline">agent</code> running a <code class="inline">golang:1.22</code> container.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>agent { docker { image <span class="str">'golang:1.22'</span> } }</pre></div></details></li>
+    <li><span class="task">Write an <code class="inline">agent</code> using a Dockerfile named <code class="inline">Dockerfile.ci</code>.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>agent { dockerfile { filename <span class="str">'Dockerfile.ci'</span> } }</pre></div></details></li>
+    <li><span class="task">Mount a Maven cache directory into the container via args.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>agent { docker { image <span class="str">'maven:3.9'</span> args <span class="str">'-v $HOME/.m2:/root/.m2'</span> } }</pre></div></details></li>
+    <li><span class="task">Name one security risk of an agent having docker.sock access.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// A container can escape and control the Docker daemon
+// on the agent host itself (privilege escalation via docker.sock).</span></pre></div></details></li>
+    <li><span class="task">Explain "hermetic build" in one sentence.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// A fixed, packaged build environment (an image) that
+// produces the same result regardless of which machine runs it.</span></pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 7.4 ============ -->
+<section class="lesson" id="kubernetes-plugin">
+<div class="lang vi">
+  <span class="phase-tag">Bài 7.4</span>
+  <h2>Kubernetes Plugin</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Hiểu cách Kubernetes plugin tạo agent pod <b>ephemeral</b> (tạm thời) theo yêu cầu, dùng <code class="inline">podTemplate</code>/khối <code class="inline">kubernetes { yaml ... }</code> trong Jenkinsfile, mô hình container-per-stage, và lợi ích scale co giãn tự động.</div>
+  <h3>Agent pod tạm thời là gì?</h3>
+  <p>Thay vì duy trì agent VM cố định, Kubernetes plugin cho controller kết nối tới một cluster K8s: mỗi khi có build cần chạy, plugin tạo một <b>Pod</b> mới làm agent, build chạy xong thì Pod bị <b>xóa</b>. Không tốn tài nguyên lúc rảnh, tự scale khi tải tăng.</p>
+  <h3>Dùng khối kubernetes { yaml ... }</h3>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent {
+    kubernetes {
+      yaml <span class="str">'''
+        apiVersion: v1
+        kind: Pod
+        spec:
+          containers:
+          - name: maven
+            image: maven:3.9-eclipse-temurin-17
+            command: ["sleep"]
+            args: ["99d"]
+          - name: node
+            image: node:18
+            command: ["sleep"]
+            args: ["99d"]
+      '''</span>
+    }
+  }
+  stages {
+    stage(<span class="str">'Build backend'</span>) {
+      steps { container(<span class="str">'maven'</span>) { sh <span class="str">'mvn -B clean package'</span> } }
+    }
+    stage(<span class="str">'Build frontend'</span>) {
+      steps { container(<span class="str">'node'</span>) { sh <span class="str">'npm ci &amp;&amp; npm run build'</span> } }
+    }
+  }
+}</pre>
+  <h3>Container-per-stage</h3>
+  <p>Một Pod agent có thể chứa nhiều container — mỗi container là một môi trường tool riêng biệt (Maven, Node, kubectl...) nhưng dùng chung workspace (volume) của Pod. Bước <code class="inline">container('tên')</code> chỉ định lệnh <code class="inline">sh</code>/<code class="inline">bat</code> tiếp theo chạy trong container nào.</p>
+<pre><span class="lbl">podTemplate cũ (declarative helper)</span>podTemplate(label: <span class="str">'k8s-agent'</span>, containers: [
+  containerTemplate(name: <span class="str">'kubectl'</span>, image: <span class="str">'bitnami/kubectl:latest'</span>, command: <span class="str">'sleep'</span>, args: <span class="str">'99d'</span>)
+]) {
+  node(<span class="str">'k8s-agent'</span>) {
+    container(<span class="str">'kubectl'</span>) { sh <span class="str">'kubectl apply -f k8s/'</span> }
+  }
+}</pre>
+  <table>
+    <tr><th>Khái niệm</th><th>Ý nghĩa</th></tr>
+    <tr><td>Pod template</td><td>Định nghĩa hình dạng Pod agent (containers, volumes, resources)</td></tr>
+    <tr><td>Ephemeral agent</td><td>Pod chỉ tồn tại trong thời gian build, tự dọn sau đó</td></tr>
+    <tr><td><code>command: ["sleep"], args: ["99d"]</code></td><td>Giữ container sống chờ Jenkins gửi lệnh vào, tránh container tự thoát ngay</td></tr>
+    <tr><td>Elastic scaling</td><td>Số Pod agent tăng/giảm theo số build đang chờ, giới hạn bởi capacity cluster</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Vì sao dùng Kubernetes plugin thay vì agent tĩnh?</b>Scale co giãn hoàn toàn tự động theo tải thực tế — không cần dự đoán trước số lượng agent cần thiết, không tốn chi phí lúc rảnh, và mỗi build có môi trường sạch 100% (Pod mới hoàn toàn), loại bỏ trạng thái rò rỉ giữa các build.</div>
+  <div class="box warn"><b>⚠️ Cleanup &amp; giới hạn tài nguyên</b>Luôn khai báo <code class="inline">resources</code> (requests/limits) cho từng container để tránh 1 build "ăn" hết node K8s. Nếu build bị abort bất thường, đảm bảo plugin (hoặc cấu hình idle timeout) vẫn dọn được Pod để tránh rò rỉ tài nguyên cluster.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Viết một Jenkinsfile với <code class="inline">agent { kubernetes { yaml ... } }</code> có 2 container (vd <code class="inline">maven</code> và <code class="inline">docker</code>), chạy build ở container này và build image Docker ở container kia, quan sát Pod xuất hiện/biến mất trong <code class="inline">kubectl get pods -w</code>.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Kubernetes Plugin</span></div>
+  <ol class="examples">
+    <li><span class="task">Chạy build Maven trong pod K8s ephemeral.</span>
+<pre><span class="lbl">Jenkinsfile</span>agent { kubernetes { yaml <span class="str">'''
+  spec:
+    containers:
+    - name: maven
+      image: maven:3.9
+      command: ["sleep"]
+      args: ["99d"]
+'''</span> } }</pre></li>
+    <li><span class="task">Chọn container cụ thể để chạy lệnh trong stage.</span>
+<pre><span class="lbl">Jenkinsfile</span>steps { container(<span class="str">'maven'</span>) { sh <span class="str">'mvn test'</span> } }</pre></li>
+    <li><span class="task">Đặt resource request/limit cho container agent.</span>
+<pre><span class="lbl">pod yaml</span>resources:
+  requests: { cpu: <span class="str">"500m"</span>, memory: <span class="str">"512Mi"</span> }
+  limits:   { cpu: <span class="str">"1"</span>,    memory: <span class="str">"1Gi"</span> }</pre></li>
+    <li><span class="task">Dùng podTemplate kiểu Scripted Pipeline.</span>
+<pre><span class="lbl">Jenkinsfile</span>podTemplate(containers: [containerTemplate(name: <span class="str">'node'</span>, image: <span class="str">'node:18'</span>)]) {
+  node(POD_LABEL) { container(<span class="str">'node'</span>) { sh <span class="str">'npm test'</span> } }
+}</pre></li>
+    <li><span class="task">Gắn nodeSelector để pod agent chạy đúng node pool.</span>
+<pre><span class="lbl">pod yaml</span>spec:
+  nodeSelector: { workload: <span class="str">"ci"</span> }</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Kubernetes Plugin</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết khối <code class="inline">agent { kubernetes { yaml ... } } }</code> tối thiểu với 1 container "node:18".</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>agent { kubernetes { yaml <span class="str">'''
+  spec:
+    containers:
+    - name: node
+      image: node:18
+      command: ["sleep"]
+      args: ["99d"]
+'''</span> } }</pre></div></details></li>
+    <li><span class="task">Chạy <code class="inline">sh 'go build'</code> trong container tên "golang".</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>container(<span class="str">'golang'</span>) { sh <span class="str">'go build'</span> }</pre></div></details></li>
+    <li><span class="task">Nêu 1 lý do phải đặt <code class="inline">command: ["sleep"], args: ["99d"]</code> trong container spec.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Giữ container sống chờ Jenkins gửi step vào,
+// nếu không container sẽ thoát ngay do không có process chính.</span></pre></div></details></li>
+    <li><span class="task">Giải thích ephemeral agent khác gì so với agent SSH cố định.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Ephemeral: Pod chỉ tồn tại trong lúc build, tự xóa sau đó.
+// SSH agent: máy/VM tồn tại lâu dài, không tự dọn sau mỗi build.</span></pre></div></details></li>
+    <li><span class="task">Viết resources limit giới hạn 1 CPU, 1Gi RAM cho container.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>resources:
+  limits: { cpu: <span class="str">"1"</span>, memory: <span class="str">"1Gi"</span> }</pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 7.4</span>
+  <h2>Kubernetes Plugin</h2>
+  <div class="box goal"><b>🎯 Goal</b>Understand how the Kubernetes plugin creates <b>ephemeral</b> agent pods on demand, use <code class="inline">podTemplate</code>/the <code class="inline">kubernetes { yaml ... }</code> block in a Jenkinsfile, the container-per-stage pattern, and the benefits of elastic scaling.</div>
+  <h3>What is an ephemeral agent pod?</h3>
+  <p>Instead of maintaining fixed agent VMs, the Kubernetes plugin lets the controller connect to a K8s cluster: whenever a build needs to run, the plugin creates a new <b>Pod</b> as the agent, and once the build finishes the Pod is <b>deleted</b>. No idle resource cost, and it scales automatically as load increases.</p>
+  <h3>Using the kubernetes { yaml ... } block</h3>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent {
+    kubernetes {
+      yaml <span class="str">'''
+        apiVersion: v1
+        kind: Pod
+        spec:
+          containers:
+          - name: maven
+            image: maven:3.9-eclipse-temurin-17
+            command: ["sleep"]
+            args: ["99d"]
+          - name: node
+            image: node:18
+            command: ["sleep"]
+            args: ["99d"]
+      '''</span>
+    }
+  }
+  stages {
+    stage(<span class="str">'Build backend'</span>) {
+      steps { container(<span class="str">'maven'</span>) { sh <span class="str">'mvn -B clean package'</span> } }
+    }
+    stage(<span class="str">'Build frontend'</span>) {
+      steps { container(<span class="str">'node'</span>) { sh <span class="str">'npm ci &amp;&amp; npm run build'</span> } }
+    }
+  }
+}</pre>
+  <h3>Container-per-stage</h3>
+  <p>An agent Pod can hold multiple containers — each one a distinct tool environment (Maven, Node, kubectl...) sharing the Pod's workspace (volume). The <code class="inline">container('name')</code> step tells the next <code class="inline">sh</code>/<code class="inline">bat</code> command which container to run in.</p>
+<pre><span class="lbl">Legacy podTemplate (declarative helper)</span>podTemplate(label: <span class="str">'k8s-agent'</span>, containers: [
+  containerTemplate(name: <span class="str">'kubectl'</span>, image: <span class="str">'bitnami/kubectl:latest'</span>, command: <span class="str">'sleep'</span>, args: <span class="str">'99d'</span>)
+]) {
+  node(<span class="str">'k8s-agent'</span>) {
+    container(<span class="str">'kubectl'</span>) { sh <span class="str">'kubectl apply -f k8s/'</span> }
+  }
+}</pre>
+  <table>
+    <tr><th>Concept</th><th>Meaning</th></tr>
+    <tr><td>Pod template</td><td>Defines the shape of the agent Pod (containers, volumes, resources)</td></tr>
+    <tr><td>Ephemeral agent</td><td>Pod exists only for the build's duration, cleaned up afterward</td></tr>
+    <tr><td><code>command: ["sleep"], args: ["99d"]</code></td><td>Keeps a container alive waiting for Jenkins to send commands, preventing immediate exit</td></tr>
+    <tr><td>Elastic scaling</td><td>Number of agent Pods rises/falls with pending builds, bounded by cluster capacity</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Why use the Kubernetes plugin over static agents?</b>Scaling is fully automatic based on actual load — no need to predict how many agents you'll need, no idle-time cost, and every build gets a 100% clean environment (a brand-new Pod), eliminating state leakage between builds.</div>
+  <div class="box warn"><b>⚠️ Cleanup &amp; resource limits</b>Always declare <code class="inline">resources</code> (requests/limits) for each container to prevent one build from consuming an entire K8s node. If a build is aborted abnormally, make sure the plugin (or an idle timeout setting) still cleans up the Pod to avoid leaking cluster resources.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Write a Jenkinsfile with <code class="inline">agent { kubernetes { yaml ... } }</code> containing 2 containers (e.g. <code class="inline">maven</code> and <code class="inline">docker</code>), build in one container and build a Docker image in the other, and watch the Pod appear/disappear in <code class="inline">kubectl get pods -w</code>.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Kubernetes Plugin</span></div>
+  <ol class="examples">
+    <li><span class="task">Run a Maven build in an ephemeral K8s pod.</span>
+<pre><span class="lbl">Jenkinsfile</span>agent { kubernetes { yaml <span class="str">'''
+  spec:
+    containers:
+    - name: maven
+      image: maven:3.9
+      command: ["sleep"]
+      args: ["99d"]
+'''</span> } }</pre></li>
+    <li><span class="task">Target a specific container to run a stage's commands.</span>
+<pre><span class="lbl">Jenkinsfile</span>steps { container(<span class="str">'maven'</span>) { sh <span class="str">'mvn test'</span> } }</pre></li>
+    <li><span class="task">Set resource requests/limits on the agent container.</span>
+<pre><span class="lbl">pod yaml</span>resources:
+  requests: { cpu: <span class="str">"500m"</span>, memory: <span class="str">"512Mi"</span> }
+  limits:   { cpu: <span class="str">"1"</span>,    memory: <span class="str">"1Gi"</span> }</pre></li>
+    <li><span class="task">Use podTemplate in Scripted Pipeline style.</span>
+<pre><span class="lbl">Jenkinsfile</span>podTemplate(containers: [containerTemplate(name: <span class="str">'node'</span>, image: <span class="str">'node:18'</span>)]) {
+  node(POD_LABEL) { container(<span class="str">'node'</span>) { sh <span class="str">'npm test'</span> } }
+}</pre></li>
+    <li><span class="task">Add a nodeSelector so the agent pod lands on the right node pool.</span>
+<pre><span class="lbl">pod yaml</span>spec:
+  nodeSelector: { workload: <span class="str">"ci"</span> }</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Kubernetes Plugin</span></div>
+  <ol class="drills">
+    <li><span class="task">Write a minimal <code class="inline">agent { kubernetes { yaml ... } } }</code> block with one "node:18" container.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>agent { kubernetes { yaml <span class="str">'''
+  spec:
+    containers:
+    - name: node
+      image: node:18
+      command: ["sleep"]
+      args: ["99d"]
+'''</span> } }</pre></div></details></li>
+    <li><span class="task">Run <code class="inline">sh 'go build'</code> in the container named "golang".</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>container(<span class="str">'golang'</span>) { sh <span class="str">'go build'</span> }</pre></div></details></li>
+    <li><span class="task">Give one reason to set <code class="inline">command: ["sleep"], args: ["99d"]</code> in a container spec.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Keeps the container alive waiting for Jenkins to send steps;
+// otherwise it would exit immediately with no main process.</span></pre></div></details></li>
+    <li><span class="task">Explain how ephemeral agents differ from fixed SSH agents.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Ephemeral: the Pod exists only for the build, then self-deletes.
+// SSH agent: a long-lived machine/VM that isn't cleaned up per build.</span></pre></div></details></li>
+    <li><span class="task">Write a resources limit capping a container at 1 CPU, 1Gi RAM.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>resources:
+  limits: { cpu: <span class="str">"1"</span>, memory: <span class="str">"1Gi"</span> }</pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 7.5 ============ -->
+<section class="lesson" id="cloud-agents">
+<div class="lang vi">
+  <span class="phase-tag">Bài 7.5</span>
+  <h2>Cloud Agents</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Hiểu khái niệm agent cloud (EC2 plugin, Azure VM Agents) — tự động cấp phát VM theo nhu cầu, idle timeout, cân nhắc chi phí và dùng spot/preemptible instance.</div>
+  <h3>Agent cloud là gì?</h3>
+  <p>Khác với agent tĩnh (SSH) hay agent K8s ephemeral, "Cloud" trong Jenkins là một cấu hình trừu tượng khai báo <b>cách tạo VM agent tự động</b> trên nền tảng đám mây (AWS, Azure, GCP...) khi hàng đợi build cần thêm năng lực, và <b>tự hủy VM</b> khi hết việc/quá thời gian rảnh.</p>
+  <h3>EC2 plugin (ví dụ khái niệm)</h3>
+<pre><span class="lbl">Manage Jenkins › Clouds › Amazon EC2</span><span class="cmt"># Cấu hình chính:</span>
+Region: ap-southeast-1
+AMI: ami-0abcd1234            <span class="cmt"># image có sẵn Java + agent.jar</span>
+Instance Type: t3.large
+Min/Max instance cap: 0 / 10  <span class="cmt"># tối đa 10 VM đồng thời</span>
+Idle termination time: 15     <span class="cmt"># phút — hủy VM nếu rảnh quá lâu</span>
+Labels: aws-linux</pre>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent { label <span class="str">'aws-linux'</span> }  <span class="cmt">// EC2 plugin tự tạo VM khi cần</span>
+  stages { stage(<span class="str">'Build'</span>) { steps { sh <span class="str">'./build.sh'</span> } } }
+}</pre>
+  <h3>Azure VM Agents (ví dụ khái niệm)</h3>
+  <p>Tương tự EC2 plugin nhưng dùng Azure Resource Manager: khai báo image (Managed Image/Marketplace), kích thước VM, và pool giới hạn số instance. Jenkins gọi Azure API tạo VM, cài agent, chạy build, rồi xóa hoặc deallocate VM.</p>
+  <table>
+    <tr><th>Yếu tố</th><th>Ý nghĩa</th><th>Gợi ý</th></tr>
+    <tr><td>Idle timeout</td><td>Thời gian VM rảnh trước khi bị hủy</td><td>Ngắn → tiết kiệm chi phí; dài → build kế tiếp khởi động nhanh hơn (tái dùng VM)</td></tr>
+    <tr><td>Instance cap</td><td>Số VM tối đa được tạo đồng thời</td><td>Giới hạn để tránh chi phí bùng nổ khi có spike build</td></tr>
+    <tr><td>Spot/Preemptible instance</td><td>VM giá rẻ hơn nhưng có thể bị thu hồi bất cứ lúc nào</td><td>Phù hợp cho build không quan trọng SLA (test song song, build nhánh feature)</td></tr>
+    <tr><td>AMI/Image chuẩn hóa</td><td>Image cài sẵn Java/agent.jar/tool cần thiết</td><td>Giảm thời gian khởi động VM trước khi agent sẵn sàng nhận job</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Vì sao dùng cloud agent thay vì agent cố định 24/7?</b>Hầu hết đội ngũ không build liên tục suốt ngày đêm — giữ agent cố định chạy 24/7 lãng phí chi phí lúc rảnh. Cloud agent cấp phát đúng lúc có nhu cầu và tự hủy khi rảnh, tối ưu hoá cả chi phí lẫn khả năng đáp ứng traffic tăng đột biến.</div>
+  <div class="box warn"><b>⚠️ Rủi ro Spot instance &amp; thời gian khởi động</b>Spot/preemptible có thể bị thu hồi giữa chừng làm build fail — không dùng cho pipeline release quan trọng. Ngoài ra VM cloud cần thời gian khởi động (boot + cài agent) lâu hơn agent K8s pod, nên với workload cần phản hồi cực nhanh, K8s ephemeral thường phù hợp hơn.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Cấu hình một Cloud EC2 (hoặc đọc tài liệu Azure VM Agents nếu không có tài khoản AWS) với instance cap = 2, idle timeout = 10 phút, gắn label <code class="inline">aws-linux</code>, rồi trigger 3 build song song và quan sát Jenkins tạo VM mới khi cần.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Cloud Agents</span></div>
+  <ol class="examples">
+    <li><span class="task">Chạy job trên agent EC2 theo label.</span>
+<pre><span class="lbl">Jenkinsfile</span>agent { label <span class="str">'aws-linux'</span> }</pre></li>
+    <li><span class="task">Cấu hình idle termination time cho EC2 cloud.</span>
+<pre><span class="lbl">config</span>Idle termination time: <span class="num">15</span> <span class="cmt"># phút</span></pre></li>
+    <li><span class="task">Giới hạn số instance tối đa của một cloud.</span>
+<pre><span class="lbl">config</span>Instance cap: <span class="num">10</span></pre></li>
+    <li><span class="task">Dùng spot instance để giảm chi phí cho job test không critical.</span>
+<pre><span class="lbl">config</span>Request type: Spot
+Max Spot price: <span class="str">"0.05"</span></pre></li>
+    <li><span class="task">Khai báo nhiều label cho một cloud template (Linux + GPU).</span>
+<pre><span class="lbl">config</span>Labels: aws-linux gpu</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Cloud Agents</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết <code class="inline">agent</code> chạy trên label "azure-vm".</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>agent { label <span class="str">'azure-vm'</span> }</pre></div></details></li>
+    <li><span class="task">Nêu 1 lý do nên đặt instance cap thay vì để không giới hạn.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Tránh chi phí bùng nổ ngoài kiểm soát khi số build
+// tăng đột biến cùng lúc.</span></pre></div></details></li>
+    <li><span class="task">Giải thích khi nào KHÔNG nên dùng spot instance.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Với pipeline release/production quan trọng cần độ tin cậy cao,
+// vì spot instance có thể bị thu hồi bất cứ lúc nào.</span></pre></div></details></li>
+    <li><span class="task">So sánh ngắn gọn cloud agent (VM) và K8s ephemeral agent về tốc độ khởi động.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// VM cloud: khởi động chậm hơn (boot OS + cài agent).
+// K8s pod: khởi động nhanh hơn (chỉ pull image + start container).</span></pre></div></details></li>
+    <li><span class="task">Viết cấu hình idle timeout 5 phút cho một cloud template.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>Idle termination time: <span class="num">5</span></pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 7.5</span>
+  <h2>Cloud Agents</h2>
+  <div class="box goal"><b>🎯 Goal</b>Understand the cloud agent concept (EC2 plugin, Azure VM Agents) — auto-provisioning VMs on demand, idle timeout, cost considerations, and using spot/preemptible instances.</div>
+  <h3>What is a cloud agent?</h3>
+  <p>Unlike static (SSH) agents or ephemeral K8s agents, a "Cloud" in Jenkins is an abstract configuration that declares <b>how to automatically create VM agents</b> on a cloud platform (AWS, Azure, GCP...) when the build queue needs more capacity, and <b>auto-terminate the VM</b> once idle or work is done.</p>
+  <h3>EC2 plugin (conceptual example)</h3>
+<pre><span class="lbl">Manage Jenkins › Clouds › Amazon EC2</span><span class="cmt"># Main settings:</span>
+Region: ap-southeast-1
+AMI: ami-0abcd1234            <span class="cmt"># image pre-loaded with Java + agent.jar</span>
+Instance Type: t3.large
+Min/Max instance cap: 0 / 10  <span class="cmt"># up to 10 VMs concurrently</span>
+Idle termination time: 15     <span class="cmt"># minutes — terminate VM if idle too long</span>
+Labels: aws-linux</pre>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent { label <span class="str">'aws-linux'</span> }  <span class="cmt">// EC2 plugin auto-provisions a VM when needed</span>
+  stages { stage(<span class="str">'Build'</span>) { steps { sh <span class="str">'./build.sh'</span> } } }
+}</pre>
+  <h3>Azure VM Agents (conceptual example)</h3>
+  <p>Similar to the EC2 plugin but using Azure Resource Manager: declare an image (Managed Image/Marketplace), VM size, and a pool with a max instance count. Jenkins calls the Azure API to create the VM, install the agent, run the build, then delete or deallocate the VM.</p>
+  <table>
+    <tr><th>Factor</th><th>Meaning</th><th>Guidance</th></tr>
+    <tr><td>Idle timeout</td><td>Time a VM sits idle before being terminated</td><td>Short → saves cost; long → the next build starts faster (VM reuse)</td></tr>
+    <tr><td>Instance cap</td><td>Max VMs that can be created concurrently</td><td>Caps runaway cost during a build spike</td></tr>
+    <tr><td>Spot/preemptible instance</td><td>Cheaper VM that can be reclaimed at any time</td><td>Good for non-SLA-critical builds (parallel tests, feature branch builds)</td></tr>
+    <tr><td>Standardized AMI/image</td><td>Image with Java/agent.jar/tools pre-installed</td><td>Reduces VM startup time before the agent is ready to accept a job</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Why use cloud agents instead of fixed 24/7 agents?</b>Most teams don't build around the clock — keeping a fixed agent running 24/7 wastes money during idle time. Cloud agents provision exactly when there's demand and auto-terminate when idle, optimizing both cost and the ability to absorb sudden traffic spikes.</div>
+  <div class="box warn"><b>⚠️ Spot instance risk &amp; startup time</b>Spot/preemptible instances can be reclaimed mid-build, causing failures — don't use them for critical release pipelines. Also, cloud VMs take longer to start (boot + install agent) than a K8s pod, so for workloads needing very fast turnaround, K8s ephemeral agents are usually a better fit.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Configure an EC2 Cloud (or read the Azure VM Agents docs if you have no AWS account) with instance cap = 2, idle timeout = 10 minutes, labeled <code class="inline">aws-linux</code>, then trigger 3 parallel builds and watch Jenkins spin up new VMs as needed.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Cloud Agents</span></div>
+  <ol class="examples">
+    <li><span class="task">Run a job on an EC2 agent by label.</span>
+<pre><span class="lbl">Jenkinsfile</span>agent { label <span class="str">'aws-linux'</span> }</pre></li>
+    <li><span class="task">Configure the idle termination time for an EC2 cloud.</span>
+<pre><span class="lbl">config</span>Idle termination time: <span class="num">15</span> <span class="cmt"># minutes</span></pre></li>
+    <li><span class="task">Cap the maximum number of instances for a cloud.</span>
+<pre><span class="lbl">config</span>Instance cap: <span class="num">10</span></pre></li>
+    <li><span class="task">Use spot instances to cut cost for non-critical test jobs.</span>
+<pre><span class="lbl">config</span>Request type: Spot
+Max Spot price: <span class="str">"0.05"</span></pre></li>
+    <li><span class="task">Declare multiple labels on one cloud template (Linux + GPU).</span>
+<pre><span class="lbl">config</span>Labels: aws-linux gpu</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Cloud Agents</span></div>
+  <ol class="drills">
+    <li><span class="task">Write an <code class="inline">agent</code> running on the "azure-vm" label.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>agent { label <span class="str">'azure-vm'</span> }</pre></div></details></li>
+    <li><span class="task">Give one reason to set an instance cap instead of leaving it unlimited.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Avoid runaway, uncontrolled cost when the number of
+// builds spikes all at once.</span></pre></div></details></li>
+    <li><span class="task">Explain when you should NOT use spot instances.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// For critical release/production pipelines needing high
+// reliability, since spot instances can be reclaimed anytime.</span></pre></div></details></li>
+    <li><span class="task">Briefly compare cloud VM agents and K8s ephemeral agents on startup speed.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Cloud VM: slower startup (boot OS + install agent).
+// K8s pod: faster startup (just pull image + start container).</span></pre></div></details></li>
+    <li><span class="task">Write a config setting a 5-minute idle timeout for a cloud template.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>Idle termination time: <span class="num">5</span></pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<div class="pager">
+  <a class="prev" href="phase6-security.html"><div class="dir"><span class="vi">← Trước</span><span class="en">← Previous</span></div><div class="ttl"><span class="vi">Giai đoạn 6 · Bảo mật</span><span class="en">Stage 6 · Security</span></div></a>
+  <a class="next" href="phase8-integrations.html"><div class="dir"><span class="vi">Tiếp theo →</span><span class="en">Next →</span></div><div class="ttl"><span class="vi">Giai đoạn 8 · Tích hợp</span><span class="en">Stage 8 · Integrations</span></div></a>
+</div>
+
+</main>
+</div>
+<script src="assets/i18n.js"></script>
+<script src="assets/scrollspy.js"></script>
+</body>
+</html>

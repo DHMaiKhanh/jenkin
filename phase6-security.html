@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Giai đoạn 6 — Security | Khóa học Jenkins</title>
+<link rel="stylesheet" href="assets/course.css">
+</head>
+<body class="lang-vi">
+<div class="layout">
+<nav class="side">
+  <div class="brand">🤵 Jenkins<small><span class="vi">Giai đoạn 6 · Bảo mật</span><span class="en">Stage 6 · Security</span></small></div>
+  <div class="lang-toggle">
+    <button data-lang="vi" class="on">VI</button>
+    <button data-lang="en">EN</button>
+  </div>
+  <a class="nav-home" href="index.html"><span class="vi">← Mục lục khóa học</span><span class="en">← Course index</span></a>
+  <div class="grp"><span class="vi">Bài học</span><span class="en">Lessons</span></div>
+  <a class="lnk" href="#authentication">6.1 · <span class="vi">Xác thực (Authentication)</span><span class="en">Authentication</span></a>
+  <a class="lnk" href="#authorization">6.2 · <span class="vi">Phân quyền (Authorization)</span><span class="en">Authorization</span></a>
+  <a class="lnk" href="#credentials-advanced">6.3 · <span class="vi">Credentials nâng cao</span><span class="en">Advanced Credentials</span></a>
+  <a class="lnk" href="#best-practices">6.4 · <span class="vi">Thực hành bảo mật tốt</span><span class="en">Security Best Practices</span></a>
+  <a class="lnk" href="#audit">6.5 · <span class="vi">Audit Trail &amp; Agent-Controller</span><span class="en">Audit Trail &amp; Agent-Controller</span></a>
+</nav>
+
+<main>
+<header class="top">
+  <div class="crumb"><span class="vi">Khóa học Jenkins › <b>Giai đoạn 6 — Bảo mật</b></span><span class="en">Jenkins Course › <b>Stage 6 — Security</b></span></div>
+  <h1>Security</h1>
+  <p class="lead"><span class="vi">Mục tiêu giai đoạn: hiểu và cấu hình đúng xác thực, phân quyền, quản lý credentials an toàn, và áp dụng các thực hành bảo mật được Jenkins khuyến nghị chính thức để bảo vệ controller và agent.</span><span class="en">Stage goal: correctly configure authentication and authorization, manage credentials securely, and apply Jenkins' officially recommended security practices to protect the controller and agents.</span></p>
+</header>
+
+<!-- ============ 6.1 ============ -->
+<section class="lesson" id="authentication">
+<div class="lang vi">
+  <span class="phase-tag">Bài 6.1</span>
+  <h2>Authentication — Xác thực người dùng</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Hiểu các "security realm" (nguồn xác thực) Jenkins hỗ trợ, cấu hình đúng cơ sở dữ liệu người dùng nội bộ, và biết cách vô hiệu hóa truy cập ẩn danh/đăng ký công khai.</div>
+  <h3>Security Realm là gì?</h3>
+  <p>Trong <b>Manage Jenkins › Security</b>, mục <b>Security Realm</b> quyết định Jenkins xác thực người dùng bằng cách nào — tức "bạn là ai".</p>
+  <table>
+    <tr><th>Security Realm</th><th>Mô tả</th><th>Khi nào dùng</th></tr>
+    <tr><td>Jenkins' own user database</td><td>Người dùng lưu trực tiếp trong Jenkins</td><td>Team nhỏ, demo, không có hệ thống danh tính chung</td></tr>
+    <tr><td>LDAP</td><td>Ủy quyền xác thực cho máy chủ LDAP/Active Directory</td><td>Doanh nghiệp đã có LDAP/AD</td></tr>
+    <tr><td>Unix user/group database</td><td>Dùng tài khoản hệ điều hành trên máy chủ Jenkins</td><td>Hiếm dùng, môi trường Unix đơn giản</td></tr>
+    <tr><td>SSO (plugin: SAML, OIDC, GitHub OAuth...)</td><td>Ủy quyền cho nhà cung cấp danh tính bên ngoài</td><td>Muốn đăng nhập một lần (SSO) qua Okta/Azure AD/Google...</td></tr>
+  </table>
+  <h3>Bật cơ sở dữ liệu người dùng nội bộ</h3>
+<pre><span class="lbl">Manage Jenkins › Security</span><span class="cmt"># Security Realm = "Jenkins' own user database"</span>
+<span class="cmt"># ☐ Allow users to sign up   ← BỎ CHỌN sau khi tạo admin đầu tiên!</span></pre>
+  <div class="box warn"><b>⚠️ "Allow users to sign up" là cửa hậu</b>Khi bật, <b>bất kỳ ai truy cập URL Jenkins</b> đều có thể tự tạo tài khoản và (nếu Authorization đang lỏng lẻo) có toàn quyền. Đây là nguyên nhân phổ biến khiến các Jenkins public bị chiếm quyền. Luôn tắt sau khi tạo admin.</div>
+  <h3>Ủy quyền xác thực cho LDAP / SSO</h3>
+  <p>Với LDAP, Jenkins không lưu mật khẩu — mọi lần đăng nhập được chuyển tiếp tới máy chủ LDAP để xác thực, sau đó Jenkins ánh xạ nhóm LDAP sang vai trò nội bộ (kết hợp với Authorization ở bài 6.2).</p>
+<pre><span class="lbl">Configure Global Security</span>Security Realm: LDAP
+  Server: <span class="str">ldaps://ldap.company.com:636</span>
+  Root DN: <span class="str">dc=company,dc=com</span>
+  User search base: <span class="str">ou=people</span>
+  Group search base: <span class="str">ou=groups</span></pre>
+  <div class="box note"><b>📁 Jenkins CLI &amp; API cũng cần xác thực</b>Ngoài UI, các kênh khác (REST API, CLI, remoting) cũng dùng cùng cơ chế realm. Token API cá nhân (My Account › API Token) nên dùng thay mật khẩu khi gọi script/CLI.</div>
+  <div class="box why"><b>🤔 Vì sao nên ủy quyền cho LDAP/SSO thay vì DB nội bộ?</b>DB nội bộ nghĩa là mật khẩu người dùng nằm trong Jenkins — nếu Jenkins bị xâm nhập, mật khẩu (dù hash) có nguy cơ lộ. Ủy quyền cho LDAP/SSO giúp tập trung vòng đời tài khoản (khóa/xóa nhân viên nghỉ việc ở một nơi duy nhất) và tận dụng MFA đã có ở IdP.</div>
+  <div class="box tip"><b>💡 Luôn tạo admin trước khi khóa "sign up"</b>Thứ tự an toàn: 1) Cài Jenkins → tạo user admin đầu tiên qua wizard → 2) Bật Authorization phù hợp → 3) Tắt "Allow users to sign up".</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Vào <code class="inline">Manage Jenkins › Security</code>, xác nhận Security Realm đang là "Jenkins' own user database", kiểm tra ô "Allow users to sign up" đã bị bỏ chọn. Tạo một user mới qua <code class="inline">Manage Users</code> và đăng nhập thử.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Authentication</span></div>
+  <ol class="examples">
+    <li><span class="task">Chọn Security Realm là cơ sở dữ liệu nội bộ của Jenkins.</span>
+<pre><span class="lbl">Manage Jenkins › Security</span>Security Realm: <span class="str">Jenkins' own user database</span></pre></li>
+    <li><span class="task">Vô hiệu hóa đăng ký công khai sau khi đã có admin.</span>
+<pre><span class="lbl">Manage Jenkins › Security</span>Allow users to sign up: <span class="kw">unchecked</span></pre></li>
+    <li><span class="task">Cấu hình xác thực qua LDAP doanh nghiệp.</span>
+<pre><span class="lbl">Security Realm</span>Server: <span class="str">ldaps://ldap.corp.local:636</span>
+Root DN: <span class="str">dc=corp,dc=local</span></pre></li>
+    <li><span class="task">Tạo API token cá nhân để dùng cho CLI thay vì mật khẩu.</span>
+<pre><span class="lbl">My Account › Security</span><span class="cmt"># Add new Token → đặt tên → Generate → copy token 1 lần duy nhất</span></pre></li>
+    <li><span class="task">Gọi Jenkins CLI dùng API token thay vì mật khẩu.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s https://jenkins.company.com/ -auth admin:<span class="str">&lt;api-token&gt;</span> who-am-i</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Authentication</span></div>
+  <ol class="drills">
+    <li><span class="task">Kể tên 3 loại Security Realm Jenkins hỗ trợ sẵn.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Jenkins' own user database, LDAP, Unix user/group database (+ plugin SSO như SAML/OIDC)</span></pre></div></details></li>
+    <li><span class="task">Vì sao cần bỏ chọn "Allow users to sign up" sau khi cài đặt?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Nếu bật, bất kỳ ai truy cập URL cũng tự tạo được tài khoản có thể có quyền cao — lỗ hổng bảo mật nghiêm trọng</span></pre></div></details></li>
+    <li><span class="task">Viết cấu hình Root DN cho LDAP của domain <code class="inline">example.org</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>Root DN: <span class="str">dc=example,dc=org</span></pre></div></details></li>
+    <li><span class="task">Nên dùng gì thay cho mật khẩu khi gọi API/CLI Jenkins?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// API Token cá nhân (My Account → Security → API Token)</span></pre></div></details></li>
+    <li><span class="task">Trình bày thứ tự an toàn khi thiết lập authentication lần đầu.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// 1) Tạo admin qua setup wizard → 2) Cấu hình Authorization → 3) Tắt "Allow users to sign up"</span></pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 6.1</span>
+  <h2>Authentication — User Authentication</h2>
+  <div class="box goal"><b>🎯 Goal</b>Understand the "security realms" Jenkins supports, correctly configure the internal user database, and know how to disable anonymous access/public sign-up.</div>
+  <h3>What is a Security Realm?</h3>
+  <p>Under <b>Manage Jenkins › Security</b>, the <b>Security Realm</b> section decides how Jenkins authenticates users — i.e. "who you are".</p>
+  <table>
+    <tr><th>Security Realm</th><th>Description</th><th>When to use</th></tr>
+    <tr><td>Jenkins' own user database</td><td>Users stored directly in Jenkins</td><td>Small teams, demos, no shared identity system</td></tr>
+    <tr><td>LDAP</td><td>Delegates authentication to an LDAP/Active Directory server</td><td>Enterprises already running LDAP/AD</td></tr>
+    <tr><td>Unix user/group database</td><td>Uses OS accounts on the Jenkins host</td><td>Rare, simple Unix environments</td></tr>
+    <tr><td>SSO (plugin: SAML, OIDC, GitHub OAuth...)</td><td>Delegates to an external identity provider</td><td>Single sign-on via Okta/Azure AD/Google...</td></tr>
+  </table>
+  <h3>Enabling the internal user database</h3>
+<pre><span class="lbl">Manage Jenkins › Security</span><span class="cmt"># Security Realm = "Jenkins' own user database"</span>
+<span class="cmt"># ☐ Allow users to sign up   ← UNCHECK after creating the first admin!</span></pre>
+  <div class="box warn"><b>⚠️ "Allow users to sign up" is a backdoor</b>When enabled, <b>anyone who reaches the Jenkins URL</b> can self-register and (if Authorization is loose) end up with full control. This is a common way public Jenkins instances get taken over. Always disable it after creating the admin.</div>
+  <h3>Delegating authentication to LDAP / SSO</h3>
+  <p>With LDAP, Jenkins doesn't store passwords — every login is forwarded to the LDAP server for verification, then Jenkins maps LDAP groups to internal roles (combined with Authorization from lesson 6.2).</p>
+<pre><span class="lbl">Configure Global Security</span>Security Realm: LDAP
+  Server: <span class="str">ldaps://ldap.company.com:636</span>
+  Root DN: <span class="str">dc=company,dc=com</span>
+  User search base: <span class="str">ou=people</span>
+  Group search base: <span class="str">ou=groups</span></pre>
+  <div class="box note"><b>📁 The Jenkins CLI &amp; API also need authentication</b>Besides the UI, other channels (REST API, CLI, remoting) use the same realm. A personal API token (My Account › API Token) should be used in place of a password for scripts/CLI.</div>
+  <div class="box why"><b>🤔 Why delegate to LDAP/SSO instead of the internal DB?</b>The internal DB means user passwords live inside Jenkins — if Jenkins is compromised, hashed passwords are at risk of exposure. Delegating to LDAP/SSO centralizes account lifecycle (lock/remove a departing employee in one place) and leverages MFA already enforced at the IdP.</div>
+  <div class="box tip"><b>💡 Always create the admin before locking "sign up"</b>Safe order: 1) Install Jenkins → create the first admin via the setup wizard → 2) Enable proper Authorization → 3) Disable "Allow users to sign up".</div>
+  <div class="box practice"><b>✍️ Exercise</b>Go to <code class="inline">Manage Jenkins › Security</code>, confirm the Security Realm is "Jenkins' own user database", and verify "Allow users to sign up" is unchecked. Create a new user via <code class="inline">Manage Users</code> and log in with it.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Authentication</span></div>
+  <ol class="examples">
+    <li><span class="task">Select Jenkins' own internal database as the Security Realm.</span>
+<pre><span class="lbl">Manage Jenkins › Security</span>Security Realm: <span class="str">Jenkins' own user database</span></pre></li>
+    <li><span class="task">Disable public sign-up once an admin exists.</span>
+<pre><span class="lbl">Manage Jenkins › Security</span>Allow users to sign up: <span class="kw">unchecked</span></pre></li>
+    <li><span class="task">Configure authentication via an enterprise LDAP server.</span>
+<pre><span class="lbl">Security Realm</span>Server: <span class="str">ldaps://ldap.corp.local:636</span>
+Root DN: <span class="str">dc=corp,dc=local</span></pre></li>
+    <li><span class="task">Create a personal API token for CLI use instead of a password.</span>
+<pre><span class="lbl">My Account › Security</span><span class="cmt"># Add new Token → name it → Generate → copy once</span></pre></li>
+    <li><span class="task">Call the Jenkins CLI using an API token instead of a password.</span>
+<pre><span class="lbl">terminal</span>java -jar jenkins-cli.jar -s https://jenkins.company.com/ -auth admin:<span class="str">&lt;api-token&gt;</span> who-am-i</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Authentication</span></div>
+  <ol class="drills">
+    <li><span class="task">Name 3 Security Realms Jenkins supports out of the box.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Jenkins' own user database, LDAP, Unix user/group database (+ plugin SSO like SAML/OIDC)</span></pre></div></details></li>
+    <li><span class="task">Why uncheck "Allow users to sign up" after setup?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// If left on, anyone reaching the URL can self-register with potentially high privileges — a serious hole</span></pre></div></details></li>
+    <li><span class="task">Write the Root DN config for domain <code class="inline">example.org</code>.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>Root DN: <span class="str">dc=example,dc=org</span></pre></div></details></li>
+    <li><span class="task">What should replace passwords when calling the Jenkins API/CLI?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// A personal API Token (My Account → Security → API Token)</span></pre></div></details></li>
+    <li><span class="task">State the safe order for setting up authentication initially.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// 1) Create admin via setup wizard → 2) Configure Authorization → 3) Disable "Allow users to sign up"</span></pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 6.2 ============ -->
+<section class="lesson" id="authorization">
+<div class="lang vi">
+  <span class="phase-tag">Bài 6.2</span>
+  <h2>Authorization — Phân quyền</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Hiểu sự khác biệt giữa Matrix-based Security, Project-based Matrix Authorization và Role-Based Strategy plugin, và biết áp dụng nguyên tắc "quyền hạn tối thiểu" (least privilege).</div>
+  <h3>Các chiến lược Authorization có sẵn</h3>
+  <table>
+    <tr><th>Chiến lược</th><th>Phạm vi</th><th>Ghi chú</th></tr>
+    <tr><td>Anyone can do anything</td><td>Toàn cục</td><td><b>Không dùng ở production</b> — chỉ để demo cục bộ</td></tr>
+    <tr><td>Logged-in users can do anything</td><td>Toàn cục</td><td>Vẫn quá lỏng, ai đăng nhập cũng có quyền admin</td></tr>
+    <tr><td>Matrix-based security</td><td>Toàn cục</td><td>Gán quyền chi tiết (Job/Build/Read...) cho từng user/nhóm ở cấp instance</td></tr>
+    <tr><td>Project-based Matrix Authorization</td><td>Toàn cục + theo từng job</td><td>Cho phép override quyền riêng cho từng project</td></tr>
+    <tr><td>Role-Based Strategy (plugin)</td><td>Global / Item(Project) / Agent roles</td><td>Định nghĩa "vai trò" theo pattern regex rồi gán user vào vai trò — dễ quản lý ở quy mô lớn</td></tr>
+  </table>
+  <h3>Matrix-based Security</h3>
+<pre><span class="lbl">Manage Jenkins › Security</span>Authorization: Matrix-based security
+┌──────────────┬──────┬───────┬───────┬────────┐
+│ User/Group   │ Read │ Build │ Cancel│ Admin  │
+├──────────────┼──────┼───────┼───────┼────────┤
+│ Anonymous    │  ☐   │  ☐    │  ☐    │  ☐     │
+│ authenticated│  ☑   │  ☑    │  ☐    │  ☐     │
+│ devops-team  │  ☑   │  ☑    │  ☑    │  ☐     │
+│ admin        │  ☑   │  ☑    │  ☑    │  ☑     │
+└──────────────┴──────┴───────┴───────┴────────┘</pre>
+  <div class="box why"><b>🤔 Vì sao "authenticated" nên chỉ có Read/Build?</b>Nhóm ảo <code class="inline">authenticated</code> gồm mọi user đăng nhập. Nếu gán quyền Admin cho nhóm này, mọi tài khoản mới tạo mặc định đều có toàn quyền — vi phạm nguyên tắc <b>least privilege</b>.</div>
+  <h3>Role-Based Strategy Plugin</h3>
+  <p>Plugin <b>Role-based Authorization Strategy</b> cho phép định nghĩa 3 loại vai trò: <b>Global roles</b> (áp dụng toàn instance), <b>Item roles</b> (áp dụng theo pattern tên job/folder), và <b>Agent roles</b> (quyền trên agent cụ thể).</p>
+<pre><span class="lbl">Manage and Assign Roles</span><span class="cmt"># Manage Roles</span>
+Global roles:  readonly, developer, admin
+Item roles:
+  pattern: <span class="str">^team-a-.*</span>   → role: <span class="fn">team-a-dev</span>  (Job: Read, Build, Configure)
+  pattern: <span class="str">^team-b-.*</span>   → role: <span class="fn">team-b-dev</span>  (Job: Read, Build, Configure)
+
+<span class="cmt"># Assign Roles</span>
+User: <span class="str">alice</span>  → team-a-dev
+User: <span class="str">bob</span>    → team-b-dev, readonly</pre>
+  <div class="box tip"><b>💡 Dùng pattern folder để cách ly team</b>Kết hợp Folders plugin + Item roles theo regex (vd <code class="inline">^team-a-.*</code>) giúp mỗi team chỉ thấy/sửa job của chính mình mà không cần tạo controller riêng.</div>
+  <div class="box warn"><b>⚠️ Đừng quên quyền Overall/Read</b>Thiếu quyền <code class="inline">Overall/Read</code> cho một nhóm nghĩa là họ không thể vào UI dù có quyền Job cụ thể — lỗi cấu hình rất phổ biến khi mới dùng Matrix/Role-Based.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Cài plugin Role-based Authorization Strategy, tạo 2 global role (<code class="inline">readonly</code>, <code class="inline">developer</code>) và 1 item role theo pattern <code class="inline">^demo-.*</code>, gán cho một user thử nghiệm rồi kiểm tra quyền qua UI.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Authorization</span></div>
+  <ol class="examples">
+    <li><span class="task">Bật Matrix-based security và cấp quyền Read cho anonymous.</span>
+<pre><span class="lbl">matrix</span>Anonymous: Overall/Read = <span class="kw">true</span></pre></li>
+    <li><span class="task">Giới hạn nhóm authenticated chỉ Read + Build.</span>
+<pre><span class="lbl">matrix</span>authenticated: Overall/Read, Job/Build = <span class="kw">true</span>
+authenticated: Overall/Administer = <span class="kw">false</span></pre></li>
+    <li><span class="task">Tạo global role "developer" bằng Role Strategy.</span>
+<pre><span class="lbl">Manage Roles</span>Role name: <span class="fn">developer</span>
+Permissions: Overall/Read, Job/Read, Job/Build</pre></li>
+    <li><span class="task">Tạo item role giới hạn theo tên folder team.</span>
+<pre><span class="lbl">Manage Roles</span>Pattern: <span class="str">^team-a-.*</span>
+Role: <span class="fn">team-a-dev</span> → Job/Read, Job/Build, Job/Configure</pre></li>
+    <li><span class="task">Gán user vào project-based matrix riêng cho 1 job nhạy cảm.</span>
+<pre><span class="lbl">Job Config › Enable project-based security</span>User: <span class="str">release-manager</span> → Job/Build, Job/Configure</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Authorization</span></div>
+  <ol class="drills">
+    <li><span class="task">Kể tên 3 chiến lược Authorization nên tránh dùng ở production.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// "Anyone can do anything" và (thường) "Logged-in users can do anything" — quá lỏng lẻo</span></pre></div></details></li>
+    <li><span class="task">Vì sao Item roles của Role Strategy plugin hữu ích cho tổ chức nhiều team?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Gán quyền theo pattern tên job/folder → mỗi team chỉ thấy/sửa job của mình, không cần nhiều controller</span></pre></div></details></li>
+    <li><span class="task">Quyền tối thiểu nào bắt buộc để user thấy được UI Jenkins?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Overall/Read</span></pre></div></details></li>
+    <li><span class="task">Viết ví dụ pattern regex Item role cho các job bắt đầu bằng "infra-".</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>Pattern: <span class="str">^infra-.*</span></pre></div></details></li>
+    <li><span class="task">Giải thích nguyên tắc "least privilege" áp dụng vào Jenkins như thế nào.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Mỗi user/nhóm chỉ nhận đúng quyền cần cho công việc — vd developer không cần Overall/Administer</span></pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 6.2</span>
+  <h2>Authorization — Access Control</h2>
+  <div class="box goal"><b>🎯 Goal</b>Understand the differences between Matrix-based Security, Project-based Matrix Authorization, and the Role-Based Strategy plugin, and apply the principle of least privilege.</div>
+  <h3>Available Authorization strategies</h3>
+  <table>
+    <tr><th>Strategy</th><th>Scope</th><th>Notes</th></tr>
+    <tr><td>Anyone can do anything</td><td>Global</td><td><b>Never use in production</b> — local demos only</td></tr>
+    <tr><td>Logged-in users can do anything</td><td>Global</td><td>Still too permissive — any logged-in user gets admin power</td></tr>
+    <tr><td>Matrix-based security</td><td>Global</td><td>Fine-grained permissions (Job/Build/Read...) per user/group at instance level</td></tr>
+    <tr><td>Project-based Matrix Authorization</td><td>Global + per job</td><td>Lets each project override its own permissions</td></tr>
+    <tr><td>Role-Based Strategy (plugin)</td><td>Global / Item(Project) / Agent roles</td><td>Define "roles" via regex patterns, then assign users to roles — scales well</td></tr>
+  </table>
+  <h3>Matrix-based Security</h3>
+<pre><span class="lbl">Manage Jenkins › Security</span>Authorization: Matrix-based security
+┌──────────────┬──────┬───────┬───────┬────────┐
+│ User/Group   │ Read │ Build │ Cancel│ Admin  │
+├──────────────┼──────┼───────┼───────┼────────┤
+│ Anonymous    │  ☐   │  ☐    │  ☐    │  ☐     │
+│ authenticated│  ☑   │  ☑    │  ☐    │  ☐     │
+│ devops-team  │  ☑   │  ☑    │  ☑    │  ☐     │
+│ admin        │  ☑   │  ☑    │  ☑    │  ☑     │
+└──────────────┴──────┴───────┴───────┴────────┘</pre>
+  <div class="box why"><b>🤔 Why should "authenticated" only get Read/Build?</b>The virtual <code class="inline">authenticated</code> group includes every logged-in user. Granting it Admin means every newly created account defaults to full control — violating <b>least privilege</b>.</div>
+  <h3>Role-Based Strategy Plugin</h3>
+  <p>The <b>Role-based Authorization Strategy</b> plugin defines 3 kinds of roles: <b>Global roles</b> (instance-wide), <b>Item roles</b> (matched against job/folder name patterns), and <b>Agent roles</b> (permissions on specific agents).</p>
+<pre><span class="lbl">Manage and Assign Roles</span><span class="cmt"># Manage Roles</span>
+Global roles:  readonly, developer, admin
+Item roles:
+  pattern: <span class="str">^team-a-.*</span>   → role: <span class="fn">team-a-dev</span>  (Job: Read, Build, Configure)
+  pattern: <span class="str">^team-b-.*</span>   → role: <span class="fn">team-b-dev</span>  (Job: Read, Build, Configure)
+
+<span class="cmt"># Assign Roles</span>
+User: <span class="str">alice</span>  → team-a-dev
+User: <span class="str">bob</span>    → team-b-dev, readonly</pre>
+  <div class="box tip"><b>💡 Use folder patterns to isolate teams</b>Combining the Folders plugin with regex-based Item roles (e.g. <code class="inline">^team-a-.*</code>) lets each team see/edit only its own jobs without needing a separate controller.</div>
+  <div class="box warn"><b>⚠️ Don't forget Overall/Read</b>Missing <code class="inline">Overall/Read</code> for a group means they can't even reach the UI, even with specific Job permissions — a very common misconfiguration for newcomers to Matrix/Role-Based security.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Install the Role-based Authorization Strategy plugin, create 2 global roles (<code class="inline">readonly</code>, <code class="inline">developer</code>) and 1 item role matching pattern <code class="inline">^demo-.*</code>, assign it to a test user, and verify permissions through the UI.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Authorization</span></div>
+  <ol class="examples">
+    <li><span class="task">Enable Matrix-based security and grant Read to anonymous.</span>
+<pre><span class="lbl">matrix</span>Anonymous: Overall/Read = <span class="kw">true</span></pre></li>
+    <li><span class="task">Restrict the authenticated group to Read + Build only.</span>
+<pre><span class="lbl">matrix</span>authenticated: Overall/Read, Job/Build = <span class="kw">true</span>
+authenticated: Overall/Administer = <span class="kw">false</span></pre></li>
+    <li><span class="task">Create a "developer" global role via Role Strategy.</span>
+<pre><span class="lbl">Manage Roles</span>Role name: <span class="fn">developer</span>
+Permissions: Overall/Read, Job/Read, Job/Build</pre></li>
+    <li><span class="task">Create an item role restricted by team folder name.</span>
+<pre><span class="lbl">Manage Roles</span>Pattern: <span class="str">^team-a-.*</span>
+Role: <span class="fn">team-a-dev</span> → Job/Read, Job/Build, Job/Configure</pre></li>
+    <li><span class="task">Assign a user via project-based matrix for one sensitive job.</span>
+<pre><span class="lbl">Job Config › Enable project-based security</span>User: <span class="str">release-manager</span> → Job/Build, Job/Configure</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Authorization</span></div>
+  <ol class="drills">
+    <li><span class="task">Name 3 Authorization strategies to avoid in production.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// "Anyone can do anything" and (usually) "Logged-in users can do anything" — too permissive</span></pre></div></details></li>
+    <li><span class="task">Why are Item roles in the Role Strategy plugin useful for multi-team orgs?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Permissions matched by job/folder name pattern → each team only sees/edits its own jobs, no need for separate controllers</span></pre></div></details></li>
+    <li><span class="task">Which minimal permission is required for a user to see the Jenkins UI?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Overall/Read</span></pre></div></details></li>
+    <li><span class="task">Write an example Item role regex pattern for jobs starting with "infra-".</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>Pattern: <span class="str">^infra-.*</span></pre></div></details></li>
+    <li><span class="task">Explain how "least privilege" applies to Jenkins.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Each user/group gets only the permissions their job needs — e.g. developers don't need Overall/Administer</span></pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 6.3 ============ -->
+<section class="lesson" id="credentials-advanced">
+<div class="lang vi">
+  <span class="phase-tag">Bài 6.3</span>
+  <h2>Credentials nâng cao</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Hiểu credential domains, phạm vi credentials theo folder, sử dụng đúng Credentials Binding plugin (<code class="inline">withCredentials</code>) trong Jenkinsfile, và tránh làm lộ secret ra console log.</div>
+  <h3>Credential Domains &amp; phạm vi lưu trữ</h3>
+  <p>Mỗi credential thuộc một <b>domain</b> (mặc định "(global)") và một <b>store</b> — có thể là <i>System</i> (toàn instance) hoặc gắn với một <b>Folder</b> cụ thể (khi dùng Folders plugin).</p>
+  <table>
+    <tr><th>Store</th><th>Phạm vi khả dụng</th><th>Dùng khi nào</th></tr>
+    <tr><td>Jenkins (global)</td><td>Mọi job trên toàn instance</td><td>Credential dùng chung, ít nhạy cảm</td></tr>
+    <tr><td>Folder-scoped</td><td>Chỉ job bên trong folder đó</td><td>Cách ly credential theo team/dự án — team A không thấy secret của team B</td></tr>
+    <tr><td>Domain (theo hostname)</td><td>Chỉ áp dụng khi kết nối tới host khớp domain</td><td>Nhiều credential SSH/HTTP khác nhau cho nhiều host</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Vì sao nên đặt credential trong Folder thay vì global?</b>Credential global có thể bị bất kỳ job nào trên instance sử dụng (kể cả job của team khác), làm tăng phạm vi ảnh hưởng khi rò rỉ. Folder-scoped credential giới hạn "bán kính nổ" (blast radius) đúng theo ranh giới team/dự án.</div>
+  <h3>Credentials Binding trong Jenkinsfile</h3>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent any
+  stages {
+    stage(<span class="str">'Deploy'</span>) {
+      steps {
+        <span class="fn">withCredentials</span>([
+          usernamePassword(credentialsId: <span class="str">'docker-hub'</span>, usernameVariable: <span class="str">'DOCKER_USER'</span>, passwordVariable: <span class="str">'DOCKER_PASS'</span>),
+          string(credentialsId: <span class="str">'deploy-token'</span>, variable: <span class="str">'DEPLOY_TOKEN'</span>),
+          sshUserPrivateKey(credentialsId: <span class="str">'deploy-ssh-key'</span>, keyFileVariable: <span class="str">'SSH_KEY'</span>)
+        ]) {
+          sh <span class="str">'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'</span>
+          sh <span class="str">'curl -H "Authorization: Bearer $DEPLOY_TOKEN" https://api.example.com/deploy'</span>
+        }
+      }
+    }
+  }
+}</pre>
+  <p>Bên trong khối <code class="inline">withCredentials</code>, Jenkins tự động <b>mask (che)</b> giá trị secret trong console output — mọi chuỗi trùng khớp giá trị credential đều bị thay bằng <code class="inline">****</code>.</p>
+  <div class="box warn"><b>⚠️ Đừng vô tình in secret ra log</b>Mask chỉ hoạt động với giá trị <b>y hệt</b> chuỗi gốc. Nếu bạn encode/biến đổi secret (base64, nối chuỗi khác), giá trị đã biến đổi <b>sẽ KHÔNG được mask</b> và lộ ra console. Tránh <code class="inline">echo $DOCKER_PASS</code> trực tiếp, tránh <code class="inline">set -x</code> trong shell khi có biến secret, và không dùng <code class="inline">sh(returnStdout: true)</code> để trả secret ra output pipeline.</div>
+  <h3>Ràng buộc credential type với domain</h3>
+<pre><span class="lbl">Manage Jenkins › Credentials</span>Add domain: <span class="fn">internal-git</span>
+  Hostname specification: <span class="str">git.internal.company.com</span>
+<span class="cmt"># Credential SSH key chỉ áp dụng khi Jenkins kết nối đúng host này</span></pre>
+  <div class="box tip"><b>💡 Đặt tên credentialsId rõ ràng</b>Dùng ID có ý nghĩa như <code class="inline">prod-docker-hub</code>, <code class="inline">staging-deploy-token</code> thay vì UUID mặc định — dễ audit và dễ scope theo folder hơn.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Tạo một Folder mới, thêm 1 credential "username/password" chỉ trong folder đó, viết Jenkinsfile dùng <code class="inline">withCredentials</code> để login vào một service giả lập, và xác nhận console log hiển thị <code class="inline">****</code> thay vì mật khẩu thật.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Credentials nâng cao</span></div>
+  <ol class="examples">
+    <li><span class="task">Bind username/password vào biến môi trường trong Jenkinsfile.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">withCredentials</span>([usernamePassword(credentialsId: <span class="str">'db-cred'</span>, usernameVariable: <span class="str">'DB_USER'</span>, passwordVariable: <span class="str">'DB_PASS'</span>)]) {
+  sh <span class="str">'psql -U $DB_USER'</span>
+}</pre></li>
+    <li><span class="task">Bind một secret text (API key) vào biến.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">withCredentials</span>([string(credentialsId: <span class="str">'slack-webhook'</span>, variable: <span class="str">'WEBHOOK'</span>)]) {
+  sh <span class="str">'curl -X POST $WEBHOOK -d "build done"'</span>
+}</pre></li>
+    <li><span class="task">Bind SSH private key để deploy qua rsync.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">withCredentials</span>([sshUserPrivateKey(credentialsId: <span class="str">'deploy-key'</span>, keyFileVariable: <span class="str">'KEY'</span>)]) {
+  sh <span class="str">'rsync -e "ssh -i $KEY" -av dist/ user@host:/var/www/'</span>
+}</pre></li>
+    <li><span class="task">Tạo credential chỉ khả dụng trong một Folder cụ thể.</span>
+<pre><span class="lbl">Folder › Credentials</span>Store scope: <span class="str">team-payments</span> (folder)
+Kind: Username with password</pre></li>
+    <li><span class="task">Kết hợp nhiều credential cùng lúc trong 1 khối withCredentials.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">withCredentials</span>([
+  string(credentialsId: <span class="str">'token'</span>, variable: <span class="str">'TOKEN'</span>),
+  usernamePassword(credentialsId: <span class="str">'registry'</span>, usernameVariable: <span class="str">'U'</span>, passwordVariable: <span class="str">'P'</span>)
+]) { sh <span class="str">'./deploy.sh'</span> }</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Credentials nâng cao</span></div>
+  <ol class="drills">
+    <li><span class="task">Viết Jenkinsfile bind secret text credential <code class="inline">'my-token'</code> vào biến <code class="inline">TOKEN</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="fn">withCredentials</span>([string(credentialsId: <span class="str">'my-token'</span>, variable: <span class="str">'TOKEN'</span>)]) { sh <span class="str">'echo using $TOKEN'</span> }</pre></div></details></li>
+    <li><span class="task">Tại sao credential nên đặt scope theo Folder thay vì global?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Giới hạn "blast radius" — chỉ job trong folder đó dùng được, cách ly rủi ro giữa các team</span></pre></div></details></li>
+    <li><span class="task">Vì sao echo trực tiếp biến chứa mật khẩu ra log là nguy hiểm dù có withCredentials?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Masking chỉ che giá trị y hệt bản gốc; nếu biến đổi/encode giá trị thì bản mới sẽ KHÔNG bị mask</span></pre></div></details></li>
+    <li><span class="task">Viết binding cho SSH private key với biến <code class="inline">SSH_KEY</code>.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>sshUserPrivateKey(credentialsId: <span class="str">'deploy-key'</span>, keyFileVariable: <span class="str">'SSH_KEY'</span>)</pre></div></details></li>
+    <li><span class="task">Credential domain theo hostname dùng để làm gì?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Chỉ áp dụng credential khi Jenkins kết nối tới host khớp domain — hữu ích khi có nhiều host khác nhau</span></pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 6.3</span>
+  <h2>Advanced Credentials Management</h2>
+  <div class="box goal"><b>🎯 Goal</b>Understand credential domains, folder-scoped credentials, correct use of the Credentials Binding plugin (<code class="inline">withCredentials</code>) in a Jenkinsfile, and how to avoid leaking secrets into the console log.</div>
+  <h3>Credential Domains &amp; storage scope</h3>
+  <p>Each credential belongs to a <b>domain</b> (default "(global)") and a <b>store</b> — either <i>System</i> (instance-wide) or attached to a specific <b>Folder</b> (with the Folders plugin).</p>
+  <table>
+    <tr><th>Store</th><th>Available scope</th><th>When to use</th></tr>
+    <tr><td>Jenkins (global)</td><td>Every job on the instance</td><td>Shared, low-sensitivity credentials</td></tr>
+    <tr><td>Folder-scoped</td><td>Only jobs inside that folder</td><td>Isolate credentials per team/project — team A can't see team B's secrets</td></tr>
+    <tr><td>Domain (by hostname)</td><td>Only applies when connecting to a matching host</td><td>Multiple SSH/HTTP credentials for different hosts</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Why put credentials in a Folder instead of global?</b>A global credential can be used by any job on the instance (including other teams' jobs), widening the blast radius if leaked. Folder-scoped credentials contain the blast radius to the team/project boundary.</div>
+  <h3>Credentials Binding in a Jenkinsfile</h3>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent any
+  stages {
+    stage(<span class="str">'Deploy'</span>) {
+      steps {
+        <span class="fn">withCredentials</span>([
+          usernamePassword(credentialsId: <span class="str">'docker-hub'</span>, usernameVariable: <span class="str">'DOCKER_USER'</span>, passwordVariable: <span class="str">'DOCKER_PASS'</span>),
+          string(credentialsId: <span class="str">'deploy-token'</span>, variable: <span class="str">'DEPLOY_TOKEN'</span>),
+          sshUserPrivateKey(credentialsId: <span class="str">'deploy-ssh-key'</span>, keyFileVariable: <span class="str">'SSH_KEY'</span>)
+        ]) {
+          sh <span class="str">'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'</span>
+          sh <span class="str">'curl -H "Authorization: Bearer $DEPLOY_TOKEN" https://api.example.com/deploy'</span>
+        }
+      }
+    }
+  }
+}</pre>
+  <p>Inside a <code class="inline">withCredentials</code> block, Jenkins automatically <b>masks</b> secret values in console output — any string matching a bound credential value is replaced with <code class="inline">****</code>.</p>
+  <div class="box warn"><b>⚠️ Don't accidentally print secrets to the log</b>Masking only works on values <b>identical</b> to the original string. If you encode/transform a secret (base64, string concatenation), the transformed value <b>will NOT be masked</b> and can leak into the console. Avoid direct <code class="inline">echo $DOCKER_PASS</code>, avoid <code class="inline">set -x</code> in shell steps that touch secret variables, and don't use <code class="inline">sh(returnStdout: true)</code> to surface a secret in pipeline output.</div>
+  <h3>Scoping credential type by domain</h3>
+<pre><span class="lbl">Manage Jenkins › Credentials</span>Add domain: <span class="fn">internal-git</span>
+  Hostname specification: <span class="str">git.internal.company.com</span>
+<span class="cmt"># The SSH key credential only applies when Jenkins connects to this exact host</span></pre>
+  <div class="box tip"><b>💡 Use descriptive credentialsId names</b>Use meaningful IDs like <code class="inline">prod-docker-hub</code>, <code class="inline">staging-deploy-token</code> instead of the default UUID — easier to audit and scope by folder.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Create a new Folder, add a "username/password" credential scoped only to that folder, write a Jenkinsfile that uses <code class="inline">withCredentials</code> to log into a mock service, and confirm the console log shows <code class="inline">****</code> instead of the real password.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Advanced Credentials</span></div>
+  <ol class="examples">
+    <li><span class="task">Bind username/password to environment variables in a Jenkinsfile.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">withCredentials</span>([usernamePassword(credentialsId: <span class="str">'db-cred'</span>, usernameVariable: <span class="str">'DB_USER'</span>, passwordVariable: <span class="str">'DB_PASS'</span>)]) {
+  sh <span class="str">'psql -U $DB_USER'</span>
+}</pre></li>
+    <li><span class="task">Bind a secret text (API key) to a variable.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">withCredentials</span>([string(credentialsId: <span class="str">'slack-webhook'</span>, variable: <span class="str">'WEBHOOK'</span>)]) {
+  sh <span class="str">'curl -X POST $WEBHOOK -d "build done"'</span>
+}</pre></li>
+    <li><span class="task">Bind an SSH private key to deploy via rsync.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">withCredentials</span>([sshUserPrivateKey(credentialsId: <span class="str">'deploy-key'</span>, keyFileVariable: <span class="str">'KEY'</span>)]) {
+  sh <span class="str">'rsync -e "ssh -i $KEY" -av dist/ user@host:/var/www/'</span>
+}</pre></li>
+    <li><span class="task">Create a credential scoped only to one specific Folder.</span>
+<pre><span class="lbl">Folder › Credentials</span>Store scope: <span class="str">team-payments</span> (folder)
+Kind: Username with password</pre></li>
+    <li><span class="task">Combine multiple credentials in one withCredentials block.</span>
+<pre><span class="lbl">Jenkinsfile</span><span class="fn">withCredentials</span>([
+  string(credentialsId: <span class="str">'token'</span>, variable: <span class="str">'TOKEN'</span>),
+  usernamePassword(credentialsId: <span class="str">'registry'</span>, usernameVariable: <span class="str">'U'</span>, passwordVariable: <span class="str">'P'</span>)
+]) { sh <span class="str">'./deploy.sh'</span> }</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Advanced Credentials</span></div>
+  <ol class="drills">
+    <li><span class="task">Write a Jenkinsfile snippet binding secret text credential <code class="inline">'my-token'</code> to variable <code class="inline">TOKEN</code>.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="fn">withCredentials</span>([string(credentialsId: <span class="str">'my-token'</span>, variable: <span class="str">'TOKEN'</span>)]) { sh <span class="str">'echo using $TOKEN'</span> }</pre></div></details></li>
+    <li><span class="task">Why should credentials be scoped to a Folder rather than global?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Limits the blast radius — only jobs in that folder can use it, isolating risk between teams</span></pre></div></details></li>
+    <li><span class="task">Why is echoing a password variable to the log dangerous even with withCredentials?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Masking only hides values identical to the original; a transformed/encoded value will NOT be masked</span></pre></div></details></li>
+    <li><span class="task">Write a binding for an SSH private key into variable <code class="inline">SSH_KEY</code>.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>sshUserPrivateKey(credentialsId: <span class="str">'deploy-key'</span>, keyFileVariable: <span class="str">'SSH_KEY'</span>)</pre></div></details></li>
+    <li><span class="task">What is a hostname-based credential domain used for?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Restricts a credential to apply only when Jenkins connects to a matching host — useful with multiple hosts</span></pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 6.4 ============ -->
+<section class="lesson" id="best-practices">
+<div class="lang vi">
+  <span class="phase-tag">Bài 6.4</span>
+  <h2>Thực hành bảo mật tốt (Best Practices)</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Áp dụng danh sách khuyến nghị bảo mật chính thức của Jenkins: CSRF protection, cập nhật thường xuyên, hạn chế Script Console, tắt CLI qua remoting, dùng HTTPS/reverse proxy, và Content-Security-Policy.</div>
+  <h3>CSRF Protection</h3>
+  <p>Jenkins bật sẵn <b>"Prevent Cross Site Request Forgery exploits"</b> (dùng crumb) theo mặc định từ các phiên bản gần đây. Đảm bảo tùy chọn này <b>luôn được bật</b> trong <code class="inline">Manage Jenkins › Security</code>.</p>
+<pre><span class="lbl">Manage Jenkins › Security</span>☑ Prevent Cross Site Request Forgery exploits
+   Crumb Algorithm: Default Crumb Issuer</pre>
+  <h3>Cập nhật Jenkins &amp; plugin</h3>
+  <table>
+    <tr><th>Việc cần làm</th><th>Vì sao</th></tr>
+    <tr><td>Theo dõi <b>Jenkins Security Advisories</b> (jenkins.io/security/advisories)</td><td>Danh sách CVE chính thức, có mức độ nghiêm trọng &amp; bản vá</td></tr>
+    <tr><td>Cập nhật lên LTS mới nhất định kỳ</td><td>LTS nhận bản vá bảo mật thường xuyên hơn</td></tr>
+    <tr><td>Cập nhật plugin qua <b>Plugin Manager</b></td><td>Phần lớn lỗ hổng Jenkins nằm ở plugin, không phải core</td></tr>
+    <tr><td>Gỡ plugin không dùng</td><td>Giảm diện tích tấn công (attack surface)</td></tr>
+  </table>
+  <h3>Hạn chế Script Console</h3>
+  <div class="box warn"><b>⚠️ Script Console = quyền thực thi code tùy ý trên controller</b><code class="inline">Manage Jenkins › Script Console</code> chạy Groovy với quyền của tiến trình Jenkins — tương đương RCE nếu rơi vào tay kẻ xấu. Chỉ cấp <code class="inline">Overall/Administer</code> (quyền cần để dùng Script Console) cho số người tối thiểu tuyệt đối.</div>
+  <h3>Tắt CLI qua remoting, dùng HTTPS &amp; CSP</h3>
+<pre><span class="lbl">Manage Jenkins › Security</span><span class="cmt"># CLI protocol: bỏ chọn "CLI over Remoting" (đã bị coi là legacy/không an toàn)</span>
+<span class="cmt"># Chỉ giữ CLI qua SSH hoặc HTTP(S) nếu thực sự cần dùng CLI</span></pre>
+<pre><span class="lbl">reverse proxy (nginx)</span>server {
+  listen 443 ssl;
+  server_name jenkins.company.com;
+  location / {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header Host $host;
+  }
+}</pre>
+  <p>Với nội dung do người dùng tải lên/hiển thị (vd HTML report, artifact), Jenkins áp <b>Content-Security-Policy</b> mặc định rất chặt (chặn JS/CSS inline) để chống XSS. Chỉ nới lỏng qua system property <code class="inline">-Dhudson.model.DirectoryBrowserSupport.CSP</code> khi thật sự cần và hiểu rõ rủi ro.</p>
+<pre><span class="lbl">system property (chỉ khi cần)</span>-Dhudson.model.DirectoryBrowserSupport.CSP=<span class="str">"sandbox; default-src 'self';"</span></pre>
+  <div class="box why"><b>🤔 Vì sao chạy sau reverse proxy + HTTPS lại quan trọng?</b>Jenkins truyền session cookie, credentials và crumb CSRF qua HTTP — nếu không mã hóa, kẻ tấn công trên cùng mạng có thể đánh cắp phiên đăng nhập (session hijacking) bằng cách bắt gói tin.</div>
+  <div class="box tip"><b>💡 Checklist nhanh trước khi go-live</b>1) CSRF bật · 2) Jenkins &amp; plugin cập nhật · 3) Script Console giới hạn admin · 4) CLI over Remoting tắt · 5) Chạy sau HTTPS reverse proxy · 6) CSP mặc định giữ nguyên trừ khi có lý do rõ ràng.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Kiểm tra checklist 6 mục ở trên trên một Jenkins instance thật/demo của bạn, ghi chú mục nào chưa đạt và lên kế hoạch khắc phục.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Best Practices</span></div>
+  <ol class="examples">
+    <li><span class="task">Xác nhận CSRF protection đang bật.</span>
+<pre><span class="lbl">Manage Jenkins › Security</span>☑ Prevent Cross Site Request Forgery exploits</pre></li>
+    <li><span class="task">Tắt CLI over Remoting để giảm bề mặt tấn công.</span>
+<pre><span class="lbl">Manage Jenkins › Security</span>CLI protocols: ☐ CLI over Remoting (deprecated)</pre></li>
+    <li><span class="task">Cấu hình reverse proxy nginx với HTTPS cho Jenkins.</span>
+<pre><span class="lbl">nginx.conf</span>proxy_pass http://127.0.0.1:8080;
+proxy_set_header X-Forwarded-Proto https;</pre></li>
+    <li><span class="task">Giới hạn quyền dùng Script Console chỉ cho admin.</span>
+<pre><span class="lbl">Matrix/Role Strategy</span>Overall/Administer: chỉ gán cho nhóm <span class="str">jenkins-admins</span></pre></li>
+    <li><span class="task">Kiểm tra phiên bản plugin lỗi thời qua Plugin Manager.</span>
+<pre><span class="lbl">Manage Jenkins › Plugins</span>Tab "Updates" → cập nhật các plugin có bản vá bảo mật</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Best Practices</span></div>
+  <ol class="drills">
+    <li><span class="task">Vì sao nên tắt "CLI over Remoting"?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Giao thức cũ, từng có nhiều lỗ hổng deserialization nghiêm trọng — Jenkins khuyến nghị dùng CLI qua SSH/HTTP(S) thay thế</span></pre></div></details></li>
+    <li><span class="task">Ai nên có quyền truy cập Script Console?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Chỉ những người có Overall/Administer, số lượng tối thiểu tuyệt đối vì tương đương RCE trên controller</span></pre></div></details></li>
+    <li><span class="task">Viết directive nginx forward đúng scheme HTTPS cho Jenkins phía sau proxy.</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>proxy_set_header X-Forwarded-Proto https;</pre></div></details></li>
+    <li><span class="task">Phần lớn lỗ hổng bảo mật Jenkins nằm ở đâu: core hay plugin?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Phần lớn nằm ở plugin — cần theo dõi Jenkins Security Advisories và cập nhật plugin thường xuyên</span></pre></div></details></li>
+    <li><span class="task">CSP mặc định của Jenkins bảo vệ chống lại loại tấn công nào?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// XSS (Cross-Site Scripting) qua nội dung do người dùng tải lên như HTML report/artifact</span></pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 6.4</span>
+  <h2>Security Best Practices</h2>
+  <div class="box goal"><b>🎯 Goal</b>Apply Jenkins' official security recommendations: CSRF protection, keeping Jenkins &amp; plugins updated, restricting Script Console access, disabling CLI over remoting, using HTTPS/reverse proxy, and Content-Security-Policy.</div>
+  <h3>CSRF Protection</h3>
+  <p>Jenkins enables <b>"Prevent Cross Site Request Forgery exploits"</b> (crumb-based) by default in recent versions. Make sure this stays <b>enabled</b> under <code class="inline">Manage Jenkins › Security</code>.</p>
+<pre><span class="lbl">Manage Jenkins › Security</span>☑ Prevent Cross Site Request Forgery exploits
+   Crumb Algorithm: Default Crumb Issuer</pre>
+  <h3>Keeping Jenkins &amp; plugins updated</h3>
+  <table>
+    <tr><th>What to do</th><th>Why</th></tr>
+    <tr><td>Follow the <b>Jenkins Security Advisories</b> (jenkins.io/security/advisories)</td><td>Official CVE list with severity &amp; fixes</td></tr>
+    <tr><td>Periodically update to the latest LTS</td><td>LTS receives security fixes more consistently</td></tr>
+    <tr><td>Update plugins via the <b>Plugin Manager</b></td><td>Most Jenkins vulnerabilities live in plugins, not core</td></tr>
+    <tr><td>Remove unused plugins</td><td>Reduces attack surface</td></tr>
+  </table>
+  <h3>Restricting Script Console access</h3>
+  <div class="box warn"><b>⚠️ Script Console = arbitrary code execution on the controller</b><code class="inline">Manage Jenkins › Script Console</code> runs Groovy with the Jenkins process's own privileges — equivalent to RCE in the wrong hands. Grant <code class="inline">Overall/Administer</code> (required to use Script Console) to the absolute minimum number of people.</div>
+  <h3>Disabling CLI over remoting, using HTTPS &amp; CSP</h3>
+<pre><span class="lbl">Manage Jenkins › Security</span><span class="cmt"># CLI protocol: uncheck "CLI over Remoting" (considered legacy/unsafe)</span>
+<span class="cmt"># Keep CLI over SSH or HTTP(S) only if the CLI is actually needed</span></pre>
+<pre><span class="lbl">reverse proxy (nginx)</span>server {
+  listen 443 ssl;
+  server_name jenkins.company.com;
+  location / {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header Host $host;
+  }
+}</pre>
+  <p>For user-uploaded/served content (e.g. HTML reports, artifacts), Jenkins applies a strict default <b>Content-Security-Policy</b> (blocking inline JS/CSS) to prevent XSS. Only relax it via the <code class="inline">-Dhudson.model.DirectoryBrowserSupport.CSP</code> system property when truly necessary and the risk is understood.</p>
+<pre><span class="lbl">system property (only if needed)</span>-Dhudson.model.DirectoryBrowserSupport.CSP=<span class="str">"sandbox; default-src 'self';"</span></pre>
+  <div class="box why"><b>🤔 Why does running behind a reverse proxy + HTTPS matter?</b>Jenkins transmits session cookies, credentials, and CSRF crumbs over HTTP — without encryption, an attacker on the same network can hijack sessions by sniffing traffic.</div>
+  <div class="box tip"><b>💡 Quick checklist before go-live</b>1) CSRF enabled · 2) Jenkins &amp; plugins up to date · 3) Script Console restricted to admins · 4) CLI over Remoting disabled · 5) Running behind HTTPS reverse proxy · 6) Default CSP kept unless there's a clear reason to relax it.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Run the 6-item checklist above against a real/demo Jenkins instance, note which items fail, and plan remediation.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Best Practices</span></div>
+  <ol class="examples">
+    <li><span class="task">Confirm CSRF protection is enabled.</span>
+<pre><span class="lbl">Manage Jenkins › Security</span>☑ Prevent Cross Site Request Forgery exploits</pre></li>
+    <li><span class="task">Disable CLI over Remoting to shrink the attack surface.</span>
+<pre><span class="lbl">Manage Jenkins › Security</span>CLI protocols: ☐ CLI over Remoting (deprecated)</pre></li>
+    <li><span class="task">Configure an nginx reverse proxy with HTTPS for Jenkins.</span>
+<pre><span class="lbl">nginx.conf</span>proxy_pass http://127.0.0.1:8080;
+proxy_set_header X-Forwarded-Proto https;</pre></li>
+    <li><span class="task">Restrict Script Console access to admins only.</span>
+<pre><span class="lbl">Matrix/Role Strategy</span>Overall/Administer: granted only to <span class="str">jenkins-admins</span> group</pre></li>
+    <li><span class="task">Check for outdated plugin versions via Plugin Manager.</span>
+<pre><span class="lbl">Manage Jenkins › Plugins</span>"Updates" tab → update plugins with security fixes</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Best Practices</span></div>
+  <ol class="drills">
+    <li><span class="task">Why should "CLI over Remoting" be disabled?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Legacy protocol with a history of serious deserialization vulnerabilities — Jenkins recommends SSH/HTTP(S) CLI instead</span></pre></div></details></li>
+    <li><span class="task">Who should have access to the Script Console?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Only those with Overall/Administer, kept to an absolute minimum since it's equivalent to RCE on the controller</span></pre></div></details></li>
+    <li><span class="task">Write the nginx directive that forwards the correct HTTPS scheme to Jenkins behind a proxy.</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>proxy_set_header X-Forwarded-Proto https;</pre></div></details></li>
+    <li><span class="task">Where do most Jenkins security vulnerabilities live: core or plugins?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Mostly plugins — follow Jenkins Security Advisories and update plugins regularly</span></pre></div></details></li>
+    <li><span class="task">What attack does Jenkins' default CSP protect against?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// XSS (Cross-Site Scripting) via user-uploaded content like HTML reports/artifacts</span></pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<!-- ============ 6.5 ============ -->
+<section class="lesson" id="audit">
+<div class="lang vi">
+  <span class="phase-tag">Bài 6.5</span>
+  <h2>Audit Trail &amp; bảo mật Agent-Controller</h2>
+  <div class="box goal"><b>🎯 Mục tiêu</b>Ghi lại "ai đã làm gì" bằng Audit Trail plugin, hiểu mô hình Agent → Controller Access Control, và biết vì sao không nên chạy code chưa tin cậy/nặng tải trên controller.</div>
+  <h3>Audit Trail Plugin</h3>
+  <p>Plugin <b>Audit Trail</b> ghi log mọi thao tác quan trọng (tạo/xóa/sửa job, thay đổi cấu hình, chạy build...) kèm theo user thực hiện, giúp truy vết khi có sự cố.</p>
+<pre><span class="lbl">Manage Jenkins › Audit Trail</span>Log Locations:
+  - Log file location: <span class="str">/var/log/jenkins/audit.log</span>
+    Log file size (MB): <span class="num">10</span>
+    Log file count: <span class="num">5</span></pre>
+<pre><span class="lbl">/var/log/jenkins/audit.log</span>Jul 08, 2026 9:14:02 AM alice/authenticated <span class="fn">runOnFailure</span> #42 <span class="str">deploy-prod</span> started
+Jul 08, 2026 9:15:10 AM bob/authenticated <span class="fn">deleteJob</span> <span class="str">legacy-pipeline</span></pre>
+  <div class="box tip"><b>💡 Kết hợp với hệ thống log tập trung</b>Trỏ Audit Trail ghi ra syslog hoặc chuyển tiếp file log vào ELK/Splunk để lưu trữ lâu dài và cảnh báo tự động khi có hành vi bất thường (vd xóa hàng loạt job).</div>
+  <h3>Agent → Controller Access Control</h3>
+  <p>Từ Jenkins 2.x trở đi, controller mặc định <b>không tin tưởng agent</b> theo kiểu trước đây. Cơ chế <b>Agent → Controller Access Control</b> chặn agent gửi các lệnh nhạy cảm (đọc file bất kỳ trên controller, thao tác với đối tượng nội bộ...) trừ khi được cho phép rõ ràng.</p>
+<pre><span class="lbl">Manage Jenkins › Security</span>☑ Enable Agent → Controller Access Control
+Allowlist: (mặc định trống — chỉ thêm khi có plugin/job hợp lệ cần ngoại lệ)</pre>
+  <table>
+    <tr><th>Nguyên tắc</th><th>Giải thích</th></tr>
+    <tr><td>Controller không tin agent tuyệt đối</td><td>Agent bị compromise (vd do chạy code CI độc hại) không thể tự do đọc/ghi trên controller</td></tr>
+    <tr><td>Build chạy trên agent, không trên controller</td><td>Giữ <code class="inline">agent any</code>/<code class="inline">agent { label ... }</code> trỏ tới agent thật, hạn chế job build trực tiếp trên controller</td></tr>
+    <tr><td>Không chạy code chưa tin cậy trên controller</td><td>Controller có toàn quyền hệ thống Jenkins — code độc hại ở đây ảnh hưởng toàn bộ instance</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Vì sao không nên để job build trực tiếp trên controller (master)?</b>Controller lưu trữ cấu hình, credentials và trạng thái toàn bộ hệ thống. Một pipeline chạy code build (npm/pip/gradle...) tải phụ thuộc từ Internet trên chính controller làm tăng nguy cơ supply-chain attack ảnh hưởng tới toàn Jenkins, thay vì chỉ một agent cô lập, dễ dàng huỷ và tái tạo.</div>
+  <div class="box warn"><b>⚠️ "Built-In Node" (trước gọi là master/controller node) nên để trống executor</b>Đặt <b>Number of executors = 0</b> cho Built-In Node trong <code class="inline">Manage Jenkins › Nodes</code> để buộc mọi build chạy trên agent — giảm thiểu rủi ro code untrusted chạy trên controller.</div>
+  <div class="box practice"><b>✍️ Thực hành</b>Cài Audit Trail plugin, cấu hình ghi log ra file, thực hiện vài thao tác (tạo job, đổi cấu hình), sau đó kiểm tra nội dung audit log. Sau đó vào <code class="inline">Manage Jenkins › Nodes</code>, đặt executor của Built-In Node về 0.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 ví dụ thực tế · Audit &amp; Agent-Controller</span></div>
+  <ol class="examples">
+    <li><span class="task">Cấu hình Audit Trail ghi log ra file trên đĩa.</span>
+<pre><span class="lbl">Audit Trail config</span>Log file location: <span class="str">/var/log/jenkins/audit.log</span></pre></li>
+    <li><span class="task">Đặt số executor của Built-In Node về 0.</span>
+<pre><span class="lbl">Manage Jenkins › Nodes › Built-In Node</span># of executors: <span class="num">0</span></pre></li>
+    <li><span class="task">Bật Agent → Controller Access Control.</span>
+<pre><span class="lbl">Manage Jenkins › Security</span>☑ Enable Agent → Controller Access Control</pre></li>
+    <li><span class="task">Ghi audit log ra syslog thay vì file cục bộ.</span>
+<pre><span class="lbl">Audit Trail config</span>Log Locations: Syslog
+Syslog server: <span class="str">syslog.company.com:514</span></pre></li>
+    <li><span class="task">Chỉ định job build phải chạy trên agent có label cụ thể.</span>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent { label <span class="str">'linux-docker'</span> }
+  ...
+}</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 bài thực hành · Audit &amp; Agent-Controller</span></div>
+  <ol class="drills">
+    <li><span class="task">Audit Trail plugin ghi lại những thông tin gì cho mỗi hành động?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Thời gian, user thực hiện, và loại hành động (tạo/xóa/sửa job, chạy build, đổi cấu hình...)</span></pre></div></details></li>
+    <li><span class="task">Vì sao nên đặt executor của Built-In Node = 0?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Buộc mọi build chạy trên agent cô lập thay vì trên controller — giảm rủi ro code untrusted ảnh hưởng toàn hệ thống</span></pre></div></details></li>
+    <li><span class="task">Agent → Controller Access Control bảo vệ điều gì?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Ngăn agent (có thể bị compromise) gửi lệnh nhạy cảm để đọc/ghi tùy ý trên controller</span></pre></div></details></li>
+    <li><span class="task">Viết Jenkinsfile chỉ định agent chạy trên label "windows".</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre>pipeline { agent { label <span class="str">'windows'</span> } }</pre></div></details></li>
+    <li><span class="task">Vì sao nên chuyển tiếp audit log tới hệ thống log tập trung (ELK/Splunk)?</span>
+      <details class="ans"><summary>Đáp án</summary><div class="a-body"><pre><span class="cmt">// Lưu trữ lâu dài, chống mất log khi controller gặp sự cố, và cho phép cảnh báo tự động khi phát hiện hành vi bất thường</span></pre></div></details></li>
+  </ol>
+</div>
+<div class="lang en">
+  <span class="phase-tag">Lesson 6.5</span>
+  <h2>Audit Trail &amp; Agent-Controller Security</h2>
+  <div class="box goal"><b>🎯 Goal</b>Log "who did what" with the Audit Trail plugin, understand the Agent → Controller Access Control model, and know why untrusted/heavy code shouldn't run on the controller.</div>
+  <h3>Audit Trail Plugin</h3>
+  <p>The <b>Audit Trail</b> plugin logs important actions (create/delete/edit job, configuration changes, build triggers...) along with the acting user, enabling incident traceability.</p>
+<pre><span class="lbl">Manage Jenkins › Audit Trail</span>Log Locations:
+  - Log file location: <span class="str">/var/log/jenkins/audit.log</span>
+    Log file size (MB): <span class="num">10</span>
+    Log file count: <span class="num">5</span></pre>
+<pre><span class="lbl">/var/log/jenkins/audit.log</span>Jul 08, 2026 9:14:02 AM alice/authenticated <span class="fn">runOnFailure</span> #42 <span class="str">deploy-prod</span> started
+Jul 08, 2026 9:15:10 AM bob/authenticated <span class="fn">deleteJob</span> <span class="str">legacy-pipeline</span></pre>
+  <div class="box tip"><b>💡 Combine with centralized logging</b>Point Audit Trail at syslog or forward the log file into ELK/Splunk for long-term retention and automated alerting on anomalous behavior (e.g. mass job deletion).</div>
+  <h3>Agent → Controller Access Control</h3>
+  <p>Since Jenkins 2.x, the controller no longer trusts agents unconditionally the way it once did. The <b>Agent → Controller Access Control</b> mechanism blocks agents from sending sensitive commands (reading arbitrary files on the controller, manipulating internal objects...) unless explicitly allowlisted.</p>
+<pre><span class="lbl">Manage Jenkins › Security</span>☑ Enable Agent → Controller Access Control
+Allowlist: (empty by default — only add exceptions for legitimate plugins/jobs that need them)</pre>
+  <table>
+    <tr><th>Principle</th><th>Explanation</th></tr>
+    <tr><td>The controller never fully trusts an agent</td><td>A compromised agent (e.g. via malicious CI code) can't freely read/write on the controller</td></tr>
+    <tr><td>Builds run on agents, not on the controller</td><td>Keep <code class="inline">agent any</code>/<code class="inline">agent { label ... }</code> pointing at real agents; avoid building directly on the controller</td></tr>
+    <tr><td>Don't run untrusted code on the controller</td><td>The controller has full authority over the Jenkins system — malicious code here affects the entire instance</td></tr>
+  </table>
+  <div class="box why"><b>🤔 Why shouldn't jobs build directly on the controller (master)?</b>The controller stores configuration, credentials, and the state of the entire system. A pipeline that runs build tooling (npm/pip/gradle...) pulling dependencies from the Internet directly on the controller raises the risk of a supply-chain attack impacting the whole Jenkins instance, instead of just an isolated, disposable agent.</div>
+  <div class="box warn"><b>⚠️ Keep the "Built-In Node" (formerly master/controller node) executor count at zero</b>Set <b>Number of executors = 0</b> for the Built-In Node under <code class="inline">Manage Jenkins › Nodes</code> to force all builds onto agents — minimizing the risk of untrusted code running on the controller.</div>
+  <div class="box practice"><b>✍️ Exercise</b>Install the Audit Trail plugin, configure it to log to a file, perform a few actions (create a job, change a config), then inspect the audit log contents. Then go to <code class="inline">Manage Jenkins › Nodes</code> and set the Built-In Node's executor count to 0.</div>
+  <div class="drill-head"><span class="phase-tag">📚 5 real-world examples · Audit &amp; Agent-Controller</span></div>
+  <ol class="examples">
+    <li><span class="task">Configure Audit Trail to log to a file on disk.</span>
+<pre><span class="lbl">Audit Trail config</span>Log file location: <span class="str">/var/log/jenkins/audit.log</span></pre></li>
+    <li><span class="task">Set the Built-In Node's executor count to 0.</span>
+<pre><span class="lbl">Manage Jenkins › Nodes › Built-In Node</span># of executors: <span class="num">0</span></pre></li>
+    <li><span class="task">Enable Agent → Controller Access Control.</span>
+<pre><span class="lbl">Manage Jenkins › Security</span>☑ Enable Agent → Controller Access Control</pre></li>
+    <li><span class="task">Send audit logs to syslog instead of a local file.</span>
+<pre><span class="lbl">Audit Trail config</span>Log Locations: Syslog
+Syslog server: <span class="str">syslog.company.com:514</span></pre></li>
+    <li><span class="task">Pin a build job to run on an agent with a specific label.</span>
+<pre><span class="lbl">Jenkinsfile</span>pipeline {
+  agent { label <span class="str">'linux-docker'</span> }
+  ...
+}</pre></li>
+  </ol>
+  <div class="drill-head"><span class="phase-tag">📦 5 drills · Audit &amp; Agent-Controller</span></div>
+  <ol class="drills">
+    <li><span class="task">What information does the Audit Trail plugin record per action?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Timestamp, acting user, and action type (create/delete/edit job, build trigger, config change...)</span></pre></div></details></li>
+    <li><span class="task">Why set the Built-In Node's executor count to 0?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Forces all builds onto isolated agents instead of the controller — reduces risk from untrusted code affecting the whole system</span></pre></div></details></li>
+    <li><span class="task">What does Agent → Controller Access Control protect against?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Prevents a (potentially compromised) agent from sending sensitive commands to freely read/write on the controller</span></pre></div></details></li>
+    <li><span class="task">Write a Jenkinsfile snippet pinning the agent to label "windows".</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre>pipeline { agent { label <span class="str">'windows'</span> } }</pre></div></details></li>
+    <li><span class="task">Why forward audit logs to a centralized logging system (ELK/Splunk)?</span>
+      <details class="ans"><summary>Answer</summary><div class="a-body"><pre><span class="cmt">// Long-term retention, protection against log loss if the controller fails, and automated alerting on anomalous activity</span></pre></div></details></li>
+  </ol>
+</div>
+</section>
+
+<div class="pager">
+  <a class="prev" href="phase5-managing-jenkins.html"><span class="dir">← <span class="vi">Trước</span><span class="en">Prev</span></span><span class="ttl"><span class="vi">Giai đoạn 5 · Managing Jenkins</span><span class="en">Stage 5 · Managing Jenkins</span></span></a>
+  <a class="next" href="phase7-scaling.html"><span class="dir"><span class="vi">Tiếp theo</span><span class="en">Next</span> →</span><span class="ttl"><span class="vi">Giai đoạn 7 · Scaling</span><span class="en">Stage 7 · Scaling</span></span></a>
+</div>
+
+</main>
+</div>
+<script src="assets/i18n.js"></script>
+<script src="assets/scrollspy.js"></script>
+</body>
+</html>
